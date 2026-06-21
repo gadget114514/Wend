@@ -10220,7 +10220,7 @@ Object.assign(app, {
                 const cancelBtn = (st === 'running' || st === 'queued')
                     ? `<button class="bt-hist-btn cancel-btn" onclick="app.cancelRun('${run.runId}')" title="Cancel">⏹</button>` : '';
                 const retryBtn = (st === 'failed' || st === 'cancelled') && fullPath
-                    ? `<button class="bt-hist-btn retry-btn" onclick="app.retryRun(${JSON.stringify(fullPath)},${JSON.stringify(run.group||null)})" title="Retry">↺</button>` : '';
+                    ? `<button class="bt-hist-btn retry-btn" onclick="app.retryFromNode('${run.runId}',${JSON.stringify(fullPath)},${JSON.stringify(run.error||'')},${JSON.stringify(run.group||null)})" title="Retry from error node">↺</button>` : '';
                 const aiBtn = st === 'failed'
                     ? `<button class="bt-hist-btn ai-btn" onclick="app.showAIFix('${run.runId}',${JSON.stringify(fullPath||'')},${JSON.stringify(run.error||'')})" title="AI Fix suggestion">🤖</button>` : '';
                 const editBtn = (st === 'failed' || st === 'cancelled') && fullPath
@@ -10268,25 +10268,66 @@ Object.assign(app, {
         }
     },
 
-    async retryRun(file, group) {
+    async retryFromNode(runId, file, error, group) {
+        // Parse "Node: Title (0/1/2)" from the error string
+        const nodeMatch = error?.match(/\nNode: ([^\n(]+)\(([^)]+)\)/);
+        const nodeTitle = nodeMatch?.[1]?.trim();
+        const nodePath  = nodeMatch?.[2]?.trim();
+
+        if (nodePath && file) {
+            try {
+                // Read BT JSON file directly (Electron file:// access)
+                const fileUrl = 'file:///' + file.replace(/\\/g, '/');
+                const resp = await fetch(fileUrl);
+                if (!resp.ok) throw new Error('file read failed');
+                const btJson = await resp.json();
+
+                // Walk tree to extract the failed subtree
+                const subtree = this._btNodeAtPath(btJson, nodePath);
+                if (!subtree) throw new Error('node not found at path ' + nodePath);
+
+                // Run just the failed subtree as an independent job
+                const body = { tree: subtree };
+                if (group) body.group = group;
+                const runResp = await fetch('http://127.0.0.1:18765/bt/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                const data = await runResp.json();
+                this.addLog(`[Tasks] Retry node "${nodeTitle || nodePath}" → ${data.runId || 'queued'}`);
+                this.updateTaskMetrics();
+                return;
+            } catch (e) {
+                this.addLog(`[Tasks] Could not isolate node (${e.message}), retrying full BT`);
+            }
+        }
+
+        // Fallback: restart entire BT from root
         try {
             const body = { file };
             if (group) body.group = group;
-            const response = await fetch('http://127.0.0.1:18765/bt/run', {
+            const resp = await fetch('http://127.0.0.1:18765/bt/run', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
             });
-            if (response.ok) {
-                const data = await response.json();
-                this.addLog(`[Tasks] Retried: ${file.split('/').pop()} → ${data.runId || 'queued'}`);
-                this.updateTaskMetrics();
-            } else {
-                this.addLog(`[Tasks] Retry failed for: ${file}`);
-            }
+            const data = await resp.json();
+            this.addLog(`[Tasks] Retried (full): ${file.split('/').pop()} → ${data.runId || 'queued'}`);
+            this.updateTaskMetrics();
         } catch (e) {
             this.addLog(`[Tasks] Retry error: ${e.message}`);
         }
+    },
+
+    _btNodeAtPath(root, path) {
+        if (!path) return root;
+        let node = root;
+        for (const idx of path.split('/').map(Number)) {
+            if (!node.children || idx >= node.children.length) return null;
+            node = node.children[idx];
+        }
+        return node;
     },
 
     async startBTRun(file) {
