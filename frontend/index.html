@@ -18,7 +18,6 @@
             <div class="tree-tabs">
                 <button id="btn-tree-tab-pipeline" class="tree-tab-btn active" onclick="app.switchTreeTab('pipeline')">BT/pipeline</button>
                 <button id="btn-tree-tab-file" class="tree-tab-btn" onclick="app.switchTreeTab('file')">File</button>
-                <button id="btn-tree-tab-manager" class="tree-tab-btn" onclick="app.switchTreeTab('manager')">🚀 Manager</button>
                 <button class="tree-add-btn" onclick="app.addRootNode()" title="Add Root Node" data-i18n-title="AddRootNode">➕</button>
             </div>
             <div id="bt-toolbar">
@@ -33,78 +32,6 @@
             </div>
             <div id="tree-content" class="pane-content"></div>
             <div id="file-tree-content" class="pane-content" style="display:none"></div>
-            <div id="task-manager-content" class="pane-content task-manager-pane" style="display:none;flex-direction:column;padding:0">
-                <div class="task-manager-header-pane">
-                    <span>Task Manager</span>
-                    <button class="task-manager-pane-btn" onclick="app.refreshTaskMetrics()" title="Refresh">⟳</button>
-                </div>
-                <div class="task-manager-body-pane">
-                    <!-- Donut + Stats -->
-                    <div class="task-summary-section">
-                        <svg id="task-donut-svg" class="task-donut" viewBox="0 0 80 80" width="76" height="76">
-                            <circle cx="40" cy="40" r="30" fill="none" stroke="var(--theme-bg3)" stroke-width="10"/>
-                            <text x="40" y="44" text-anchor="middle" font-size="13" font-weight="bold" fill="var(--theme-text)" id="task-donut-label">0</text>
-                        </svg>
-                        <div class="task-stats-grid">
-                            <div class="stat-box stat-active">
-                                <div class="stat-label">Active</div>
-                                <div class="stat-value" id="task-active-count">0</div>
-                            </div>
-                            <div class="stat-box stat-queued">
-                                <div class="stat-label">Queued</div>
-                                <div class="stat-value" id="task-queued-count">0</div>
-                            </div>
-                            <div class="stat-box stat-done">
-                                <div class="stat-label">Done</div>
-                                <div class="stat-value" id="task-completed-count">0</div>
-                            </div>
-                            <div class="stat-box stat-fail">
-                                <div class="stat-label">Failed</div>
-                                <div class="stat-value" id="task-failed-count">0</div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Token / Duration row -->
-                    <div class="task-metrics-row">
-                        <div class="task-metric-item">
-                            <div class="task-metric-label">Avg Duration</div>
-                            <div class="task-metric-value" id="task-avg-duration">--</div>
-                        </div>
-                        <div class="task-metric-item">
-                            <div class="task-metric-label">Total Tokens</div>
-                            <div class="task-metric-value" id="task-total-tokens">0</div>
-                        </div>
-                        <div class="task-metric-item">
-                            <div class="task-metric-label">Tok/sec</div>
-                            <div class="task-metric-value" id="task-token-rate">--</div>
-                        </div>
-                    </div>
-
-                    <!-- Groups Section -->
-                    <div class="task-groups-section">
-                        <div class="groups-header">Execution Groups</div>
-                        <div id="task-groups-container" class="task-groups-container"></div>
-                    </div>
-
-                    <!-- Individual Runs Section -->
-                    <div class="task-runs-section">
-                        <div class="runs-header">All Runs</div>
-                        <div id="task-runs-container" class="task-runs-container"></div>
-                    </div>
-                </div>
-                <!-- Embedded Log Pane -->
-                <div class="task-embedded-log-pane">
-                    <div class="task-embedded-log-header">
-                        <span class="task-log-tabs">
-                            <button class="task-log-tab task-log-tab-active" data-etab="log" onclick="app.switchEmbeddedLogTab('log')">📝 Log</button>
-                            <button class="task-log-tab" data-etab="http" onclick="app.switchEmbeddedLogTab('http')">🌐 HTTP</button>
-                        </span>
-                        <button class="task-manager-pane-btn" onclick="app.clearEmbeddedLog()" title="Clear">✕</button>
-                    </div>
-                    <div id="task-embedded-log" class="task-embedded-log-content"></div>
-                    <div id="task-embedded-http-log" class="task-embedded-log-content" style="display:none"></div>
-                </div>
-            </div>
         </div>
         <div class="vertical-resize-handle" id="tree-resize-handle"></div>
         <div id="prompt-pane" class="pane">
@@ -145,14 +72,72 @@
             <span class="msg-tabs">
                 <button class="msg-tab msg-tab-active" data-tab="log" onclick="event.stopPropagation();app.switchMsgTab('log')">📝 <span data-i18n="Messages">Log</span></button>
                 <button class="msg-tab" data-tab="http" onclick="event.stopPropagation();app.switchMsgTab('http')">🌐 HTTP</button>
+                <button class="msg-tab" data-tab="manager" onclick="event.stopPropagation();app.switchMsgTab('manager')">🚀 Manager</button>
             </span>
-            <span class="messages-actions">
+            <span class="messages-actions" id="msg-log-actions">
                 <button class="msg-action-btn" onclick="event.stopPropagation();app.copyAllLogs()" title="Copy all logs" data-hint="Copy all logs">📋</button>
                 <button class="msg-action-btn" onclick="event.stopPropagation();app.clearLogs()" title="Clear logs" data-hint="Clear logs">✕</button>
+            </span>
+            <span class="messages-actions" id="msg-manager-actions" style="display:none">
+                <button class="msg-action-btn" onclick="event.stopPropagation();app.refreshTaskMetrics()" title="Refresh">⟳</button>
             </span>
         </div>
         <div id="messages-content" oncontextmenu="event.preventDefault();app.showLogContextMenu(event)"></div>
         <div id="http-log-content" style="display:none;overflow-y:auto;flex:1;font-family:monospace;font-size:11px;padding:4px;background:#1e1e1e;"></div>
+        <div id="task-manager-content" class="task-manager-pane" style="display:none;padding:0">
+            <div class="task-manager-body-pane">
+                <!-- Donut + Stats -->
+                <div class="task-summary-section">
+                    <svg id="task-donut-svg" class="task-donut" viewBox="0 0 80 80" width="76" height="76">
+                        <circle cx="40" cy="40" r="30" fill="none" stroke="var(--theme-bg3)" stroke-width="10"/>
+                        <text x="40" y="44" text-anchor="middle" font-size="13" font-weight="bold" fill="var(--theme-text)" id="task-donut-label">0</text>
+                    </svg>
+                    <div class="task-stats-grid">
+                        <div class="stat-box stat-active">
+                            <div class="stat-label">Active</div>
+                            <div class="stat-value" id="task-active-count">0</div>
+                        </div>
+                        <div class="stat-box stat-queued">
+                            <div class="stat-label">Queued</div>
+                            <div class="stat-value" id="task-queued-count">0</div>
+                        </div>
+                        <div class="stat-box stat-done">
+                            <div class="stat-label">Done</div>
+                            <div class="stat-value" id="task-completed-count">0</div>
+                        </div>
+                        <div class="stat-box stat-fail">
+                            <div class="stat-label">Failed</div>
+                            <div class="stat-value" id="task-failed-count">0</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Token / Duration row -->
+                <div class="task-metrics-row">
+                    <div class="task-metric-item">
+                        <div class="task-metric-label">Avg Duration</div>
+                        <div class="task-metric-value" id="task-avg-duration">--</div>
+                    </div>
+                    <div class="task-metric-item">
+                        <div class="task-metric-label">Total Tokens</div>
+                        <div class="task-metric-value" id="task-total-tokens">0</div>
+                    </div>
+                    <div class="task-metric-item">
+                        <div class="task-metric-label">Tok/sec</div>
+                        <div class="task-metric-value" id="task-token-rate">--</div>
+                    </div>
+                </div>
+                <!-- Groups Section -->
+                <div class="task-groups-section">
+                    <div class="groups-header">Execution Groups</div>
+                    <div id="task-groups-container" class="task-groups-container"></div>
+                </div>
+                <!-- Individual Runs Section -->
+                <div class="task-runs-section">
+                    <div class="runs-header">All Runs</div>
+                    <div id="task-runs-container" class="task-runs-container"></div>
+                </div>
+            </div>
+        </div>
     </div>
     <!-- BT Config Dialog -->
     <div id="bt-config-modal" class="modal" style="display:none" onclick="if(event.target===this)app.btConfigClose()">
