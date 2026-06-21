@@ -10168,16 +10168,17 @@ Object.assign(app, {
         const container = document.getElementById('bt-panels-container');
         if (!container) return;
 
-        if (runs.length === 0) {
+        const tabs = this.state.tabs || [];
+        if (tabs.length === 0 && runs.length === 0) {
             container.innerHTML = `
                 <div class="bt-empty-state">
                     <div class="bt-empty-icon">🚀</div>
                     <div class="bt-empty-title">No tasks yet</div>
                     <div class="bt-empty-desc">
-                        Run a behavior tree to see it here.<br>
-                        Use the ▶ button in the toolbar or right-click a BT file.
+                        Open a BT file to see it here.<br>
+                        Use the File tab or drag & drop a .bt.json file.
                     </div>
-                    <div class="bt-empty-hint">💡 Tip: Open a .bt.json file and click ▶ to start</div>
+                    <div class="bt-empty-hint">💡 Tip: Click the File tab and open a BT file</div>
                 </div>
             `;
             return;
@@ -10186,28 +10187,45 @@ Object.assign(app, {
         const collapsed = new Set();
         container.querySelectorAll('.bt-panel.collapsed').forEach(el => collapsed.add(el.dataset.file));
 
-        const byFile = new Map();
+        const runsByFile = new Map();
         for (const run of runs) {
             const key = run.file || '__unknown__';
-            if (!byFile.has(key)) byFile.set(key, []);
-            byFile.get(key).push(run);
+            if (!runsByFile.has(key)) runsByFile.set(key, []);
+            runsByFile.get(key).push(run);
         }
 
-        container.innerHTML = [...byFile.entries()].map(([file, fileRuns]) => {
+        const panels = [];
+        const processedFiles = new Set();
+
+        for (let i = 0; i < tabs.length; i++) {
+            const tab = tabs[i];
+            const file = tab.file || '__unknown__';
+            if (processedFiles.has(file)) continue;
+            processedFiles.add(file);
+            const fileRuns = runsByFile.get(file) || [];
+            panels.push({ index: i, file, tab, fileRuns });
+        }
+
+        for (const [file, fileRuns] of runsByFile.entries()) {
+            if (processedFiles.has(file)) continue;
+            panels.push({ index: null, file, tab: null, fileRuns });
+        }
+
+        container.innerHTML = panels.map(({ index, file, tab, fileRuns }) => {
             const fname = file === '__unknown__' ? '(inline)' : file.split(/[\\/]/).pop();
             const fullPath = file === '__unknown__' ? null : file;
 
             const sorted = [...fileRuns].reverse();
             const activeRun = sorted.find(r => r.status === 'running' || r.status === 'queued');
-            const lastRun = sorted[0];
             const isCollapsed = !activeRun && collapsed.has(file) ? ' collapsed' : '';
 
             const panelStatus = activeRun ? activeRun.status
-                : lastRun?.status || 'completed';
+                : sorted[0]?.status || 'idle';
             const dotColor = panelStatus === 'running' ? '#64b5f6'
                 : panelStatus === 'queued' ? '#bdbdbd'
                 : panelStatus === 'failed' ? '#ef5350'
-                : panelStatus === 'cancelled' ? '#ffb74d' : '#81c784';
+                : panelStatus === 'cancelled' ? '#ffb74d'
+                : panelStatus === 'completed' ? '#81c784' : '#757575';
 
             const stopDisabled = activeRun ? '' : ' disabled';
             const stopOnclick = activeRun ? `app.cancelRun('${activeRun.runId}')` : '';
@@ -10268,29 +10286,30 @@ Object.assign(app, {
                 </div>`;
             }).join('');
 
+            const headerClick = index !== null ? `app.switchTab(${index})` : (fullPath ? `app.editBT(${JSON.stringify(fullPath)})` : '');
+
             return `<div class="bt-panel${isCollapsed}" data-file="${this.escapeHtml(file)}">
-                <div class="bt-panel-header" onclick="if(event.target===this||event.target.classList.contains('bt-panel-title')||event.target.classList.contains('bt-panel-fname')||event.target.classList.contains('bt-panel-group'))app.editBT(${JSON.stringify(fullPath||'')})">
+                <div class="bt-panel-header" onclick="if(event.target===this||event.target.classList.contains('bt-panel-title')||event.target.classList.contains('bt-panel-fname')||event.target.classList.contains('bt-panel-group'))${headerClick}">
                     <span class="bt-panel-toggle" onclick="event.stopPropagation();this.closest('.bt-panel').classList.toggle('collapsed')">▼</span>
                     <div class="bt-panel-title">
                         <span class="bt-panel-dot" style="background:${dotColor}${panelStatus==='running'?';animation:taskPulse 1.5s ease-in-out infinite':''}"></span>
                         <span class="bt-panel-fname">${this.escapeHtml(fname)}</span>
-                        ${fileRuns[0].group ? `<span class="bt-panel-group">[${this.escapeHtml(fileRuns[0].group)}]</span>` : ''}
+                        ${tab && tab.name !== fname ? `<span class="bt-panel-group">[${this.escapeHtml(tab.name)}]</span>` : ''}
                     </div>
                     <div class="bt-panel-controls">
                         <button class="bt-ctrl-btn play-btn" onclick="event.stopPropagation();app.startBTRun(${JSON.stringify(fullPath||'')})" title="Start new run">▶</button>
                         <button class="bt-ctrl-btn stop-btn" onclick="event.stopPropagation();${stopOnclick}"${stopDisabled} title="Stop active run">⏹</button>
                         <button class="bt-ctrl-btn retry-btn" onclick="event.stopPropagation();app.retryFromNode('',${JSON.stringify(fullPath||'')},'','')"${retryDisabled} title="Retry last failed">↺</button>
-                        <button class="bt-ctrl-btn" onclick="event.stopPropagation();app.editBT(${JSON.stringify(fullPath||'')})" title="Edit BT">✏</button>
                     </div>
                 </div>
                 <div class="bt-panel-body">
                     <div class="bt-state-panel">
-                        ${stateRows || '<div class="bt-state-empty">No runs</div>'}
+                        ${stateRows || '<div class="bt-state-empty">No runs — click ▶ to start</div>'}
                     </div>
-                    <div class="bt-panel-history">
+                    ${sorted.length > 0 ? `<div class="bt-panel-history">
                         <div class="bt-panel-history-label">History</div>
                         ${historyRows}
-                    </div>
+                    </div>` : ''}
                 </div>
             </div>`;
         }).join('');
