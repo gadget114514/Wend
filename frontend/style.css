@@ -2412,6 +2412,46 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 .bt-hist-btn.edit-btn { color: #f0c040; border-color: #7f6a00; }
 .bt-hist-btn.edit-btn:hover { background: #7f6a00; color: #fff; }
 
+.bt-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 16px;
+    color: var(--theme-text2);
+}
+
+.bt-empty-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+    opacity: 0.4;
+}
+
+.bt-empty-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--theme-text);
+    margin-bottom: 6px;
+}
+
+.bt-empty-desc {
+    font-size: 11px;
+    text-align: center;
+    line-height: 1.5;
+    opacity: 0.7;
+    max-width: 280px;
+}
+
+.bt-empty-hint {
+    margin-top: 12px;
+    font-size: 10px;
+    padding: 6px 12px;
+    background: var(--theme-bg2);
+    border: 1px solid var(--theme-border);
+    border-radius: 4px;
+    opacity: 0.6;
+}
+
 .bt-state-panel {
     padding: 4px 0;
     border-bottom: 1px solid var(--theme-border);

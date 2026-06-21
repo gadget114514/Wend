@@ -10169,7 +10169,17 @@ Object.assign(app, {
         if (!container) return;
 
         if (runs.length === 0) {
-            container.innerHTML = '<div style="color:var(--theme-text2);font-size:11px;padding:12px 0">No runs yet</div>';
+            container.innerHTML = `
+                <div class="bt-empty-state">
+                    <div class="bt-empty-icon">🚀</div>
+                    <div class="bt-empty-title">No tasks yet</div>
+                    <div class="bt-empty-desc">
+                        Run a behavior tree to see it here.<br>
+                        Use the ▶ button in the toolbar or right-click a BT file.
+                    </div>
+                    <div class="bt-empty-hint">💡 Tip: Open a .bt.json file and click ▶ to start</div>
+                </div>
+            `;
             return;
         }
 
