@@ -726,7 +726,6 @@ const app = {
     // Tab management
     renderTabs() {
         const bar = document.getElementById('tab-bar');
-        if (!bar) return;
         bar.innerHTML = '';
 
         // Add Hamburger menu button at the start of tab-bar
@@ -774,8 +773,6 @@ const app = {
         addBtn.textContent = '+';
         addBtn.onclick = () => this.newTab();
         bar.appendChild(addBtn);
-
-        this.renderBTPanels(this._lastRuns || []);
     },
 
 	// switchTab means switch BT
@@ -1592,6 +1589,11 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             if (config.httpLLMCalls) {
                 document.getElementById('config-max-concurrent-llm').value = config.httpLLMCalls.maxConcurrentLLMCalls || 4;
             }
+            if (config.taskPollingInterval !== undefined) {
+                document.getElementById('config-task-polling-interval').value = config.taskPollingInterval;
+                if (!this.state.config) this.state.config = {};
+                this.state.config.taskPollingInterval = config.taskPollingInterval;
+            }
         } catch (e) {
             console.error('[Config] Error loading execution config:', e);
         }
@@ -1643,6 +1645,26 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const newValue = Math.max(1, Math.min(32, parseInt(input.value) + delta));
         input.value = newValue;
         this.setMaxConcurrentLLM(newValue);
+    },
+
+    setTaskPollingInterval(value) {
+        const val = Math.max(1, Math.min(60, parseInt(value)));
+        if (!this.state.config) this.state.config = {};
+        this.state.config.taskPollingInterval = val;
+        this.addLog(`⚙ Task polling interval set to ${val}s`);
+        document.getElementById('config-task-polling-interval').value = val;
+        if (this._taskMetricsInterval) {
+            this.stopTaskMetricsPolling();
+            this.startTaskMetricsPolling();
+        }
+    },
+
+    adjustTaskPollingInterval(delta) {
+        const input = document.getElementById('config-task-polling-interval');
+        if (!input) return;
+        const newValue = Math.max(1, Math.min(60, parseInt(input.value) + delta));
+        input.value = newValue;
+        this.setTaskPollingInterval(newValue);
     },
 
     closeAppConfig() {
@@ -10084,10 +10106,12 @@ Object.assign(app, {
     },
 
     startTaskMetricsPolling() {
-        this.updateTaskMetrics();
-        if (!this._taskMetricsInterval) {
-            this._taskMetricsInterval = setInterval(() => this.updateTaskMetrics(), 500);
+        if (this._taskMetricsInterval) {
+            clearInterval(this._taskMetricsInterval);
         }
+        const interval = Math.max(1, Math.min(60, parseInt(this.state.config?.taskPollingInterval) || 10)) * 1000;
+        this._taskMetricsInterval = setInterval(() => this.updateTaskMetrics(), interval);
+        this.updateTaskMetrics();
     },
 
     stopTaskMetricsPolling() {
@@ -10103,6 +10127,7 @@ Object.assign(app, {
             const data = await response.json();
 
             if (!data.runs || !Array.isArray(data.runs)) {
+                this.renderBTPanels(this._lastRuns || []);
                 return;
             }
 
@@ -10170,14 +10195,10 @@ Object.assign(app, {
 
     renderBTPanels(runs) {
         const container = document.getElementById('bt-panels-container');
-        if (!container) {
-            console.log('[Tasks] bt-panels-container not found');
-            return;
-        }
+        if (!container) return;
 
         const tabs = this.state.tabs || [];
-        console.log('[Tasks] renderBTPanels called with', runs.length, 'runs and', tabs.length, 'tabs');
-
+        
         if (tabs.length === 0 && runs.length === 0) {
             container.innerHTML = `
                 <div class="bt-empty-state">
@@ -10220,9 +10241,7 @@ Object.assign(app, {
             panels.push({ index: null, file, tab: null, fileRuns });
         }
 
-        console.log('[Tasks] Creating', panels.length, 'panels');
-
-        container.innerHTML = panels.map(({ index, file, tab, fileRuns }) => {
+        const html = panels.map(({ index, file, tab, fileRuns }) => {
             const fname = file === '__unknown__' ? '(inline)' : file.split(/[\\/]/).pop();
             const fullPath = file === '__unknown__' ? null : file;
 
@@ -10322,6 +10341,8 @@ Object.assign(app, {
                 </div>
             </div>`;
         }).join('');
+
+        container.innerHTML = html;
     },
 
     async cancelRun(runId) {

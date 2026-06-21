@@ -484,6 +484,14 @@
                     <button onclick="app.adjustMaxConcurrentLLM(1)" title="Increase">+</button>
                     <span style="font-size:11px;color:#888;">(1-32)</span>
                 </div>
+                <!-- Task Polling Interval -->
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <label style="width:180px;font-size:12px;">Task Polling Interval</label>
+                    <button onclick="app.adjustTaskPollingInterval(-1)" title="Decrease">−</button>
+                    <input type="number" id="config-task-polling-interval" value="10" min="1" max="60" onchange="app.setTaskPollingInterval(this.value)" style="width:50px;text-align:center;">
+                    <button onclick="app.adjustTaskPollingInterval(1)" title="Increase">+</button>
+                    <span style="font-size:11px;color:#888;">seconds (1-60)</span>
+                </div>
             </div>
         </div>
         <div class="settings-separator"></div>

@@ -1925,8 +1925,8 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 }
 
 .task-stats-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-wrap: wrap;
     gap: 4px;
     flex: 1;
 }
@@ -1937,6 +1937,7 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
     border-radius: 4px;
     padding: 5px 6px;
     text-align: center;
+    width: 100px;
 }
 
 .stat-box.stat-active .stat-value { color: #64b5f6; }
@@ -1961,12 +1962,13 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 /* Token / Duration metrics row */
 .task-metrics-row {
     display: flex;
+    flex-wrap: wrap;
     gap: 5px;
     margin-bottom: 10px;
 }
 
 .task-metric-item {
-    flex: 1;
+    width: 100px;
     background: var(--theme-bg2);
     border: 1px solid var(--theme-border);
     border-radius: 4px;
@@ -2210,8 +2212,11 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 
 /* Task manager inside messages pane */
 #task-manager-content.task-manager-pane {
+    display: flex;
     flex: 1;
+    flex-direction: column;
     overflow-y: auto;
+    min-height: 0;
 }
 
 /* BT Panels */
@@ -2225,15 +2230,16 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 .bt-panel {
     background: var(--theme-bg2);
     border: 1px solid var(--theme-border);
-    border-radius: 6px;
+    border-radius: 4px;
     overflow: hidden;
+    width: 200px;
 }
 
 .bt-panel-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 7px 10px;
+    padding: 3px 4px;
     cursor: pointer;
     user-select: none;
     background: var(--theme-bg2);
@@ -2262,20 +2268,20 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 .bt-panel-title {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 4px;
     flex: 1;
     min-width: 0;
 }
 
 .bt-panel-dot {
-    width: 8px;
-    height: 8px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     flex-shrink: 0;
 }
 
 .bt-panel-fname {
-    font-size: 12px;
+    font-size: 9px;
     font-weight: 600;
     color: var(--theme-text);
     white-space: nowrap;
@@ -2284,14 +2290,15 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 }
 
 .bt-panel-group {
-    font-size: 10px;
+    font-size: 7px;
     color: var(--theme-accent);
     flex-shrink: 0;
 }
 
 .bt-panel-controls {
     display: flex;
-    gap: 4px;
+    flex-direction: column;
+    gap: 2px;
     flex-shrink: 0;
 }
 
@@ -2299,11 +2306,11 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
     background: var(--theme-bg3);
     border: 1px solid var(--theme-border);
     color: var(--theme-text);
-    width: 26px;
-    height: 22px;
-    border-radius: 4px;
+    width: 18px;
+    height: 14px;
+    border-radius: 3px;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2335,22 +2342,22 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 /* Panel body — history rows */
 .bt-panel-body {
     border-top: 1px solid var(--theme-border);
-    padding: 4px 0;
-    min-height: 20px;
+    padding: 2px 0;
+    min-height: 14px;
 }
 
 .bt-panel-body:empty::after {
     content: '';
     display: block;
-    height: 20px;
+    height: 14px;
 }
 
 .bt-history-row {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 3px 10px;
-    font-size: 11px;
+    gap: 4px;
+    padding: 1px 6px;
+    font-size: 9px;
     color: var(--theme-text2);
     transition: background 0.1s;
 }
@@ -2364,14 +2371,14 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 }
 
 .bt-hist-icon {
-    width: 14px;
+    width: 10px;
     text-align: center;
     flex-shrink: 0;
-    font-size: 12px;
+    font-size: 10px;
 }
 
 .bt-hist-dur {
-    width: 42px;
+    width: 34px;
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
 }
@@ -2460,16 +2467,16 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 }
 
 .bt-state-panel {
-    padding: 4px 0;
+    padding: 3px 0;
     border-bottom: 1px solid var(--theme-border);
 }
 
 .bt-state-row {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 3px 10px;
-    font-size: 11px;
+    gap: 5px;
+    padding: 2px 8px;
+    font-size: 10px;
     color: var(--theme-text2);
     transition: background 0.1s;
 }
@@ -2483,22 +2490,22 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 }
 
 .bt-state-icon {
-    width: 14px;
+    width: 12px;
     text-align: center;
     flex-shrink: 0;
-    font-size: 12px;
+    font-size: 11px;
 }
 
 .bt-state-status {
-    width: 56px;
+    width: 50px;
     flex-shrink: 0;
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 600;
     text-transform: uppercase;
 }
 
 .bt-state-dur {
-    width: 42px;
+    width: 38px;
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
 }
@@ -2531,10 +2538,10 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 }
 
 .bt-panel-history-label {
-    font-size: 9px;
+    font-size: 8px;
     text-transform: uppercase;
     color: var(--theme-text2);
-    padding: 3px 10px 1px;
+    padding: 2px 8px 1px;
     opacity: 0.6;
     letter-spacing: 0.5px;
 }
