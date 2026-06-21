@@ -56,7 +56,22 @@ Once you accept that a control structure helps, the question is which one. A few
 
 Behavior Trees were developed in game AI to control characters with hundreds of possible actions — exactly the kind of complex-but-structured decision-making that AI pipelines need. They compose well, fail gracefully, and can be read and edited without writing code.
 
-**Wend brings Behavior Trees to AI pipelines** — a local-first visual IDE where you design the structure and the AI does the work.
+### But do you have to build the tree yourself?
+
+No. That's the key insight behind Wend.
+
+Wend exposes its entire engine through an **MCP server with 29 tools**. This means Claude Code — or any MCP-compatible AI client — can design, build, and run the Behavior Tree for you, just by having a conversation:
+
+```
+You:   "Summarize every PDF in this folder and write the results to a spreadsheet.
+        Retry up to 3 times if the model fails on any file."
+
+Claude: [creates the tree, wires up retry logic, runs it, reports back]
+```
+
+You describe the job in plain language. Claude writes the structure. The BT engine executes it deterministically. **You never touch a node editor if you don't want to.**
+
+The visual tree is there when you need to inspect what was built, debug a failure, or tweak a step — not as the primary way to author pipelines.
 
 ---
 
