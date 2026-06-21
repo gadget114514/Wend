@@ -2193,59 +2193,10 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
     border-color: var(--theme-danger);
 }
 
-/* Embedded log pane inside Task Manager */
-.task-embedded-log-pane {
-    border-top: 2px solid var(--theme-border);
-    display: flex;
-    flex-direction: column;
-    height: 160px;
-    flex-shrink: 0;
-    background: var(--theme-bg);
-}
-
-.task-embedded-log-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 2px 8px;
-    border-bottom: 1px solid var(--theme-border);
-    background: var(--theme-bg2);
-    flex-shrink: 0;
-}
-
-.task-log-tabs {
-    display: flex;
-    gap: 2px;
-}
-
-.task-log-tab {
-    background: none;
-    border: none;
-    color: var(--theme-text2);
-    padding: 2px 8px;
-    font-size: 11px;
-    cursor: pointer;
-    border-radius: 3px;
-    transition: background 0.1s;
-}
-
-.task-log-tab.task-log-tab-active {
-    background: var(--theme-bg3);
-    color: var(--theme-text);
-}
-
-.task-log-tab:hover:not(.task-log-tab-active) {
-    background: var(--theme-bg3);
-    opacity: 0.7;
-}
-
-.task-embedded-log-content {
+/* Task manager inside messages pane */
+#task-manager-content.task-manager-pane {
     flex: 1;
     overflow-y: auto;
-    font-family: monospace;
-    font-size: 11px;
-    padding: 4px 6px;
-    color: var(--theme-text);
 }
 
 

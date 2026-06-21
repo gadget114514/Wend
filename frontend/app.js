@@ -5607,25 +5607,18 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     // Messages
     addLog(text) {
         console.log('[Wend Log] ' + text);
-        const ts = '[' + new Date().toLocaleTimeString() + '] ';
-        const makeDiv = (html) => {
-            const div = document.createElement('div');
-            div.className = 'log-entry';
-            if (html) { div.innerHTML = html; } else { div.textContent = ts + text; }
-            return div;
-        };
         const el = document.getElementById('messages-content');
-        if (el) {
-            const div = makeDiv(text.includes('<details') ? ts + text.replace('<details', '<details open') : null);
-            el.appendChild(div);
-            el.scrollTop = el.scrollHeight;
+        if (!el) return;
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        const ts = '[' + new Date().toLocaleTimeString() + '] ';
+        if (text.includes('<details')) {
+            div.innerHTML = ts + text.replace('<details', '<details open');
+        } else {
+            div.textContent = ts + text;
         }
-        const el2 = document.getElementById('task-embedded-log');
-        if (el2) {
-            const div2 = makeDiv(text.includes('<details') ? ts + text.replace('<details', '<details open') : null);
-            el2.appendChild(div2);
-            el2.scrollTop = el2.scrollHeight;
-        }
+        el.appendChild(div);
+        el.scrollTop = el.scrollHeight;
     },
 
     addHttpLog(info) {
@@ -5665,11 +5658,6 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         
         el.appendChild(div);
         el.scrollTop = el.scrollHeight;
-        const el2 = document.getElementById('task-embedded-http-log');
-        if (el2) {
-            el2.appendChild(div.cloneNode(true));
-            el2.scrollTop = el2.scrollHeight;
-        }
     },
 
     _buildAIReport(info) {
@@ -5744,13 +5732,19 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     },
 
     switchMsgTab(tab) {
-        const logContent = document.getElementById('messages-content');
-        const httpContent = document.getElementById('http-log-content');
-        if (logContent) logContent.style.display = tab === 'log' ? '' : 'none';
-        if (httpContent) httpContent.style.display = tab === 'http' ? '' : 'none';
+        document.getElementById('messages-content').style.display = tab === 'log' ? '' : 'none';
+        document.getElementById('http-log-content').style.display = tab === 'http' ? '' : 'none';
+        document.getElementById('task-manager-content').style.display = tab === 'manager' ? '' : 'none';
+        document.getElementById('msg-log-actions').style.display = tab === 'manager' ? 'none' : '';
+        document.getElementById('msg-manager-actions').style.display = tab === 'manager' ? '' : 'none';
         document.querySelectorAll('.msg-tab').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.tab === tab);
+            btn.classList.toggle('msg-tab-active', btn.dataset.tab === tab);
         });
+        if (tab === 'manager') {
+            this.startTaskMetricsPolling();
+        } else {
+            this.stopTaskMetricsPolling();
+        }
     },
 
     // Log context menu and copy
@@ -6669,7 +6663,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             config:           () => this.showConfig(),
             test_connection:  () => this.showConfig(),
             recipe_manager:   () => this.showRecipeManager(),
-            task_manager:     () => this.switchTreeTab('manager'),
+            task_manager:     () => this.switchMsgTab('manager'),
             shortcuts:        () => this.showWizard(3),
             about:            () => this.showAbout(),
             copyright:        () => this.showCopyright(),
@@ -10064,40 +10058,20 @@ Object.defineProperty(app.state, 'recipes', {
 // Phase G: Task Manager Pane methods
 Object.assign(app, {
     switchTreeTab(tabName) {
-        // Switch tree pane tabs
         const tabMap = {
             pipeline: () => {
                 document.getElementById('tree-content').style.display = '';
                 document.getElementById('file-tree-content').style.display = 'none';
-                document.getElementById('task-manager-content').style.display = 'none';
                 document.getElementById('btn-tree-tab-pipeline').classList.add('active');
                 document.getElementById('btn-tree-tab-file').classList.remove('active');
-                document.getElementById('btn-tree-tab-manager').classList.remove('active');
-                this.stopTaskMetricsPolling();
             },
             file: () => {
                 document.getElementById('tree-content').style.display = 'none';
                 document.getElementById('file-tree-content').style.display = '';
-                document.getElementById('task-manager-content').style.display = 'none';
                 document.getElementById('btn-tree-tab-pipeline').classList.remove('active');
                 document.getElementById('btn-tree-tab-file').classList.add('active');
-                document.getElementById('btn-tree-tab-manager').classList.remove('active');
-                this.stopTaskMetricsPolling();
             },
-            manager: () => {
-                document.getElementById('tree-content').style.display = 'none';
-                document.getElementById('file-tree-content').style.display = 'none';
-                document.getElementById('task-manager-content').style.display = 'flex';
-                document.getElementById('btn-tree-tab-pipeline').classList.remove('active');
-                document.getElementById('btn-tree-tab-file').classList.remove('active');
-                document.getElementById('btn-tree-tab-manager').classList.add('active');
-                this.startTaskMetricsPolling();
-                // Scroll embedded log to bottom
-                const el = document.getElementById('task-embedded-log');
-                if (el) el.scrollTop = el.scrollHeight;
-                const el2 = document.getElementById('task-embedded-http-log');
-                if (el2) el2.scrollTop = el2.scrollHeight;
-            }
+            manager: () => this.switchMsgTab('manager'),
         };
 
         if (tabMap[tabName]) {
@@ -10358,20 +10332,6 @@ Object.assign(app, {
         }
     },
 
-    switchEmbeddedLogTab(tab) {
-        document.getElementById('task-embedded-log').style.display = tab === 'log' ? '' : 'none';
-        document.getElementById('task-embedded-http-log').style.display = tab === 'http' ? '' : 'none';
-        document.querySelectorAll('.task-log-tab').forEach(btn => {
-            btn.classList.toggle('task-log-tab-active', btn.dataset.etab === tab);
-        });
-    },
-
-    clearEmbeddedLog() {
-        const el = document.getElementById('task-embedded-log');
-        if (el) el.innerHTML = '';
-        const el2 = document.getElementById('task-embedded-http-log');
-        if (el2) el2.innerHTML = '';
-    }
 });
 
 document.addEventListener('DOMContentLoaded', () => {
