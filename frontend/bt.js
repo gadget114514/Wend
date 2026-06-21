@@ -23,6 +23,7 @@ class BehaviorTreeEngine {
         // project scope lives on app (shared across tabs); accessed via _projScope()
         // Execution config: mode='single'|'cycle', count=repeat count (0=infinite)
         this._config = { mode: 'single', count: 1 };
+        this._lastLeafError = null;   // set when a leaf fails with a real error (not semantic false)
         if (this._app && this._app.addLog) {
             this._app.addLog('[BT Engine] Using custom BehaviorTreeEngine (bt.js)');
         }
@@ -250,6 +251,15 @@ class BehaviorTreeEngine {
         }
     }
 
+    retryNode() {
+        const ctrl = this._ctrl;
+        if (!ctrl || ctrl.mode !== 'error_paused') return;
+        if (this._stepResolve) {
+            this._stepResolve('retry');
+            this._stepResolve = null;
+        }
+    }
+
     /** Called from onPipelineCompleted. Notify BT engine of leaf completion. Returns true = BT received it */
     notifyLeafComplete(meta) {
         // Phase A: requestId-based callback lookup (concurrent-safe)
@@ -277,17 +287,21 @@ class BehaviorTreeEngine {
         const btnStep  = document.getElementById('btn-bt-step');
         const btnPause = document.getElementById('btn-bt-pause');
         const btnStop  = document.getElementById('btn-bt-stop');
+        const btnRetry = document.getElementById('btn-bt-retry-node');
         if (!btnRun) return;
         if (!hasTarget) {
             btnRun.disabled = btnStep.disabled = btnPause.disabled = btnStop.disabled = true;
+            if (btnRetry) btnRetry.style.display = 'none';
             return;
         }
         const mode = ctrl.mode;
-        const isActive = mode === 'running' || mode === 'pausing';
-        btnRun.disabled   = isActive;
-        btnStep.disabled  = isActive;
+        const isActive   = mode === 'running' || mode === 'pausing';
+        const isErrPause = mode === 'error_paused';
+        btnRun.disabled   = isActive || isErrPause;
+        btnStep.disabled  = isActive || isErrPause;
         btnPause.disabled = !isActive;
         btnStop.disabled  = mode === 'idle';
+        if (btnRetry) btnRetry.style.display = isErrPause ? '' : 'none';
     }
 
     _updateCycleBadge() {
@@ -417,8 +431,40 @@ class BehaviorTreeEngine {
             }
             app.state.btRunState.set(path, 'running');
             app.renderTree();
-            const ok = await this._runLeaf(path);
+            this._lastLeafError = null;
+            let ok = await this._runLeaf(path);
             if (ctrl && ctrl.mode === 'stopped') throw new Error('BT_STOPPED');
+
+            // If a real error occurred (not just semantic false), pause here for human intervention
+            while (!ok && this._lastLeafError && ctrl && ctrl.mode !== 'stopped') {
+                const errMsg = this._lastLeafError;
+                this._lastLeafError = null;
+                ctrl.mode = 'error_paused';
+                this._updateToolbar();
+                app.state.btRunState.set(path, 'error');
+                app.renderTree();
+                app.addLog(`⏸ Paused at error node [${path}]\n${errMsg}\n→ Fix the issue then click ↺ Retry Node, or ⏹ Stop`);
+
+                const signal = await new Promise(res => { this._stepResolve = res; });
+                if (signal === 'stop') throw new Error('BT_STOPPED');
+
+                if (signal === 'retry') {
+                    // Re-run this exact leaf in-place, blackboard state intact
+                    ctrl.mode = 'running';
+                    this._updateToolbar();
+                    app.state.btRunState.set(path, 'running');
+                    app.renderTree();
+                    this._lastLeafError = null;
+                    ok = await this._runLeaf(path);
+                    if (ctrl && ctrl.mode === 'stopped') throw new Error('BT_STOPPED');
+                    // loop: if it errors again, pause again
+                } else {
+                    // 'run' or 'step' — resume with current result (ok=false, let parent handle)
+                    if (signal === 'run') { ctrl.mode = 'running'; this._updateToolbar(); }
+                    break;
+                }
+            }
+
             app.state.btRunState.set(path, ok ? 'ok' : 'ng');
             app.renderTree();
             return ok;
@@ -853,6 +899,10 @@ class BehaviorTreeEngine {
                 const normalized = outText.toLowerCase().replace(/[^a-z]/g, '');
                 if (normalized === 'false') {
                     isSuccess = false;
+                }
+                // Track real errors (API/network failures) so _runNode can pause
+                if (meta.error) {
+                    this._lastLeafError = meta.message || meta.errorMessage || 'Leaf execution error';
                 }
                 resolve(isSuccess);
             };
