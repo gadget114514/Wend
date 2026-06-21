@@ -2244,6 +2244,21 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
     background: var(--theme-bg3);
 }
 
+.bt-panel-toggle {
+    font-size: 9px;
+    color: var(--theme-text2);
+    cursor: pointer;
+    transition: transform 0.15s;
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
+    user-select: none;
+}
+
+.bt-panel.collapsed .bt-panel-toggle {
+    transform: rotate(-90deg);
+}
+
 .bt-panel-title {
     display: flex;
     align-items: center;
@@ -2396,14 +2411,6 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 .bt-hist-btn.ai-btn:hover { background: #6a3f7f; color: #fff; }
 .bt-hist-btn.edit-btn { color: #f0c040; border-color: #7f6a00; }
 .bt-hist-btn.edit-btn:hover { background: #7f6a00; color: #fff; }
-
-.bt-panel-controls-bar {
-    display: flex;
-    gap: 4px;
-    padding: 6px 10px;
-    border-bottom: 1px solid var(--theme-border);
-    background: var(--theme-bg2);
-}
 
 .bt-state-panel {
     padding: 4px 0;

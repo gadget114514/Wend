@@ -10259,20 +10259,21 @@ Object.assign(app, {
             }).join('');
 
             return `<div class="bt-panel${isCollapsed}" data-file="${this.escapeHtml(file)}">
-                <div class="bt-panel-header" onclick="if(event.target===this||event.target.classList.contains('bt-panel-title')||event.target.classList.contains('bt-panel-fname'))this.closest('.bt-panel').classList.toggle('collapsed')">
+                <div class="bt-panel-header" onclick="if(event.target===this||event.target.classList.contains('bt-panel-title')||event.target.classList.contains('bt-panel-fname')||event.target.classList.contains('bt-panel-group'))app.editBT(${JSON.stringify(fullPath||'')})">
+                    <span class="bt-panel-toggle" onclick="event.stopPropagation();this.closest('.bt-panel').classList.toggle('collapsed')">▼</span>
                     <div class="bt-panel-title">
                         <span class="bt-panel-dot" style="background:${dotColor}${panelStatus==='running'?';animation:taskPulse 1.5s ease-in-out infinite':''}"></span>
                         <span class="bt-panel-fname">${this.escapeHtml(fname)}</span>
                         ${fileRuns[0].group ? `<span class="bt-panel-group">[${this.escapeHtml(fileRuns[0].group)}]</span>` : ''}
                     </div>
-                </div>
-                <div class="bt-panel-body">
-                    <div class="bt-panel-controls-bar">
+                    <div class="bt-panel-controls">
                         <button class="bt-ctrl-btn play-btn" onclick="event.stopPropagation();app.startBTRun(${JSON.stringify(fullPath||'')})" title="Start new run">▶</button>
                         <button class="bt-ctrl-btn stop-btn" onclick="event.stopPropagation();${stopOnclick}"${stopDisabled} title="Stop active run">⏹</button>
                         <button class="bt-ctrl-btn retry-btn" onclick="event.stopPropagation();app.retryFromNode('',${JSON.stringify(fullPath||'')},'','')"${retryDisabled} title="Retry last failed">↺</button>
                         <button class="bt-ctrl-btn" onclick="event.stopPropagation();app.editBT(${JSON.stringify(fullPath||'')})" title="Edit BT">✏</button>
                     </div>
+                </div>
+                <div class="bt-panel-body">
                     <div class="bt-state-panel">
                         ${stateRows || '<div class="bt-state-empty">No runs</div>'}
                     </div>
