@@ -213,7 +213,7 @@ Wend は n8n のローカル特化版 + プロンプト管理に相当する。
 | | 実行環境 | SaaS / Docker self-hosted | ローカル Win32 ネイティブ |
 | | オフライン動作 | ❌ 一部不可 | ✅ 完全オフライン |
 | | データ保存 | 内部 DB (SQLite/PostgreSQL) + エクスポート | ローカル JSON ファイル (`%APPDATA%`) |
-| | ライセンス | Sustainable Use License (SSPL 類似) | 独自（ecode 準拠） |
+| | ライセンス | Sustainable Use License (SSPL 類似) | GPL3 |
 | **ノード/ステップ** | 総ノード数 | 200+（サービス別コネクタ） | 5 種汎用ステップ + OS コマンド委譲 |
 | | AI ノード | OpenAI / Anthropic / Ollama / HuggingFace 等 | `ai` (4 プロバイダ統合) |
 | | ファイル変換 | CSV / XML / JSON / Excel 専用ノード | `command` (任意 CLI) |
@@ -1860,7 +1860,7 @@ step type ごとにフォームのフィールドが切り替わる。
 最近開いたファイルを `recent_files.json` に保存し、起動時に `init` メッセージで JS へ送信する。
 
 ```
-%APPDATA%/Ecode/Wend/recent_files.json
+%APPDATA%/Wend/recent_files.json
 { "files": ["C:\\path\\to\\a.json", "C:\\path\\to\\b.json", ...] }
 ```
 
@@ -2510,7 +2510,7 @@ buildMetaJson() {
   "command": "whisper",
   "args": ["{content_file}", "--output_format", "txt", "--language", "ja"],
   "timeout": 300,
-  "workingDir": "%APPDATA%/Ecode/Wend/",
+  "workingDir": "%APPDATA%/Wend/",
   "resultAs": "text"
 }
 ```
@@ -2662,7 +2662,7 @@ OpenAI Codex CLI は `--approval-mode full-auto` でバッチ実行可能。
 | `namespace` | キャッシュ名前空間。プロンプト変更時にバージョンアップして無効化 | `"default"` |
 | `onMiss` | キャッシュミス時に実行するインラインステップ定義 | 必須 |
 
-保存先: `%APPDATA%/Ecode/Wend/cache/<namespace>/<hash>.json`
+保存先: `%APPDATA%/Wend/cache/<namespace>/<hash>.json`
 Config に "Clear Cache" ボタンを追加。
 
 ---
@@ -2885,7 +2885,7 @@ Context Menu の「▶ Run Pipeline」サブメニューでも `inputSpec` 不�
 ### ストレージ
 
 ```
-%APPDATA%/Ecode/Wend/
+%APPDATA%/Wend/
 └── harnesses/
     ├── technical_translator.json      ← 現在の状態（memory が蓄積される）
     ├── technical_translator_v1.json   ← baseline スナップショット

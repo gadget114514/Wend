@@ -54,6 +54,7 @@ These samples use **4 local recipes** defined in `recipes.json`. When you open a
 | `Radio Article Writer` | gemini | gemini-2.5-pro | Write radio DJ articles |
 | `Radio Theme Generator` | gemini | gemini-2.5-flash | Generate creative themes |
 | `Radio Log Writer` | gemini | gemini-2.5-flash | Summarize broadcast logs |
+| `Radio TTS` | openai | tts-1 | Convert text to speech audio |
 
 ### Provider Configuration
 
@@ -75,6 +76,7 @@ Before running the samples, ensure you have configured the required provider in 
 | 06 | [Local Music](06-local-music/) | `sequence` | Load local MP3 → Describe → Write |
 | 07 | [Streaming](07-streaming/) | `sequence` | Fetch → Write → Log |
 | 08 | [Continuous Station](08-continuous-station/) | nested `sequence` | 3× [Fetch → Write] |
+| 09 | [TTS Playback](09-tts-playback/) | `sequence` | Fetch → Write → TTS → Play |
 
 ---
 
@@ -117,6 +119,7 @@ All samples use a consistent blackboard naming convention:
 | `topic` | text | Music theme/genre seed |
 | `stream_info` | text | Now-playing metadata from API |
 | `log` | text | Broadcast log |
+| `tts_audio` | media | TTS-generated audio |
 
 ---
 

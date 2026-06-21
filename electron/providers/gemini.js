@@ -49,9 +49,13 @@ class GeminiProvider {
 
         // Support attachments (images, video, audio)
         for (const file of attachments) {
+            const mimeType = file.mimetype || 'image/png';
+            if (!file.mimetype) {
+                console.warn('[Gemini] Attachment missing mimetype, defaulting to image/png:', file.file || 'unknown');
+            }
             parts.push({
                 inline_data: {
-                    mime_type: file.mimetype || 'image/png',
+                    mime_type: mimeType,
                     data: file.content || ''
                 }
             });
@@ -99,6 +103,15 @@ class GeminiProvider {
 
     async call(req) {
         const model = req.model || 'gemini-3.5-flash';
+        const attachments = req.attachments || [];
+        if (attachments.length > 0) {
+            console.log('[Gemini] Request attachments:', attachments.map(a => ({
+                file: a.file,
+                mimetype: a.mimetype,
+                size: a.size || (a.content ? Math.round(a.content.length * 0.75) : 0),
+                hasContent: !!a.content
+            })));
+        }
         const body = this._buildBody(req);
         let url;
         
@@ -124,7 +137,15 @@ class GeminiProvider {
         const raw = await httpRequest(url, 'POST', { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey }, body);
         if (!raw) throw new Error(`Gemini API Error\nProvider: gemini\nModel: ${model}\nURL: ${url}\nError: Empty response received\nPossible causes: Invalid API key, network connectivity issue, or API endpoint unavailable`);
         const j = JSON.parse(raw);
-        if (j.error) throw new Error(`Gemini API Error\nProvider: gemini\nModel: ${model}\nURL: ${url}\nError: ${j.error.message}\nError code: ${j.error.code || 'unknown'}\nError status: ${j.error.status || 'unknown'}`);
+        if (j.error) {
+            const attachmentInfo = (req.attachments || []).map(a => ({
+                file: a.file || 'unknown',
+                mimetype: a.mimetype || 'MISSING',
+                size: a.size || (a.content ? Math.round(a.content.length * 0.75) : 0)
+            }));
+            console.error('[Gemini] API Error - Attachments sent:', JSON.stringify(attachmentInfo, null, 2));
+            throw new Error(`Gemini API Error\nProvider: gemini\nModel: ${model}\nURL: ${url}\nError: ${j.error.message}\nError code: ${j.error.code || 'unknown'}\nError status: ${j.error.status || 'unknown'}\nAttachments: ${JSON.stringify(attachmentInfo)}`);
+        }
 
         const outputAttachments = [];
         let textContent = '';

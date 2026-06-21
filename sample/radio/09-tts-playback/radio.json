@@ -1,0 +1,47 @@
+{
+  "title": "",
+  "content": "",
+  "mimetype": "text/plain",
+  "attachments": [],
+  "children": [
+    {
+      "title": "RmV0Y2ggTXVzaWMgSW5mbw==",
+      "content": "",
+      "mimetype": "text/plain",
+      "attachments": [],
+      "children": [],
+      "nodeType": "assemble",
+      "selectedRecipe": "Radio Music Fetcher",
+      "btOutputKey": "music_info",
+      "btPrompt": "U2VhcmNoIGZvciBhIHRyZW5kaW5nIG11c2ljIHRyYWNrLiBSZXR1cm4gdGhlIHRpdGxlLCBhcnRpc3QsIGdlbnJlLCBhbmQgYSBicmllZiBkZXNjcmlwdGlvbi4="
+    },
+    {
+      "title": "V3JpdGUgQXJ0aWNsZQ==",
+      "content": "",
+      "mimetype": "text/plain",
+      "attachments": [],
+      "children": [],
+      "nodeType": "assemble",
+      "selectedRecipe": "Radio Article Writer",
+      "btInputKey": "music_info",
+      "btInputType": "text",
+      "btOutputKey": "article",
+      "btPrompt": "V3JpdGUgYSAyMDAtd29yZCByYWRpbyBESiBhcnRpY2xlIGFib3V0OiB7YmI6bXVzaWNfaW5mb30="
+    },
+    {
+      "title": "VGV4dCB0byBTcGVlY2g=",
+      "content": "",
+      "mimetype": "text/plain",
+      "attachments": [],
+      "children": [],
+      "nodeType": "assemble",
+      "selectedRecipe": "Radio TTS",
+      "btInputKey": "article",
+      "btInputType": "text",
+      "btOutputKey": "tts_audio",
+      "btPrompt": "Q29udmVydCB0aGUgZm9sbG93aW5nIHJhZGlvIERKIGFydGljbGUgdG8gc3BlZWNoOiB7YmI6YXJ0aWNsZX0="
+    }
+  ],
+  "nodeType": "root",
+  "btType": "sequence"
+}

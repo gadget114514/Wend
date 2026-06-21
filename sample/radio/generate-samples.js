@@ -120,6 +120,19 @@ const recipes = [
         apiPath: '/v1beta/models/{model}:generateContent',
         apiType: 'simple',
         customParams: {}
+    },
+    {
+        name: 'Radio TTS',
+        type: 'ai',
+        provider: 'openai',
+        model: 'tts-1',
+        temperature: 0.7,
+        systemPrompt: '',
+        command: '',
+        useCustomApiPath: false,
+        apiPath: '/v1/audio/speech',
+        apiType: 'simple',
+        customParams: {}
     }
 ];
 
@@ -205,6 +218,16 @@ samples['08-continuous-station'] = rootTree('sequence', [
     trackSequence(1),
     trackSequence(2),
     trackSequence(3),
+]);
+
+// 09: TTS Playback (Fetch -> Write -> TTS -> Play)
+samples['09-tts-playback'] = rootTree('sequence', [
+    leafNode('Fetch Music Info', '', 'Radio Music Fetcher', null, null, 'music_info',
+        'Search for a trending music track. Return the title, artist, genre, and a brief description.'),
+    leafNode('Write Article', '', 'Radio Article Writer', 'music_info', 'text', 'article',
+        'Write a 200-word radio DJ article about: {bb:music_info}'),
+    leafNode('Text to Speech', '', 'Radio TTS', 'article', 'text', 'tts_audio',
+        'Convert the following radio DJ article to speech: {bb:article}'),
 ]);
 
 // Output directory

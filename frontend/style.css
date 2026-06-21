@@ -1909,6 +1909,7 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
     padding: 8px 12px;
     background: var(--theme-bg);
     min-height: 0;
+    width: 100%;
 }
 
 /* Donut + stats side-by-side */
@@ -1926,7 +1927,6 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 
 .task-stats-grid {
     display: flex;
-    flex-wrap: wrap;
     gap: 4px;
     flex: 1;
 }
@@ -1937,7 +1937,7 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
     border-radius: 4px;
     padding: 5px 6px;
     text-align: center;
-    width: 100px;
+    width: 80px;
 }
 
 .stat-box.stat-active .stat-value { color: #64b5f6; }
@@ -1962,13 +1962,12 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 /* Token / Duration metrics row */
 .task-metrics-row {
     display: flex;
-    flex-wrap: wrap;
     gap: 5px;
     margin-bottom: 10px;
 }
 
 .task-metric-item {
-    width: 100px;
+    width: 60px;
     background: var(--theme-bg2);
     border: 1px solid var(--theme-border);
     border-radius: 4px;
@@ -2217,12 +2216,14 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
     flex-direction: column;
     overflow-y: auto;
     min-height: 0;
+    width: 100%;
 }
 
 /* BT Panels */
 #bt-panels-container {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
     gap: 6px;
     padding-top: 2px;
 }

@@ -1,0 +1,1 @@
+Hi, I'm Wend app. In order to execute prompt, set up the pipelines.
