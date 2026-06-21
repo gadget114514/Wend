@@ -10173,11 +10173,9 @@ Object.assign(app, {
             return;
         }
 
-        // Preserve collapsed panels
         const collapsed = new Set();
         container.querySelectorAll('.bt-panel.collapsed').forEach(el => collapsed.add(el.dataset.file));
 
-        // Group by file
         const byFile = new Map();
         for (const run of runs) {
             const key = run.file || '__unknown__';
@@ -10189,23 +10187,47 @@ Object.assign(app, {
             const fname = file === '__unknown__' ? '(inline)' : file.split(/[\\/]/).pop();
             const fullPath = file === '__unknown__' ? null : file;
 
-            // Sort newest-first
             const sorted = [...fileRuns].reverse();
             const activeRun = sorted.find(r => r.status === 'running' || r.status === 'queued');
+            const lastRun = sorted[0];
             const isCollapsed = !activeRun && collapsed.has(file) ? ' collapsed' : '';
 
-            // Overall status dot for panel header
             const panelStatus = activeRun ? activeRun.status
-                : sorted[0]?.status || 'completed';
+                : lastRun?.status || 'completed';
             const dotColor = panelStatus === 'running' ? '#64b5f6'
                 : panelStatus === 'queued' ? '#bdbdbd'
-                : panelStatus === 'failed' ? '#ef5350' : '#81c784';
+                : panelStatus === 'failed' ? '#ef5350'
+                : panelStatus === 'cancelled' ? '#ffb74d' : '#81c784';
 
-            // ▶ always available; ⏹ only when something is active
             const stopDisabled = activeRun ? '' : ' disabled';
             const stopOnclick = activeRun ? `app.cancelRun('${activeRun.runId}')` : '';
 
-            // Run history rows (max 5)
+            const hasFailed = sorted.some(r => r.status === 'failed' || r.status === 'cancelled');
+            const retryDisabled = hasFailed && fullPath ? '' : ' disabled';
+
+            const stateRows = sorted.slice(0, 3).map(run => {
+                const st = run.status || 'queued';
+                const icon = st === 'running' ? '⚡' : st === 'completed' ? '✓' : st === 'failed' ? '✗' : st === 'cancelled' ? '⊘' : '·';
+                const iconColor = st === 'running' ? '#64b5f6' : st === 'completed' ? '#81c784' : st === 'failed' ? '#ef5350' : st === 'cancelled' ? '#ffb74d' : '#bdbdbd';
+                const dur = this.formatDuration(run.metrics?.duration || 0);
+                const tok = this.formatTokens(run.metrics?.totalTokens || 0);
+                const promptPct = run.metrics?.totalTokens > 0 ? Math.round((run.metrics.promptTokens||0) / run.metrics.totalTokens * 100) : 0;
+                const compPct  = run.metrics?.totalTokens > 0 ? Math.round((run.metrics.completionTokens||0) / run.metrics.totalTokens * 100) : 0;
+                const tokenBar = run.metrics?.totalTokens > 0
+                    ? `<div class="task-token-bar" style="width:50px;display:inline-flex;vertical-align:middle;margin-left:3px"><div class="task-token-bar-prompt" style="width:${promptPct}%"></div><div class="task-token-bar-completion" style="width:${compPct}%"></div></div>`
+                    : '';
+                const errSnippet = run.error ? `<div class="bt-state-error" title="${this.escapeHtml(run.error)}">${this.escapeHtml(run.error.slice(0, 80))}${run.error.length > 80 ? '…' : ''}</div>` : '';
+                const statusLabel = st === 'running' ? 'Running' : st === 'completed' ? 'Done' : st === 'failed' ? 'Failed' : st === 'cancelled' ? 'Cancelled' : 'Queued';
+
+                return `<div class="bt-state-row ${st === 'running' ? 'is-running' : ''}">
+                    <span class="bt-state-icon" style="color:${iconColor}">${icon}</span>
+                    <span class="bt-state-status" style="color:${iconColor}">${statusLabel}</span>
+                    <span class="bt-state-dur">${dur}</span>
+                    <span class="bt-state-tok">${tok}${tokenBar}</span>
+                    ${errSnippet}
+                </div>`;
+            }).join('');
+
             const historyRows = sorted.slice(0, 5).map(run => {
                 const st = run.status || 'queued';
                 const icon = st === 'running' ? '⚡' : st === 'completed' ? '✓' : st === 'failed' ? '✗' : st === 'cancelled' ? '⊘' : '·';
@@ -10241,15 +10263,23 @@ Object.assign(app, {
                     <div class="bt-panel-title">
                         <span class="bt-panel-dot" style="background:${dotColor}${panelStatus==='running'?';animation:taskPulse 1.5s ease-in-out infinite':''}"></span>
                         <span class="bt-panel-fname">${this.escapeHtml(fname)}</span>
-                        ${run.group ? `<span class="bt-panel-group">[${this.escapeHtml(fileRuns[0].group)}]</span>` : ''}
-                    </div>
-                    <div class="bt-panel-controls">
-                        <button class="bt-ctrl-btn play-btn" onclick="event.stopPropagation();app.startBTRun(${JSON.stringify(fullPath||'')})" title="Start new run">▶</button>
-                        <button class="bt-ctrl-btn stop-btn" onclick="event.stopPropagation();${stopOnclick}"${stopDisabled} title="Stop active run">⏹</button>
+                        ${fileRuns[0].group ? `<span class="bt-panel-group">[${this.escapeHtml(fileRuns[0].group)}]</span>` : ''}
                     </div>
                 </div>
                 <div class="bt-panel-body">
-                    ${historyRows}
+                    <div class="bt-panel-controls-bar">
+                        <button class="bt-ctrl-btn play-btn" onclick="event.stopPropagation();app.startBTRun(${JSON.stringify(fullPath||'')})" title="Start new run">▶</button>
+                        <button class="bt-ctrl-btn stop-btn" onclick="event.stopPropagation();${stopOnclick}"${stopDisabled} title="Stop active run">⏹</button>
+                        <button class="bt-ctrl-btn retry-btn" onclick="event.stopPropagation();app.retryFromNode('',${JSON.stringify(fullPath||'')},'','')"${retryDisabled} title="Retry last failed">↺</button>
+                        <button class="bt-ctrl-btn" onclick="event.stopPropagation();app.editBT(${JSON.stringify(fullPath||'')})" title="Edit BT">✏</button>
+                    </div>
+                    <div class="bt-state-panel">
+                        ${stateRows || '<div class="bt-state-empty">No runs</div>'}
+                    </div>
+                    <div class="bt-panel-history">
+                        <div class="bt-panel-history-label">History</div>
+                        ${historyRows}
+                    </div>
                 </div>
             </div>`;
         }).join('');

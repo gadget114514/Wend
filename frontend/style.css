@@ -2306,6 +2306,12 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
     border-color: var(--theme-danger, #c0392b);
 }
 
+.bt-ctrl-btn.retry-btn:hover:not(:disabled) {
+    background: #4a7f4a;
+    border-color: #4a7f4a;
+    color: #fff;
+}
+
 .bt-ctrl-btn:disabled {
     opacity: 0.3;
     cursor: default;
@@ -2315,10 +2321,6 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 .bt-panel-body {
     border-top: 1px solid var(--theme-border);
     padding: 4px 0;
-}
-
-.bt-panel.collapsed .bt-panel-body {
-    display: none;
 }
 
 .bt-history-row {
@@ -2394,5 +2396,97 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 .bt-hist-btn.ai-btn:hover { background: #6a3f7f; color: #fff; }
 .bt-hist-btn.edit-btn { color: #f0c040; border-color: #7f6a00; }
 .bt-hist-btn.edit-btn:hover { background: #7f6a00; color: #fff; }
+
+.bt-panel-controls-bar {
+    display: flex;
+    gap: 4px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--theme-border);
+    background: var(--theme-bg2);
+}
+
+.bt-state-panel {
+    padding: 4px 0;
+    border-bottom: 1px solid var(--theme-border);
+}
+
+.bt-state-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    font-size: 11px;
+    color: var(--theme-text2);
+    transition: background 0.1s;
+}
+
+.bt-state-row:hover {
+    background: var(--theme-bg3);
+}
+
+.bt-state-row.is-running {
+    background: rgba(100, 181, 246, 0.06);
+}
+
+.bt-state-icon {
+    width: 14px;
+    text-align: center;
+    flex-shrink: 0;
+    font-size: 12px;
+}
+
+.bt-state-status {
+    width: 56px;
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.bt-state-dur {
+    width: 42px;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.bt-state-tok {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bt-state-error {
+    flex: 2;
+    color: #ef5350;
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bt-state-empty {
+    color: var(--theme-text2);
+    font-size: 10px;
+    padding: 4px 10px;
+    opacity: 0.6;
+}
+
+.bt-panel-history {
+    padding: 2px 0;
+}
+
+.bt-panel-history-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    color: var(--theme-text2);
+    padding: 3px 10px 1px;
+    opacity: 0.6;
+    letter-spacing: 0.5px;
+}
+
+.bt-panel.collapsed .bt-panel-body {
+    display: none;
+}
 
 
