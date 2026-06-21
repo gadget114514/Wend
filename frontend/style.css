@@ -2193,6 +2193,17 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
     border-color: var(--theme-danger);
 }
 
+.task-run-btn.retry-btn {
+    color: #81c784;
+    border-color: #4a7f4a;
+}
+
+.task-run-btn.retry-btn:hover {
+    background: #4a7f4a;
+    border-color: #81c784;
+    color: #fff;
+}
+
 /* Task manager inside messages pane */
 #task-manager-content.task-manager-pane {
     flex: 1;
