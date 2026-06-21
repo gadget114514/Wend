@@ -5607,18 +5607,25 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     // Messages
     addLog(text) {
         console.log('[Wend Log] ' + text);
+        const ts = '[' + new Date().toLocaleTimeString() + '] ';
+        const makeDiv = (html) => {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            if (html) { div.innerHTML = html; } else { div.textContent = ts + text; }
+            return div;
+        };
         const el = document.getElementById('messages-content');
-        if (!el) return;
-        const div = document.createElement('div');
-        div.className = 'log-entry';
-        if (text.includes('<details')) {
-            text = text.replace('<details', '<details open');
-            div.innerHTML = '[' + new Date().toLocaleTimeString() + '] ' + text;
-        } else {
-            div.textContent = '[' + new Date().toLocaleTimeString() + '] ' + text;
+        if (el) {
+            const div = makeDiv(text.includes('<details') ? ts + text.replace('<details', '<details open') : null);
+            el.appendChild(div);
+            el.scrollTop = el.scrollHeight;
         }
-        el.appendChild(div);
-        el.scrollTop = el.scrollHeight;
+        const el2 = document.getElementById('task-embedded-log');
+        if (el2) {
+            const div2 = makeDiv(text.includes('<details') ? ts + text.replace('<details', '<details open') : null);
+            el2.appendChild(div2);
+            el2.scrollTop = el2.scrollHeight;
+        }
     },
 
     addHttpLog(info) {
@@ -5658,6 +5665,11 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         
         el.appendChild(div);
         el.scrollTop = el.scrollHeight;
+        const el2 = document.getElementById('task-embedded-http-log');
+        if (el2) {
+            el2.appendChild(div.cloneNode(true));
+            el2.scrollTop = el2.scrollHeight;
+        }
     },
 
     _buildAIReport(info) {
@@ -10080,6 +10092,11 @@ Object.assign(app, {
                 document.getElementById('btn-tree-tab-file').classList.remove('active');
                 document.getElementById('btn-tree-tab-manager').classList.add('active');
                 this.startTaskMetricsPolling();
+                // Scroll embedded log to bottom
+                const el = document.getElementById('task-embedded-log');
+                if (el) el.scrollTop = el.scrollHeight;
+                const el2 = document.getElementById('task-embedded-http-log');
+                if (el2) el2.scrollTop = el2.scrollHeight;
             }
         };
 
@@ -10141,6 +10158,7 @@ Object.assign(app, {
             }
 
             const avgDuration = completedDurations > 0 ? totalDuration / completedDurations : 0;
+            const totalRuns = activeCount + queuedCount + completedCount + failedCount;
 
             // Update summary stats
             document.getElementById('task-active-count').textContent = activeCount;
@@ -10149,6 +10167,20 @@ Object.assign(app, {
             document.getElementById('task-failed-count').textContent = failedCount;
             document.getElementById('task-avg-duration').textContent = this.formatDuration(avgDuration);
             document.getElementById('task-total-tokens').textContent = this.formatTokens(totalTokens);
+
+            // Token rate (tokens per second across avg duration)
+            const tokenRateEl = document.getElementById('task-token-rate');
+            if (tokenRateEl) {
+                if (avgDuration > 0 && totalTokens > 0) {
+                    const rate = totalTokens / (avgDuration / 1000);
+                    tokenRateEl.textContent = rate >= 1000 ? (rate / 1000).toFixed(1) + 'K' : Math.round(rate);
+                } else {
+                    tokenRateEl.textContent = '--';
+                }
+            }
+
+            // Update donut SVG
+            this._updateDonutChart(activeCount, queuedCount, completedCount, failedCount, totalRuns);
 
             // Render groups
             this.renderTaskGroups(groups);
@@ -10170,23 +10202,34 @@ Object.assign(app, {
             return;
         }
 
+        // Preserve collapsed state
+        const collapsed = new Set();
+        container.querySelectorAll('.task-group.collapsed').forEach(el => collapsed.add(el.dataset.groupId));
+
         container.innerHTML = groupIds.map(groupId => {
             const group = groups[groupId];
             const total = group.runIds.length;
             const completed = group.completed;
             const failed = group.failed;
+            const active = total - completed - failed;
             const progress = total > 0 ? ((completed + failed) / total * 100) : 0;
+            const isCollapsed = collapsed.has(groupId) ? ' collapsed' : '';
+            const activeLabel = active > 0 ? `<span style="color:#64b5f6">${active} running</span>` : '';
 
-            return `<div class="task-group">
-                <div class="task-group-header">
-                    <span class="group-id">📦 ${this.escapeHtml(groupId)}</span>
+            return `<div class="task-group${isCollapsed}" data-group-id="${this.escapeHtml(groupId)}">
+                <div class="task-group-header" onclick="this.closest('.task-group').classList.toggle('collapsed')">
+                    <span class="group-id"><span class="task-group-toggle">▼</span>📦 ${this.escapeHtml(groupId)}</span>
                     <div class="group-stats">
-                        <span>${completed}/${total} completed</span>
-                        <span>${group.totalTokens} tokens</span>
+                        ${activeLabel}
+                        <span>${completed}/${total}</span>
+                        <span>${this.formatTokens(group.totalTokens)} tok</span>
                     </div>
                 </div>
-                <div class="task-run-progress">
-                    <div class="task-run-progress-bar" style="width:${progress}%"></div>
+                <div class="task-group-body">
+                    <div class="task-run-progress">
+                        <div class="task-run-progress-bar" style="width:${progress}%"></div>
+                    </div>
+                    ${failed > 0 ? `<div style="font-size:10px;color:#ef5350;margin-top:4px">⚠ ${failed} failed</div>` : ''}
                 </div>
             </div>`;
         }).join('');
@@ -10209,26 +10252,35 @@ Object.assign(app, {
             const completionTokens = run.metrics?.completionTokens || 0;
             const totalTokens = run.metrics?.totalTokens || 0;
 
-            // Extract BT file name
             const btFile = run.file ? run.file.split('/').pop() : 'unknown';
-            const groupLabel = run.group ? ` [${run.group}]` : '';
+            const groupLabel = run.group ? `<span style="color:var(--theme-accent);font-size:10px"> [${this.escapeHtml(run.group)}]</span>` : '';
+
+            // Mini token bar: prompt=teal, completion=yellow
+            const tokenBarHtml = totalTokens > 0 ? (() => {
+                const promptPct = Math.round(promptTokens / totalTokens * 100);
+                const compPct = Math.round(completionTokens / totalTokens * 100);
+                return `<div class="task-token-bar">
+                    <div class="task-token-bar-prompt" style="width:${promptPct}%"></div>
+                    <div class="task-token-bar-completion" style="width:${compPct}%"></div>
+                </div>`;
+            })() : '';
+
+            const statusIcon = status === 'running' ? '⚡' : status === 'completed' ? '✓' : status === 'failed' ? '✗' : '·';
 
             return `<div class="task-run">
-                <div class="task-run-status ${statusClass}">${status.toUpperCase()}</div>
+                <div class="task-run-status ${statusClass}" title="${status}">${statusIcon}</div>
                 <div class="task-run-info">
                     <div class="task-run-name">${this.escapeHtml(btFile)}${groupLabel}</div>
                     <div class="task-run-meta">
-                        <span>ID: ${run.runId.substring(0, 8)}</span>
+                        <span style="font-family:monospace;font-size:10px;color:#666">${run.runId.substring(0, 8)}</span>
                         <span>${this.formatDuration(duration)}</span>
+                        <span style="color:var(--theme-text2)">${this.formatTokens(totalTokens)} tok</span>
                     </div>
-                    <div class="task-run-metrics">
-                        <span>Tokens: ${totalTokens}</span>
-                        <span>Prompt: ${promptTokens} | Completion: ${completionTokens}</span>
-                    </div>
+                    ${tokenBarHtml}
                 </div>
                 <div class="task-run-buttons">
                     ${status === 'running' || status === 'queued' ? `
-                        <button class="task-run-btn cancel-btn" onclick="app.cancelRun('${run.runId}')">Cancel</button>
+                        <button class="task-run-btn cancel-btn" onclick="app.cancelRun('${run.runId}')">✕</button>
                     ` : ''}
                 </div>
             </div>`;
@@ -10263,6 +10315,62 @@ Object.assign(app, {
         if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
         if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
         return String(n);
+    },
+
+    _updateDonutChart(active, queued, completed, failed, total) {
+        const svg = document.getElementById('task-donut-svg');
+        if (!svg) return;
+        const label = document.getElementById('task-donut-label');
+        if (label) {
+            label.style.transform = 'rotate(90deg)';
+            label.setAttribute('transform', 'rotate(90,40,40)');
+            label.textContent = total;
+        }
+        // Remove old arc segments
+        svg.querySelectorAll('.donut-arc').forEach(el => el.remove());
+        if (total === 0) return;
+
+        const R = 30, CX = 40, CY = 40, STROKE = 10;
+        const circ = 2 * Math.PI * R;
+        const segments = [
+            { count: active,    color: '#64b5f6' },
+            { count: queued,    color: '#bdbdbd' },
+            { count: completed, color: '#81c784' },
+            { count: failed,    color: '#ef5350' },
+        ];
+        let offset = 0;
+        for (const seg of segments) {
+            if (seg.count === 0) continue;
+            const dash = (seg.count / total) * circ;
+            const gap = circ - dash;
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('class', 'donut-arc');
+            circle.setAttribute('cx', CX);
+            circle.setAttribute('cy', CY);
+            circle.setAttribute('r', R);
+            circle.setAttribute('fill', 'none');
+            circle.setAttribute('stroke', seg.color);
+            circle.setAttribute('stroke-width', STROKE);
+            circle.setAttribute('stroke-dasharray', `${dash} ${gap}`);
+            circle.setAttribute('stroke-dashoffset', -offset);
+            svg.insertBefore(circle, label || null);
+            offset += dash;
+        }
+    },
+
+    switchEmbeddedLogTab(tab) {
+        document.getElementById('task-embedded-log').style.display = tab === 'log' ? '' : 'none';
+        document.getElementById('task-embedded-http-log').style.display = tab === 'http' ? '' : 'none';
+        document.querySelectorAll('.task-log-tab').forEach(btn => {
+            btn.classList.toggle('task-log-tab-active', btn.dataset.etab === tab);
+        });
+    },
+
+    clearEmbeddedLog() {
+        const el = document.getElementById('task-embedded-log');
+        if (el) el.innerHTML = '';
+        const el2 = document.getElementById('task-embedded-http-log');
+        if (el2) el2.innerHTML = '';
     }
 });
 
