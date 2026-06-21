@@ -1866,6 +1866,8 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 .task-manager-pane {
     display: none;
     flex-direction: column;
+    height: 100%;
+    overflow: hidden;
 }
 
 .task-manager-header-pane {
@@ -1902,22 +1904,41 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
     overflow-y: auto;
     padding: 8px 12px;
     background: var(--theme-bg);
+    min-height: 0;
 }
 
-.task-summary {
+/* Donut + stats side-by-side */
+.task-summary-section {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.task-donut {
+    flex-shrink: 0;
+    transform: rotate(-90deg);
+}
+
+.task-stats-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
-    margin-bottom: 12px;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    flex: 1;
 }
 
 .stat-box {
     background: var(--theme-bg2);
     border: 1px solid var(--theme-border);
     border-radius: 4px;
-    padding: 6px;
+    padding: 5px 6px;
     text-align: center;
 }
+
+.stat-box.stat-active .stat-value { color: #64b5f6; }
+.stat-box.stat-queued .stat-value { color: #bdbdbd; }
+.stat-box.stat-done .stat-value { color: #81c784; }
+.stat-box.stat-fail .stat-value { color: #ef5350; }
 
 .stat-label {
     font-size: 9px;
@@ -1929,6 +1950,35 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 
 .stat-value {
     font-size: 14px;
+    font-weight: bold;
+    color: var(--theme-accent);
+}
+
+/* Token / Duration metrics row */
+.task-metrics-row {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.task-metric-item {
+    flex: 1;
+    background: var(--theme-bg2);
+    border: 1px solid var(--theme-border);
+    border-radius: 4px;
+    padding: 4px 6px;
+    text-align: center;
+}
+
+.task-metric-label {
+    font-size: 9px;
+    color: var(--theme-text2);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.task-metric-value {
+    font-size: 12px;
     font-weight: bold;
     color: var(--theme-accent);
 }
@@ -1965,11 +2015,50 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
     padding: 10px;
 }
 
+/* Mini token bar inside run card */
+.task-token-bar {
+    height: 3px;
+    background: var(--theme-bg);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 3px;
+    display: flex;
+}
+
+.task-token-bar-prompt {
+    height: 100%;
+    background: #4ec9b0;
+}
+
+.task-token-bar-completion {
+    height: 100%;
+    background: #f0c040;
+}
+
+/* Collapsible group */
+.task-group-toggle {
+    color: var(--theme-text2);
+    font-size: 10px;
+    margin-right: 4px;
+    display: inline-block;
+    transition: transform 0.2s;
+}
+
+.task-group.collapsed .task-group-toggle {
+    transform: rotate(-90deg);
+}
+
+.task-group.collapsed .task-group-body {
+    display: none;
+}
+
 .task-group-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 8px;
+    cursor: pointer;
+    user-select: none;
 }
 
 .group-id {
@@ -1992,18 +2081,26 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 }
 
 .task-run-status {
-    font-size: 11px;
+    font-size: 13px;
     font-weight: bold;
-    padding: 2px 6px;
-    border-radius: 3px;
-    text-transform: uppercase;
-    min-width: 60px;
-    text-align: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+@keyframes taskPulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 4px #64b5f680; }
+    50% { opacity: 0.65; box-shadow: 0 0 8px #64b5f6cc; }
 }
 
 .status-running {
     background: #4a5f7f;
     color: #64b5f6;
+    animation: taskPulse 1.5s ease-in-out infinite;
 }
 
 .status-completed {
@@ -2094,6 +2191,61 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 .task-run-btn.cancel-btn:hover {
     background: var(--theme-danger);
     border-color: var(--theme-danger);
+}
+
+/* Embedded log pane inside Task Manager */
+.task-embedded-log-pane {
+    border-top: 2px solid var(--theme-border);
+    display: flex;
+    flex-direction: column;
+    height: 160px;
+    flex-shrink: 0;
+    background: var(--theme-bg);
+}
+
+.task-embedded-log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 8px;
+    border-bottom: 1px solid var(--theme-border);
+    background: var(--theme-bg2);
+    flex-shrink: 0;
+}
+
+.task-log-tabs {
+    display: flex;
+    gap: 2px;
+}
+
+.task-log-tab {
+    background: none;
+    border: none;
+    color: var(--theme-text2);
+    padding: 2px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background 0.1s;
+}
+
+.task-log-tab.task-log-tab-active {
+    background: var(--theme-bg3);
+    color: var(--theme-text);
+}
+
+.task-log-tab:hover:not(.task-log-tab-active) {
+    background: var(--theme-bg3);
+    opacity: 0.7;
+}
+
+.task-embedded-log-content {
+    flex: 1;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 11px;
+    padding: 4px 6px;
+    color: var(--theme-text);
 }
 
 
