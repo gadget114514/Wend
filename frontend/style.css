@@ -2336,6 +2336,13 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
 .bt-panel-body {
     border-top: 1px solid var(--theme-border);
     padding: 4px 0;
+    min-height: 20px;
+}
+
+.bt-panel-body:empty::after {
+    content: '';
+    display: block;
+    height: 20px;
 }
 
 .bt-history-row {

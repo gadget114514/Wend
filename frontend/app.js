@@ -774,6 +774,8 @@ const app = {
         addBtn.textContent = '+';
         addBtn.onclick = () => this.newTab();
         bar.appendChild(addBtn);
+
+        this.renderBTPanels(this._lastRuns || []);
     },
 
 	// switchTab means switch BT
@@ -5743,6 +5745,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         });
         if (tab === 'manager') {
             this.startTaskMetricsPolling();
+            this.renderBTPanels(this._lastRuns || []);
         } else {
             this.stopTaskMetricsPolling();
         }
@@ -10158,6 +10161,7 @@ Object.assign(app, {
             this._updateDonutChart(activeCount, queuedCount, completedCount, failedCount, totalRuns);
 
             // Render BT panels
+            this._lastRuns = runs;
             this.renderBTPanels(runs);
         } catch (e) {
             console.error('[Task Manager] Error updating metrics:', e);
@@ -10166,9 +10170,14 @@ Object.assign(app, {
 
     renderBTPanels(runs) {
         const container = document.getElementById('bt-panels-container');
-        if (!container) return;
+        if (!container) {
+            console.log('[Tasks] bt-panels-container not found');
+            return;
+        }
 
         const tabs = this.state.tabs || [];
+        console.log('[Tasks] renderBTPanels called with', runs.length, 'runs and', tabs.length, 'tabs');
+
         if (tabs.length === 0 && runs.length === 0) {
             container.innerHTML = `
                 <div class="bt-empty-state">
@@ -10210,6 +10219,8 @@ Object.assign(app, {
             if (processedFiles.has(file)) continue;
             panels.push({ index: null, file, tab: null, fileRuns });
         }
+
+        console.log('[Tasks] Creating', panels.length, 'panels');
 
         container.innerHTML = panels.map(({ index, file, tab, fileRuns }) => {
             const fname = file === '__unknown__' ? '(inline)' : file.split(/[\\/]/).pop();
