@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Phase E - Inline Test</title>
+    <style>
+        body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
+        pre { background: #252526; padding: 10px; margin: 10px 0; min-height: 200px; }
+        button { background: #007acc; color: #fff; border: none; padding: 10px 20px; cursor: pointer; margin: 5px; }
+        button:hover { background: #005a9e; }
+    </style>
+</head>
+<body>
+<h1>Phase E - Inline Test</h1>
+
+<button onclick="
+  const output = document.getElementById('log');
+  output.innerHTML = '';
+  output.innerHTML += '🛡️ Testing Guard...\n\n';
+
+  try {
+    const guard = new Guard({ condition: 'allowed', expectedValue: true });
+    const child = new (class extends b3.Action { tick(bb) { return b3.Status.SUCCESS; } })();
+    guard.child = child;
+    const bb = new b3.Blackboard();
+
+    let status = guard.tick(bb);
+    output.innerHTML += 'Test 1 (guard blocks): ' + (status === b3.Status.FAILURE ? '✅ PASS' : '❌ FAIL') + '\n';
+
+    bb.set('allowed', true);
+    status = guard.tick(bb);
+    output.innerHTML += 'Test 2 (guard allows): ' + (status === b3.Status.SUCCESS ? '✅ PASS' : '❌ FAIL') + '\n';
+
+    output.innerHTML += '\n✅ Guard decorator works!';
+  } catch (e) {
+    output.innerHTML += '❌ Error: ' + e.message + '\n' + e.stack;
+  }
+">🛡️ Test Guard</button>
+
+<button onclick="
+  const output = document.getElementById('log');
+  output.innerHTML = '';
+  output.innerHTML += '🔄 Testing Retry...\n\n';
+
+  try {
+    let attempts = 0;
+    const child = new (class extends b3.Action {
+      tick(bb) {
+        attempts++;
+        return attempts < 2 ? b3.Status.FAILURE : b3.Status.SUCCESS;
+      }
+    })();
+
+    const retry = new Retry({ maxRetries: 2 });
+    retry.child = child;
+    const bb = new b3.Blackboard();
+
+    let status = retry.tick(bb);
+    output.innerHTML += 'First tick (should be RUNNING): ' + (status === b3.Status.RUNNING ? '✅ PASS' : '❌ FAIL') + '\n';
+
+    status = retry.tick(bb);
+    output.innerHTML += 'Second tick (should be SUCCESS): ' + (status === b3.Status.SUCCESS ? '✅ PASS' : '❌ FAIL') + '\n';
+    output.innerHTML += 'Total attempts: ' + attempts + ' (expected 2)\n';
+
+    output.innerHTML += '\n✅ Retry decorator works!';
+  } catch (e) {
+    output.innerHTML += '❌ Error: ' + e.message + '\n' + e.stack;
+  }
+">🔄 Test Retry</button>
+
+<button onclick="document.getElementById('log').innerHTML = ''">🗑 Clear</button>
+
+<pre id="log"></pre>
+
+<script src="b3-shim.js"></script>
+<script src="bt-b3-decorators.js"></script>
+</body>
+</html>

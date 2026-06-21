@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>B3 Integration Diagnostics</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+        }
+        h1 { color: #4ec9b0; }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            border-left: 4px solid;
+        }
+        .ok { background: #1e6b1e; border-color: #6a9955; color: #6a9955; }
+        .error { background: #6b1e1e; border-color: #f48771; color: #f48771; }
+        .info { background: #1e3a6b; border-color: #9cdcfe; color: #9cdcfe; }
+        code { background: #252526; padding: 2px 6px; border-radius: 3px; }
+        pre { background: #252526; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+<h1>🔍 B3 Integration Diagnostics</h1>
+<div id="diagnostics"></div>
+
+<!-- Load dependencies directly -->
+<script src="b3-shim.js"></script>
+<script src="bt-b3-node-registry.js"></script>
+<script src="bt-b3-actions.js"></script>
+<script src="bt-b3-converter.js"></script>
+<script src="bt-b3-adapter.js"></script>
+
+<script>
+const output = document.getElementById('diagnostics');
+
+function log(message, status = 'info') {
+    const div = document.createElement('div');
+    div.className = `status ${status}`;
+    div.innerHTML = message;
+    output.appendChild(div);
+    console.log(message);
+}
+
+function testStep(name, testFn) {
+    try {
+        const result = testFn();
+        log(`✅ ${name}`, result ? 'ok' : 'error');
+        return result;
+    } catch (e) {
+        log(`❌ ${name}: ${e.message}`, 'error');
+        console.error(e);
+        return false;
+    }
+}
+
+log('🚀 Starting diagnostics...', 'info');
+
+// Wait a bit for scripts to load
+setTimeout(() => {
+    // Step 1: Check b3 shim
+    testStep('Load b3 shim', () => {
+        return typeof b3 !== 'undefined' && b3.Tree && b3.Action && b3.Status;
+    });
+
+    // Step 2: Check registry
+    testStep('B3NodeRegistry loaded', () => {
+        return typeof B3NodeRegistry !== 'undefined' && typeof b3NodeRegistry !== 'undefined';
+    });
+
+    // Step 3: Check actions
+    testStep('ProcessPromptAction loaded', () => {
+        return typeof ProcessPromptAction !== 'undefined';
+    });
+
+    testStep('LoadLocalFileAction loaded', () => {
+        return typeof LoadLocalFileAction !== 'undefined';
+    });
+
+    // Step 4: Check converter
+    testStep('B3TreeConverter loaded', () => {
+        return typeof B3TreeConverter !== 'undefined';
+    });
+
+    // Step 5: Check adapter
+    testStep('Behavior3Adapter loaded', () => {
+        return typeof Behavior3Adapter !== 'undefined';
+    });
+
+    // Functional tests
+    log('\n🧪 Running functional tests...', 'info');
+
+    testStep('B3NodeRegistry.has("Sequence")', () => {
+        return b3NodeRegistry && b3NodeRegistry.has('Sequence');
+    });
+
+    testStep('ProcessPromptAction instantiation', () => {
+        const action = new ProcessPromptAction({ prompt: 'test' });
+        return action instanceof b3.Action;
+    });
+
+    testStep('B3TreeConverter.wendToB3()', () => {
+        const tree = {
+            nodeType: 'root',
+            title: 'Test',
+            btType: 'sequence',
+            children: []
+        };
+        const b3tree = B3TreeConverter.wendToB3(tree);
+        return b3tree.root && b3tree.nodes;
+    });
+
+    testStep('Behavior3Adapter instantiation', () => {
+        const mockApp = {
+            getNodeByPath: () => ({ title: btoa('Test'), nodeType: 'root' }),
+            state: { btRunState: new Map(), pipelineRun: { running: false } },
+            renderTree: () => {},
+            addLog: () => {}
+        };
+        const adapter = new Behavior3Adapter(mockApp);
+        return adapter && typeof adapter.run === 'function';
+    });
+
+    log('\n✅ Diagnostics complete!', 'ok');
+}, 500); // Wait for scripts to load
+</script>
+</body>
+</html>

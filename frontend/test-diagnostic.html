@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Diagnostic Test</title>
+    <style>
+        body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
+        .ok { color: #6a9955; }
+        .fail { color: #f48771; }
+        pre { background: #252526; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+<h1>🔍 Diagnostic Test</h1>
+
+<h2>Loading Scripts...</h2>
+<pre id="log"></pre>
+
+<script>
+function log(msg) {
+    const el = document.getElementById('log');
+    el.textContent += msg + '\n';
+    console.log(msg);
+}
+
+log('✓ Page loaded');
+
+// Test 1: Check if b3 exists
+log('Checking b3-shim...');
+</script>
+
+<script src="b3-shim.js"></script>
+
+<script>
+if (typeof b3 !== 'undefined') {
+    log('✓ b3-shim loaded successfully');
+    log('  - b3.Status: ' + (b3.Status ? 'OK' : 'MISSING'));
+    log('  - b3.Action: ' + (b3.Action ? 'OK' : 'MISSING'));
+    log('  - b3.Tree: ' + (b3.Tree ? 'OK' : 'MISSING'));
+} else {
+    log('✗ b3-shim NOT loaded');
+}
+
+log('\nChecking registry...');
+</script>
+
+<script src="bt-b3-node-registry.js"></script>
+
+<script>
+if (typeof b3NodeRegistry !== 'undefined') {
+    log('✓ bt-b3-node-registry loaded');
+    log('  - has Sequence: ' + b3NodeRegistry.has('Sequence'));
+    log('  - has RepeatSequence: ' + b3NodeRegistry.has('RepeatSequence'));
+} else {
+    log('✗ bt-b3-node-registry NOT loaded');
+}
+
+log('\nChecking decorators...');
+</script>
+
+<script src="bt-b3-decorators.js"></script>
+
+<script>
+if (typeof MaxTime !== 'undefined') {
+    log('✓ bt-b3-decorators loaded');
+    log('  - MaxTime: OK');
+    log('  - Guard: ' + (typeof Guard !== 'undefined' ? 'OK' : 'MISSING'));
+    log('  - Retry: ' + (typeof Retry !== 'undefined' ? 'OK' : 'MISSING'));
+} else {
+    log('✗ bt-b3-decorators NOT loaded');
+}
+
+log('\n✅ Diagnostic complete');
+
+// Test button click
+function testClick() {
+    log('\n▶ Test button clicked at ' + new Date().toLocaleTimeString());
+    alert('Button works! Check console.');
+}
+</script>
+
+<button onclick="testClick()" style="padding: 10px 20px; font-size: 16px; background: #007acc; color: white; border: none; cursor: pointer;">Test Click</button>
+
+</body>
+</html>

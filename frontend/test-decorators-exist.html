@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Check Decorators</title>
+    <style>
+        body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
+        pre { background: #252526; padding: 10px; margin: 10px 0; }
+        .ok { color: #6a9955; }
+        .fail { color: #f48771; }
+    </style>
+</head>
+<body>
+<h1>🔍 Decorator Classes Check</h1>
+<pre id="log"></pre>
+
+<script src="b3-shim.js"></script>
+<script>
+document.getElementById('log').innerHTML += 'b3 loaded: ' + (typeof b3 !== 'undefined' ? 'YES' : 'NO') + '\n';
+document.getElementById('log').innerHTML += 'b3.Status: ' + (b3.Status ? 'OK' : 'MISSING') + '\n';
+document.getElementById('log').innerHTML += 'b3.Node: ' + (b3.Node ? 'OK' : 'MISSING') + '\n';
+document.getElementById('log').innerHTML += 'b3.Action: ' + (b3.Action ? 'OK' : 'MISSING') + '\n';
+document.getElementById('log').innerHTML += '\n';
+</script>
+
+<script src="bt-b3-decorators.js"></script>
+<script>
+document.getElementById('log').innerHTML += 'MaxTime defined: ' + (typeof MaxTime !== 'undefined' ? 'YES' : 'NO') + '\n';
+document.getElementById('log').innerHTML += 'Guard defined: ' + (typeof Guard !== 'undefined' ? 'YES' : 'NO') + '\n';
+document.getElementById('log').innerHTML += 'Retry defined: ' + (typeof Retry !== 'undefined' ? 'YES' : 'NO') + '\n';
+document.getElementById('log').innerHTML += 'window.MaxTime: ' + (window.MaxTime ? 'OK' : 'MISSING') + '\n';
+
+if (typeof MaxTime !== 'undefined') {
+    document.getElementById('log').innerHTML += '\n✅ Trying to create MaxTime instance...\n';
+    try {
+        const m = new MaxTime({ maxTime: 100 });
+        document.getElementById('log').innerHTML += '✅ MaxTime instance created!\n';
+        document.getElementById('log').innerHTML += 'Instance properties: child=' + (m.child || 'none') + '\n';
+    } catch (e) {
+        document.getElementById('log').innerHTML += '❌ Error: ' + e.message + '\n';
+    }
+}
+</script>
+
+</body>
+</html>

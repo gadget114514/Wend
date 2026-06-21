@@ -1,0 +1,319 @@
+{
+  "board": "Wend — AI Pipeline Editor",
+  "columns": [
+    {
+      "id": "col-backlog",
+      "name": "Backlog",
+      "color": "#6b7280",
+      "cards": [
+        {
+          "id": "k001",
+          "title": "ハーネスデータモデル実装",
+          "description": "harnesses/ ディレクトリ、systemPrompt/memory/skills/config/baseline。Phase 2 の基盤データ構造",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2026-07-10",
+          "tags": ["phase2", "harness", "backend"],
+          "done": false
+        },
+        {
+          "id": "k002",
+          "title": "ハーネス操作ステップ実装",
+          "description": "harness_enhance / harness_reset / harness_save ステップの実装",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2026-07-20",
+          "tags": ["phase2", "harness", "step"],
+          "done": false
+        },
+        {
+          "id": "k003",
+          "title": "Harness Manager UI",
+          "description": "一覧・編集・スナップショット管理 UI",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2026-08-05",
+          "tags": ["phase2", "harness", "ui"],
+          "done": false
+        },
+        {
+          "id": "k004",
+          "title": "BT ノードと既存ステップの重複調査",
+          "description": "BehaviorTree の sequence/selector/parallel/leaf と既存パイプラインステップの機能重複を洗い出し、統合方針を決定",
+          "assignee": "",
+          "priority": "high",
+          "dueDate": "2026-08-12",
+          "tags": ["phase3", "bt", "investigation"],
+          "done": false
+        },
+        {
+          "id": "k005",
+          "title": "BT 不足機能の実装",
+          "description": "調査結果に基づき不足している BT ノードタイプ・実行ロジック・UI を実装。条件分岐・デコレーター等",
+          "assignee": "",
+          "priority": "high",
+          "dueDate": "2026-08-25",
+          "tags": ["phase3", "bt", "feature"],
+          "done": false
+        },
+        {
+          "id": "k006",
+          "title": "fetch ステップ実装",
+          "description": "HTTP GET/POST、auth (providers.json 参照)、resultAs (text/attachment/json)",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2026-08-25",
+          "tags": ["phase4", "step", "http"],
+          "done": false
+        },
+        {
+          "id": "k007",
+          "title": "transform ステップ実装",
+          "description": "engine: regex / json_path / template / js",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2026-09-05",
+          "tags": ["phase4", "step", "transform"],
+          "done": false
+        },
+        {
+          "id": "k008",
+          "title": "foreach ステップ実装",
+          "description": "配列ループ、itemVariable、concurrency、aggregateAs (newline/json_array/csv)",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2026-09-17",
+          "tags": ["phase4", "step", "loop"],
+          "done": false
+        },
+        {
+          "id": "k009",
+          "title": "parallel ステップ実装",
+          "description": "並列ブランチ実行、outputMode (merge/first/branch.*)",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2026-09-30",
+          "tags": ["phase4", "step", "parallel"],
+          "done": false
+        },
+        {
+          "id": "k010",
+          "title": "wait ステップ実装",
+          "description": "durationMs、until 条件ポーリング、timeoutMs",
+          "assignee": "",
+          "priority": "low",
+          "dueDate": "2026-10-07",
+          "tags": ["phase4", "step", "wait"],
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "col-todo",
+      "name": "To Do",
+      "color": "#3b82f6",
+      "cards": [
+        {
+          "id": "k011",
+          "title": "プロジェクトディレクトリ構造再編",
+          "description": "projects/{name}/ 分離、chests/、storage_chest/ 導入。Phase 5 の基盤",
+          "assignee": "",
+          "priority": "high",
+          "dueDate": "2026-10-27",
+          "tags": ["phase5", "architecture", "storage"],
+          "done": false
+        },
+        {
+          "id": "k012",
+          "title": "5-ペイン UI 再構築",
+          "description": "Tree | Input | Calculation | Output | Messages。CSS Grid 再設計",
+          "assignee": "",
+          "priority": "high",
+          "dueDate": "2026-11-20",
+          "tags": ["phase5", "ui", "layout"],
+          "done": false
+        },
+        {
+          "id": "k013",
+          "title": "Checkpoint 永続化システム",
+          "description": "SaveCheckpoint/LoadCheckpoint、ScanIncompleteRuns、ResumePartialRun",
+          "assignee": "",
+          "priority": "high",
+          "dueDate": "2026-12-10",
+          "tags": ["phase5", "checkpoint", "persistence"],
+          "done": false
+        },
+        {
+          "id": "k014",
+          "title": "プロジェクト管理 UI",
+          "description": "プロジェクトセレクター、作成/切替 UI",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2026-12-25",
+          "tags": ["phase5", "ui", "project"],
+          "done": false
+        },
+        {
+          "id": "k015",
+          "title": "Named Chest 実装",
+          "description": "SaveToNamedChest/LoadFromNamedChest、Steel Chest / Requester Chest",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2027-01-10",
+          "tags": ["phase6", "chest", "storage"],
+          "done": false
+        },
+        {
+          "id": "k016",
+          "title": "Input Source 選択 UI",
+          "description": "ソース dropdown (prev step / checkpoint / chest / file / manual)、[📤] [📥] ボタン",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2027-01-25",
+          "tags": ["phase6", "ui", "input"],
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "col-progress",
+      "name": "In Progress",
+      "color": "#f59e0b",
+      "cards": [
+        {
+          "id": "k026",
+          "title": "tool ステップ実装",
+          "description": "外部GUIアプリ起動、WaitForSingleObject、resultAs (file/clipboard/attachment)。Phase 8 から前倒し",
+          "assignee": "",
+          "priority": "high",
+          "dueDate": "2026-06-28",
+          "tags": ["phase8", "step", "tool", "pulled-forward"],
+          "done": false
+        },
+        {
+          "id": "k027",
+          "title": "Blob GC 実装",
+          "description": "起動時スキャン、未参照 blob 削除、history 参照考慮。Phase 8 から前倒し",
+          "assignee": "",
+          "priority": "high",
+          "dueDate": "2026-06-25",
+          "tags": ["phase8", "gc", "storage", "pulled-forward"],
+          "done": false
+        },
+        {
+          "id": "k028",
+          "title": "Recent Files 実装",
+          "description": "recent_files.json、init メッセージで送信、メニューサブメニュー。Phase 8 から前倒し",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2026-06-22",
+          "tags": ["phase8", "ui", "recent-files", "pulled-forward"],
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "col-review",
+      "name": "Review",
+      "color": "#a855f7",
+      "cards": []
+    },
+    {
+      "id": "col-done",
+      "name": "Done",
+      "color": "#22c55e",
+      "cards": [
+        {
+          "id": "k017",
+          "title": "command ステップ実装",
+          "description": "child_process.spawn + stdout pipe → stream_chunk。{content_file} プレースホルダー対応",
+          "assignee": "",
+          "priority": "high",
+          "dueDate": "2026-06-14",
+          "tags": ["phase1", "step", "command"],
+          "done": true
+        },
+        {
+          "id": "k018",
+          "title": "BT 実行エンジン基盤",
+          "description": "sequence/selector/parallel/leaf 実行ロジック、run/step/pause/stop 制御、btRunState 管理",
+          "assignee": "",
+          "priority": "high",
+          "dueDate": "2026-06-14",
+          "tags": ["phase0", "bt", "engine"],
+          "done": true
+        },
+        {
+          "id": "k019",
+          "title": "BT ブラックボード実装",
+          "description": "blackboard[key]={text,media} の typed slot 構造。btInputKey/btInputType/btOutputKey/btPrompt をノードに保存。{bb:key} プレースホルダー展開",
+          "assignee": "",
+          "priority": "high",
+          "dueDate": "2026-06-15",
+          "tags": ["phase0", "bt", "blackboard"],
+          "done": true
+        },
+        {
+          "id": "k020",
+          "title": "Op ペイン BT 設定アコーディオン",
+          "description": "演算ペイン下部に <details> アコーディオン追加。BT プロンプト / 入力キー+型 / 出力キー フィールドと保存ボタン",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2026-06-15",
+          "tags": ["phase0", "bt", "ui"],
+          "done": true
+        },
+        {
+          "id": "k021",
+          "title": "ブラックボード管理ダイアログ",
+          "description": "BT ツールバー 📋 ボタンから開くモーダル。変数一覧・テキスト編集・メディアアップロード・個別クリア・新規追加",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2026-06-15",
+          "tags": ["phase0", "bt", "dialog"],
+          "done": true
+        },
+        {
+          "id": "k022",
+          "title": "BT ツールバー改善",
+          "description": "🔓/🔒 ロックボタン追加。⚙ 設定ボタン削除。ツールバーを tree ペイン幅に合わせて flex-wrap 折りたたみ対応",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2026-06-15",
+          "tags": ["phase0", "bt", "toolbar"],
+          "done": true
+        },
+        {
+          "id": "k023",
+          "title": "実行タイマー・ステータスバッジ",
+          "description": "リーフ実行中はスピナーと経過時間をリアルタイム表示。出力ペインに run-status-badge 追加",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2026-06-15",
+          "tags": ["phase0", "bt", "ui"],
+          "done": true
+        },
+        {
+          "id": "k024",
+          "title": "連結モード自動追加抑止と手動追加 UI",
+          "description": "連結モードでの自動 _updateLinkedInput を抑止。Ctrl+クリックで手動追加。右クリックメニュー追加",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2026-06-15",
+          "tags": ["phase0", "bt", "linked-mode"],
+          "done": true
+        },
+        {
+          "id": "k025",
+          "title": "バグ修正・細部改善",
+          "description": "Tree ペイン File タブが空表示になるバグ修正。入力ペインの画像削除ボタン背景色をグレー→白に修正",
+          "assignee": "",
+          "priority": "low",
+          "dueDate": "2026-06-15",
+          "tags": ["phase0", "bugfix"],
+          "done": true
+        }
+      ]
+    }
+  ]
+}

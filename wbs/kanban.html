@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kanban Board</title>
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHJ4PSIzIiBmaWxsPSIjMWUyZjYzIi8+PHJlY3QgeD0iMiIgeT0iMiIgd2lkdGg9IjQuNSIgaGVpZ2h0PSIxNiIgcng9IjEuNSIgZmlsbD0iIzdkYTRmNyIvPjxyZWN0IHg9IjcuNSIgeT0iMiIgd2lkdGg9IjQuNSIgaGVpZ2h0PSIxMiIgcng9IjEuNSIgZmlsbD0iI2NkZDlmNSIvPjxyZWN0IHg9IjEzIiB5PSIyIiB3aWR0aD0iNC41IiBoZWlnaHQ9IjgiIHJ4PSIxLjUiIGZpbGw9IiM0YWE0NGEiLz48L3N2Zz4=">
+<style>
+  :root{
+    --border:#d7dbe0; --btn-border:#9aa2ad; --text:#1f2430; --muted:#6b7280;
+    --accent:#2563eb; --edit-on:#16a34a; --head-bg:#eef0f3;
+    --col-bg:#f0f2f5; --col-head:#e4e7ec; --card-bg:#fff;
+    --pri-high:#dc2626; --pri-med:#f59e0b; --pri-low:#22c55e; --pri-none:#9ca3af;
+    --done-bg:#f0fdf4; --done-border:#86efac;
+    --overdue-bg:#fef2f2; --overdue-border:#fca5a5;
+    --shadow:0 1px 3px rgba(0,0,0,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",Meiryo,sans-serif;
+       color:var(--text);background:#f7f8fa;display:flex;flex-direction:column;font-size:13px}
+  #topbar{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:8px 12px;
+          background:#fff;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  #topbar .title{font-weight:700;font-size:14px;display:flex;align-items:center;gap:5px}
+  #topbar .tdiv{width:1px;align-self:stretch;margin:5px 2px;background:var(--border)}
+  #topbar button{font:inherit;padding:5px 10px;border:1px solid var(--btn-border);background:#fff;border-radius:6px;cursor:pointer}
+  #topbar button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  #openBtn{display:flex;flex-direction:column;align-items:center;line-height:1.2;padding:3px 12px}
+  #openBtn .sub{font-size:9px;opacity:.8}
+  #openBtn.over{background:#eef4ff!important;border:1px dashed var(--accent)!important;color:var(--accent)!important}
+  #topbar #langBtn{border-color:transparent;background:transparent;color:var(--muted)}
+  #topbar #langBtn:hover{border-color:var(--btn-border);background:#fff}
+  #editBtn.on{background:var(--edit-on);color:#fff;border-color:var(--edit-on)}
+  #stat{margin-left:auto;color:var(--muted);font-size:12px}
+  #stat b{color:var(--text)}
+  #board{flex:1 1 auto;display:flex;gap:14px;padding:14px;overflow-x:auto;overflow-y:hidden;align-items:flex-start}
+  .column{flex:0 0 280px;display:flex;flex-direction:column;max-height:100%;background:var(--col-bg);border-radius:10px;border:1px solid var(--border)}
+  .column.drag-over-col{outline:2px dashed var(--accent);outline-offset:-2px}
+  .col-head{padding:10px 12px;font-weight:700;font-size:13px;border-bottom:1px solid var(--border);
+            display:flex;align-items:center;gap:8px;background:var(--col-head);border-radius:10px 10px 0 0;position:relative}
+  .col-dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
+  .col-name{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .col-count{font-size:11px;color:var(--muted);font-weight:400;flex:0 0 auto}
+  .col-actions{display:none;gap:3px;flex:0 0 auto}
+  body.editing .col-actions{display:inline-flex}
+  .col-actions button{font:inherit;font-size:11px;padding:2px 6px;border:1px solid var(--btn-border);
+                      background:#fff;border-radius:3px;cursor:pointer;color:#445}
+  .col-actions button:hover{background:#eef2ff;border-color:#9db4f0}
+  .col-body{flex:1 1 auto;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:8px;min-height:60px}
+  .col-body::-webkit-scrollbar{width:5px}
+  .col-body::-webkit-scrollbar-thumb{background:#c5cad3;border-radius:3px}
+  .card{background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;
+        box-shadow:var(--shadow);cursor:grab;position:relative;border-left:4px solid var(--pri-none);transition:box-shadow .15s}
+  .card:hover{box-shadow:0 2px 8px rgba(0,0,0,.12)}
+  .card:active{cursor:grabbing}
+  .card.dragging{opacity:.4}
+  .card.drag-ghost{box-shadow:0 4px 16px rgba(0,0,0,.18);transform:rotate(1.5deg)}
+  .card.pri-high{border-left-color:var(--pri-high)}
+  .card.pri-medium{border-left-color:var(--pri-med)}
+  .card.pri-low{border-left-color:var(--pri-low)}
+  .card.done{background:var(--done-bg);border-left-color:var(--done-border);opacity:.75}
+  .card.overdue:not(.done){border-left-color:var(--overdue-border);background:var(--overdue-bg)}
+  .card-title{font-weight:600;font-size:13px;margin-bottom:4px;line-height:1.35;word-break:break-word}
+  .card.done .card-title{text-decoration:line-through;color:var(--muted)}
+  .card-desc{font-size:11px;color:var(--muted);margin-bottom:6px;line-height:1.4;
+             display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+  .card-meta{display:flex;flex-wrap:wrap;gap:5px;align-items:center;font-size:11px}
+  .card-assignee{display:inline-flex;align-items:center;gap:3px;color:var(--muted)}
+  .avatar{width:16px;height:16px;border-radius:50%;background:#c7d2fe;display:inline-flex;
+          align-items:center;justify-content:center;font-size:9px;color:#4338ca;font-weight:700;flex:0 0 auto;line-height:1}
+  .card-due{color:var(--muted)}
+  .card-due.overdue{color:var(--pri-high);font-weight:600}
+  .card-tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
+  .tag{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;background:#e0e7ff;color:#3730a3}
+  .card-actions{display:none;position:absolute;top:4px;right:4px;gap:2px}
+  body.editing .card-actions{display:inline-flex}
+  .card-actions button{font-size:12px;line-height:1;padding:3px 5px;border:1px solid var(--border);
+                       background:#fff;border-radius:3px;cursor:pointer;color:#445}
+  .card-actions button:hover{background:#eef2ff}
+  .card-actions button[data-act="del"]{color:var(--pri-high)}
+  .card-move{display:none;position:absolute;bottom:4px;right:4px;gap:2px}
+  body.editing .card-move{display:inline-flex}
+  .card-move button{font-size:10px;line-height:1;padding:2px 5px;border:1px solid var(--border);
+                    background:#fff;border-radius:3px;cursor:pointer;color:var(--muted)}
+  .card-move button:hover{background:#eef2ff;color:var(--accent)}
+  .add-card-btn{padding:8px;text-align:center;color:var(--muted);cursor:pointer;border:1px dashed var(--border);
+                border-radius:6px;font-size:12px;display:none;transition:background .15s}
+  body.editing .add-card-btn{display:block}
+  .add-card-btn:hover{background:#e8ebf0;color:var(--text)}
+  .add-col-btn{flex:0 0 280px;padding:20px;border:2px dashed var(--border);border-radius:10px;
+               background:transparent;color:var(--muted);font:inherit;font-size:13px;cursor:pointer;
+               display:none;align-items:center;justify-content:center;transition:background .15s;text-align:center}
+  body.editing .add-col-btn{display:flex}
+  .add-col-btn:hover{background:#e8ebf0;color:var(--text)}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:100;
+                 align-items:center;justify-content:center}
+  .modal-overlay.show{display:flex}
+  .modal{background:#fff;border-radius:12px;padding:20px;width:420px;max-width:92vw;max-height:88vh;overflow-y:auto;box-shadow:0 8px 30px rgba(0,0,0,.18)}
+  .modal h3{margin:0 0 14px;font-size:15px}
+  .modal label{display:block;margin-bottom:10px;font-size:12px;color:var(--muted);font-weight:500}
+  .modal input[type="text"],.modal input[type="date"],.modal textarea,.modal select{
+    width:100%;font:inherit;padding:6px 8px;border:1px solid #c3c9d2;border-radius:6px;margin-top:3px;background:#fff;color:var(--text)}
+  .modal textarea{min-height:56px;resize:vertical}
+  .modal .btn-row{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+  .modal button{font:inherit;padding:6px 14px;border:1px solid var(--btn-border);background:#fff;border-radius:6px;cursor:pointer}
+  .modal button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .modal button.danger{background:var(--pri-high);color:#fff;border-color:var(--pri-high)}
+  #empty{padding:60px 20px;color:var(--muted);text-align:center;font-size:14px;line-height:1.7;display:none}
+  #empty.show{display:block}
+  #empty b{color:var(--text)}
+  #notice{display:none;padding:6px 12px;background:#fff7d6;border-bottom:1px solid #e3d9a8;color:#6b5d1f;font-size:12px}
+  #notice.show{display:block}
+  .drop-placeholder{border:2px dashed var(--accent);border-radius:8px;background:rgba(37,99,235,.05);min-height:40px;transition:min-height .15s}
+</style>
+</head>
+<body>
+  <div id="topbar">
+    <span class="title"><svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><rect width="20" height="20" rx="3" fill="#1e2f63"/><rect x="2" y="2" width="4.5" height="16" rx="1.5" fill="#7da4f7"/><rect x="7.5" y="2" width="4.5" height="12" rx="1.5" fill="#cdd9f5"/><rect x="13" y="2" width="4.5" height="8" rx="1.5" fill="#4aa44a"/></svg><span style="display:flex;flex-direction:column;line-height:1.15">Kanban Board<span style="font-size:9px;color:var(--muted);font-weight:400">v1.0.0</span></span></span>
+    <span class="tdiv"></span>
+    <button id="openBtn" class="primary">ファイルを開く<span class="sub">（ドラッグ&amp;ドロップ）</span></button>
+    <button id="refreshBtn">更新</button>
+    <button id="editBtn">編集</button>
+    <input id="fallbackInput" type="file" accept=".json,application/json" hidden>
+    <span id="stat">未読み込み</span>
+    <span class="tdiv"></span>
+    <button id="langBtn" title="Switch language">EN</button>
+  </div>
+  <div id="notice"></div>
+  <div id="empty" class="show">「ファイルを開く」または D&amp;D で <b>kanban.json</b> を読み込んでください（Chrome）。</div>
+  <div id="board"></div>
+
+  <div id="cardModal" class="modal-overlay">
+    <div class="modal">
+      <h3 id="cardModalTitle">Card</h3>
+      <label id="lblTitle">Title<input id="cardTitle" type="text"></label>
+      <label id="lblDesc">Description<textarea id="cardDesc"></textarea></label>
+      <label id="lblAsg">Assignee<input id="cardAssignee" type="text"></label>
+      <label id="lblPri">Priority
+        <select id="cardPriority">
+          <option value="high" id="optHigh">High</option>
+          <option value="medium" id="optMed">Medium</option>
+          <option value="low" id="optLow">Low</option>
+          <option value="none" id="optNone">None</option>
+        </select>
+      </label>
+      <label id="lblDue">Due date<input id="cardDue" type="date"></label>
+      <label id="lblTags">Tags (comma-separated)<input id="cardTags" type="text"></label>
+      <div class="btn-row">
+        <button id="cardCancel">Cancel</button>
+        <button id="cardDelete" class="danger" style="display:none">Delete</button>
+        <button id="cardSave" class="primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="colModal" class="modal-overlay">
+    <div class="modal">
+      <h3 id="colModalTitle">Column</h3>
+      <label id="lblColName">Name<input id="colName" type="text"></label>
+      <label id="lblColColor">Color<input id="colColor" type="text" placeholder="#6366f1"></label>
+      <div class="btn-row">
+        <button id="colCancel">Cancel</button>
+        <button id="colDelete" class="danger" style="display:none">Delete</button>
+        <button id="colSave" class="primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+(function(){
+  const SAVE_DEBOUNCE_MS=400;
+
+  const I18N={
+    ja:{
+      open:"ファイルを開く",openSub:"（ドラッグ&ドロップ）",reload:"更新",edit:"編集",langBtn:"EN",
+      notLoaded:"未読み込み",
+      empty:"「ファイルを開く」または D&D で <b>kanban.json</b> を読み込んでください（Chrome）。",
+      addCard:"＋カードを追加",addCol:"＋列を追加",
+      cardTitle:"カード",editCard:"カードを編集",newCard:"新規カード",
+      colTitle:"列",editCol:"列を編集",newCol:"新規列",
+      lblTitle:"タイトル",lblDesc:"説明",lblAsg:"担当者",lblPri:"優先度",lblDue:"期日",lblTags:"タグ（カンマ区切り）",
+      lblColName:"列名",lblColColor:"色",
+      priHigh:"高",priMed:"中",priLow:"低",priNone:"なし",
+      save:"保存",cancel:"キャンセル",delete:"削除",
+      confirmDelCard:"このカードを削除しますか？",
+      confirmDelCol:"この列と中のカードを全て削除しますか？",
+      unsaved:"未保存の変更あり…",savedAt:"保存済 ",saveFail:"保存失敗",
+      stat:(n,m)=>`${n}列 ／ ${m}カード`,
+      fileLabel:(name,size)=>`${name}・${size} byte`,
+      jsonFail:(label,msg)=>`JSON読み込み失敗${label?`（${label}）`:""}: ${msg}`,
+      cantSave:"保存できません。『ファイルを開く』で開き直してください。",
+      extChange:"kanban.json が外部で変更されています。上書きしますか？\n（キャンセル後は「更新」で再読込できます）",
+      saveErr:"保存失敗: ",permDenied:"書き込み権限が拒否されました。",
+      permUnavailable:"この環境では書き込み権限を取得できませんでした。",
+      permErr:"書き込み権限を取得できませんでした: ",
+      pickerGuide:"📂 保存ダイアログが開きます。kanban.json を選び直してください（編集の書き込み許可のため）。",
+      pickerRetryCancel:"編集を有効にするには、もう一度「編集」を押してください。",
+      pickerRetryGesture:"もう一度「編集」ボタンを押してください。",
+      diffFile:"選択されたファイルは現在開いているファイルと異なります。今後の保存先を切り替えますか？",
+      truncWarn:"注意：選択したファイルは空にされている可能性があります。",
+      needHandle:"編集には先に「ファイルを開く」か D&D で kanban.json を開いてください。",
+      reloadErr:"更新失敗: ",loadFirst:"先にファイルを読み込んでください。",
+      dropFail:"ドロップファイルを読み取れませんでした。",
+      overdue:"期限超過",cards:"カード",
+    },
+    en:{
+      open:"Open file",openSub:"(drag & drop)",reload:"Reload",edit:"Edit",langBtn:"日本語",
+      notLoaded:"No file loaded",
+      empty:"Load <b>kanban.json</b> via \"Open file\" or drag &amp; drop (Chrome).",
+      addCard:"+ Add card",addCol:"+ Add column",
+      cardTitle:"Card",editCard:"Edit card",newCard:"New card",
+      colTitle:"Column",editCol:"Edit column",newCol:"New column",
+      lblTitle:"Title",lblDesc:"Description",lblAsg:"Assignee",lblPri:"Priority",lblDue:"Due date",lblTags:"Tags (comma-separated)",
+      lblColName:"Name",lblColColor:"Color",
+      priHigh:"High",priMed:"Medium",priLow:"Low",priNone:"None",
+      save:"Save",cancel:"Cancel",delete:"Delete",
+      confirmDelCard:"Delete this card?",
+      confirmDelCol:"Delete this column and all its cards?",
+      unsaved:"Unsaved changes…",savedAt:"Saved ",saveFail:"Save failed",
+      stat:(n,m)=>`${n} column${n===1?"":"s"} / ${m} card${m===1?"":"s"}`,
+      fileLabel:(name,size)=>`${name}, ${size} bytes`,
+      jsonFail:(label,msg)=>`Failed to load JSON${label?` (${label})`:""}: ${msg}`,
+      cantSave:'Cannot save. Re-open via "Open file".',
+      extChange:"kanban.json was modified externally. Overwrite?\n(After cancel, press Reload to re-read.)",
+      saveErr:"Save failed: ",permDenied:"Write permission denied.",
+      permUnavailable:"Could not obtain write permission.",
+      permErr:"Could not obtain write permission: ",
+      pickerGuide:"📂 A save dialog will open. Re-select kanban.json to grant write permission.",
+      pickerRetryCancel:'Press "Edit" again to retry.',
+      pickerRetryGesture:'Press "Edit" once more.',
+      diffFile:"The selected file differs from the current one. Switch save target?",
+      truncWarn:"Warning: the selected file may have been emptied.",
+      needHandle:'Open kanban.json first via "Open file" or drag & drop.',
+      reloadErr:"Reload failed: ",loadFirst:"Load a file first.",
+      dropFail:"Could not read the dropped file.",
+      overdue:"Overdue",cards:"cards",
+    },
+  };
+  let lang="ja";try{if(localStorage.getItem("kanbanLang")==="en")lang="en";}catch(_){}
+  const t=k=>I18N[lang][k];
+  const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+  const uid=()=>"c"+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+  const todayStr=()=>{const n=new Date();return new Date(Date.UTC(n.getFullYear(),n.getMonth(),n.getDate())).toISOString().slice(0,10);};
+  const isOverdue=due=>due&&due<todayStr();
+  const isColor=s=>typeof s==="string"&&/^#[0-9a-fA-F]{3,8}$/.test(s);
+  const linkify=s=>String(s??"").split(/(https?:\/\/[^\s"<>]+)/g)
+    .map((p,i)=>i%2?`<a href="${esc(p)}" target="_blank" rel="noopener noreferrer">${esc(p)}</a>`:esc(p)).join("");
+
+  let fileHandle=null, lastData=null, editMode=false;
+  let dirty=false, saveTimer=null, saveChain=Promise.resolve(), fileMtime=0;
+  let pickerNeeded=false, saveMsg="";
+  let editingCard=null, editingCol=null;
+
+  function normalize(data){
+    if(!data||typeof data!=="object")return {board:"Kanban",columns:[]};
+    const d={board:data.board||data.name||"Kanban",columns:data.columns||[]};
+    d.columns.forEach(col=>{
+      col.id=col.id||uid();
+      col.name=col.name||"Column";
+      col.color=isColor(col.color)?col.color:"#6366f1";
+      col.cards=(col.cards||[]).map(c=>({
+        id:c.id||uid(),title:c.title||"",description:c.description||"",
+        assignee:c.assignee||"",priority:["high","medium","low","none"].includes(c.priority)?c.priority:"none",
+        dueDate:c.dueDate||c.due||null,tags:Array.isArray(c.tags)?c.tags:[],done:!!c.done
+      }));
+    });
+    return d;
+  }
+
+  function setSaveMsg(m){saveMsg=m;const el=document.getElementById("saveMsg");if(el)el.textContent=m?" ／ "+m:"";}
+  function notice(m){const el=document.getElementById("notice");el.textContent=m;el.classList.toggle("show",!!m);}
+
+  async function loadFromHandle(h,isNew){
+    const f=await h.getFile(),txt=await f.text();
+    try{lastData=normalize(JSON.parse(txt));}
+    catch(e){alert(t("jsonFail")(t("fileLabel")(f.name,f.size),e.message));return;}
+    fileHandle=h;fileMtime=f.lastModified;
+    if(isNew){exitEditMode();}
+    render();
+  }
+  async function openPicker(){
+    if(window.showOpenFilePicker){
+      try{const[h]=await window.showOpenFilePicker({types:[{description:"JSON",accept:{"application/json":[".json"]}}]});await loadFromHandle(h,true);}
+      catch(e){if(e&&e.name!=="AbortError")alert("Load failed: "+e.message);}
+    }else document.getElementById("fallbackInput").click();
+  }
+  async function refresh(){
+    if(fileHandle){try{await flushSaves();await loadFromHandle(fileHandle,false);}catch(e){alert(t("reloadErr")+e.message);}}
+    else alert(t("loadFirst"));
+  }
+
+  async function ensureWritable(){
+    try{if(fileHandle.queryPermission&&await fileHandle.queryPermission({mode:"readwrite"})==="granted")return true;}catch(_){}
+    if(!pickerNeeded){
+      try{
+        if(fileHandle.requestPermission){const r=await fileHandle.requestPermission({mode:"readwrite"});if(r==="granted")return true;if(r==="denied"){alert(t("permDenied"));return false;}}
+      }catch(_){pickerNeeded=true;}
+      if(!pickerNeeded){
+        try{const w=await fileHandle.createWritable({keepExistingData:true});await w.abort();return true;}catch(_){pickerNeeded=true;}
+      }
+    }
+    if(!window.showSaveFilePicker){alert(t("permUnavailable"));return false;}
+    notice(t("pickerGuide"));
+    try{
+      const f=await fileHandle.getFile();
+      const h=await window.showSaveFilePicker({suggestedName:f.name,types:[{description:"JSON",accept:{"application/json":[".json"]}}]});
+      try{if(fileHandle.isSameEntry&&!await h.isSameEntry(fileHandle)&&!confirm(t("diffFile"))){notice("");alert(t("truncWarn"));return false;}}catch(_){}
+      fileHandle=h;fileMtime=0;
+      saveChain=saveChain.then(writeNow);await saveChain;
+      notice("");return true;
+    }catch(e){
+      if(e&&e.name==="AbortError"){notice(t("pickerRetryCancel"));return false;}
+      if(/user gesture/i.test(e&&e.message||""))notice(t("pickerRetryGesture"));
+      else{notice("");alert(t("permErr")+e.message);}
+      return false;
+    }
+  }
+  function queueSave(){dirty=true;setSaveMsg(t("unsaved"));clearTimeout(saveTimer);saveTimer=setTimeout(flushSaves,SAVE_DEBOUNCE_MS);}
+  function flushSaves(){clearTimeout(saveTimer);if(dirty){dirty=false;saveChain=saveChain.then(writeNow);}return saveChain;}
+  async function writeNow(){
+    if(!fileHandle||!fileHandle.createWritable){setSaveMsg(t("saveFail"));alert(t("cantSave"));return;}
+    try{
+      const cur=await fileHandle.getFile();
+      if(fileMtime&&cur.lastModified!==fileMtime&&!confirm(t("extChange"))){setSaveMsg(t("unsaved"));return;}
+      const json=JSON.stringify(lastData,null,2);
+      const w=await fileHandle.createWritable();await w.write(json);await w.close();
+      fileMtime=(await fileHandle.getFile()).lastModified;
+      setSaveMsg(t("savedAt")+new Date().toLocaleTimeString(lang==="ja"?"ja-JP":"en-US"));
+    }catch(e){setSaveMsg(t("saveFail"));alert(t("saveErr")+e.message);}
+  }
+  function exitEditMode(){editMode=false;notice("");document.getElementById("editBtn").classList.remove("on");document.body.classList.remove("editing");}
+
+  function render(){
+    if(!lastData)return;
+    const data=normalize(lastData);lastData=data;
+    const board=document.getElementById("board");
+    const today=todayStr();
+    let totalCards=0;
+    let html="";
+    data.columns.forEach((col,ci)=>{
+      const cnt=col.cards.length;totalCards+=cnt;
+      const doneCnt=col.cards.filter(c=>c.done).length;
+      let cardsHtml="";
+      col.cards.forEach((card,cardIdx)=>{
+        const overdue=!card.done&&isOverdue(card.dueDate);
+        const priCls=card.done?"done":`pri-${card.priority}`;
+        const cls=["card",priCls,overdue?"overdue":""].filter(Boolean).join(" ");
+        const initial=(card.assignee||"?").charAt(0).toUpperCase();
+        let meta="";
+        if(card.assignee)meta+=`<span class="card-assignee"><span class="avatar">${esc(initial)}</span>${esc(card.assignee)}</span>`;
+        if(card.dueDate){
+          const oCls=overdue?"overdue":"";
+          meta+=`<span class="card-due ${oCls}">${overdue?"⚠ ":""}${esc(card.dueDate)}</span>`;
+        }
+        let tagsHtml="";
+        if(card.tags&&card.tags.length)tagsHtml=`<div class="card-tags">${card.tags.map(tg=>`<span class="tag">${esc(tg)}</span>`).join("")}</div>`;
+        const desc=card.description?`<div class="card-desc">${linkify(card.description)}</div>`:"";
+        const moveBtns=editMode?`<div class="card-move">`
+          +`<button data-act="left" data-ci="${ci}" data-card="${cardIdx}" title="←">◀</button>`
+          +`<button data-act="right" data-ci="${ci}" data-card="${cardIdx}" title="→">▶</button></div>`:"";
+        cardsHtml+=`<div class="${cls}" draggable="${editMode}" data-ci="${ci}" data-card="${cardIdx}">`
+          +`<div class="card-actions">`
+          +`<button data-act="edit" data-ci="${ci}" data-card="${cardIdx}" title="${esc(t("editCard"))}">✎</button>`
+          +`<button data-act="del" data-ci="${ci}" data-card="${cardIdx}" title="${esc(t("delete"))}">✕</button></div>`
+          +`<div class="card-title">${esc(card.title)}</div>${desc}`
+          +(meta?`<div class="card-meta">${meta}</div>`:"")+tagsHtml+moveBtns+`</div>`;
+      });
+      const colDraggable=editMode?"true":"false";
+      html+=`<div class="column" data-ci="${ci}" draggable="${colDraggable}">`
+        +`<div class="col-head" data-ci="${ci}">`
+        +`<span class="col-dot" style="background:${esc(col.color)}"></span>`
+        +`<span class="col-name">${esc(col.name)}</span>`
+        +`<span class="col-count">${cnt}</span>`
+        +`<span class="col-actions">`
+        +`<button data-act="editcol" data-ci="${ci}" title="${esc(t("editCol"))}">✎</button>`
+        +`<button data-act="leftcol" data-ci="${ci}" title="←">◀</button>`
+        +`<button data-act="rightcol" data-ci="${ci}" title="→">▶</button></span></div>`
+        +`<div class="col-body" data-ci="${ci}">${cardsHtml}`
+        +`<div class="add-card-btn" data-ci="${ci}">${esc(t("addCard"))}</div></div></div>`;
+    });
+    html+=`<div class="add-col-btn" id="addColBtn">${esc(t("addCol"))}</div>`;
+    board.innerHTML=html;
+    document.getElementById("empty").classList.remove("show");
+    document.getElementById("stat").innerHTML=t("stat")(data.columns.length,totalCards)
+      +(saveMsg?`<span id="saveMsg"> ／ ${esc(saveMsg)}</span>`:`<span id="saveMsg"></span>`);
+    document.getElementById("cardModal").classList.remove("show");
+    document.getElementById("colModal").classList.remove("show");
+  }
+
+  function openCardModal(ci,cardIdx){
+    editingCard={ci,cardIdx};
+    const isEdit=cardIdx!==null&&cardIdx!==undefined;
+    const card=isEdit?lastData.columns[ci].cards[cardIdx]:{title:"",description:"",assignee:"",priority:"none",dueDate:"",tags:[],done:false};
+    document.getElementById("cardModalTitle").textContent=isEdit?t("editCard"):t("newCard");
+    document.getElementById("cardTitle").value=card.title||"";
+    document.getElementById("cardDesc").value=card.description||"";
+    document.getElementById("cardAssignee").value=card.assignee||"";
+    document.getElementById("cardPriority").value=card.priority||"none";
+    document.getElementById("cardDue").value=card.dueDate||"";
+    document.getElementById("cardTags").value=(card.tags||[]).join(", ");
+    document.getElementById("cardDelete").style.display=isEdit?"":"none";
+    document.getElementById("cardModal").classList.add("show");
+    setTimeout(()=>document.getElementById("cardTitle").focus(),50);
+  }
+  function saveCardModal(){
+    if(!editingCard)return;
+    const{ci,cardIdx}=editingCard;
+    const card={
+      id:cardIdx!==null&&cardIdx!==undefined?lastData.columns[ci].cards[cardIdx].id:uid(),
+      title:document.getElementById("cardTitle").value.trim(),
+      description:document.getElementById("cardDesc").value.trim(),
+      assignee:document.getElementById("cardAssignee").value.trim(),
+      priority:document.getElementById("cardPriority").value,
+      dueDate:document.getElementById("cardDue").value||null,
+      tags:document.getElementById("cardTags").value.split(",").map(s=>s.trim()).filter(Boolean),
+      done:cardIdx!==null&&cardIdx!==undefined?lastData.columns[ci].cards[cardIdx].done:false,
+    };
+    if(!card.title)return;
+    if(cardIdx===null||cardIdx===undefined)lastData.columns[ci].cards.push(card);
+    else lastData.columns[ci].cards[cardIdx]=card;
+    document.getElementById("cardModal").classList.remove("show");
+    render();queueSave();
+  }
+  function deleteCard(){
+    if(!editingCard||editingCard.cardIdx===null)return;
+    if(!confirm(t("confirmDelCard")))return;
+    lastData.columns[editingCard.ci].cards.splice(editingCard.cardIdx,1);
+    document.getElementById("cardModal").classList.remove("show");
+    render();queueSave();
+  }
+  function openColModal(ci,isEdit){
+    editingCol={ci,isEdit};
+    const col=isEdit?lastData.columns[ci]:{name:"",color:"#6366f1"};
+    document.getElementById("colModalTitle").textContent=isEdit?t("editCol"):t("newCol");
+    document.getElementById("colName").value=col.name||"";
+    document.getElementById("colColor").value=col.color||"#6366f1";
+    document.getElementById("colDelete").style.display=isEdit?"":"none";
+    document.getElementById("colModal").classList.add("show");
+    setTimeout(()=>document.getElementById("colName").focus(),50);
+  }
+  function saveColModal(){
+    if(!editingCol)return;
+    const name=document.getElementById("colName").value.trim();
+    const color=document.getElementById("colColor").value.trim()||"#6366f1";
+    if(!name)return;
+    if(editingCol.isEdit){lastData.columns[editingCol.ci].name=name;lastData.columns[editingCol.ci].color=isColor(color)?color:"#6366f1";}
+    else lastData.columns.push({id:uid(),name,color:isColor(color)?color:"#6366f1",cards:[]});
+    document.getElementById("colModal").classList.remove("show");
+    render();queueSave();
+  }
+  function deleteCol(){
+    if(!editingCol||!editingCol.isEdit)return;
+    if(!confirm(t("confirmDelCol")))return;
+    lastData.columns.splice(editingCol.ci,1);
+    document.getElementById("colModal").classList.remove("show");
+    render();queueSave();
+  }
+
+  let currentDrag=null;
+  const board=document.getElementById("board");
+
+  board.addEventListener("dragstart",e=>{
+    if(!editMode)return;
+    const card=e.target.closest(".card");
+    const column=e.target.closest(".column");
+    if(card){
+      currentDrag={type:"card",ci:+card.dataset.ci,cardIdx:+card.dataset.card};
+      card.classList.add("dragging");
+      e.dataTransfer.effectAllowed="move";
+      e.dataTransfer.setData("text/plain","card");
+    }else if(column&&e.target.closest(".col-head")){
+      currentDrag={type:"column",ci:+column.dataset.ci};
+      column.style.opacity="0.5";
+      e.dataTransfer.effectAllowed="move";
+      e.dataTransfer.setData("text/plain","column");
+    }
+  });
+  board.addEventListener("dragend",e=>{
+    document.querySelectorAll(".dragging").forEach(el=>{el.classList.remove("dragging");el.style.opacity="";});
+    document.querySelectorAll(".drag-over-col").forEach(el=>el.classList.remove("drag-over-col"));
+    document.querySelectorAll(".drop-placeholder").forEach(el=>el.remove());
+    currentDrag=null;
+  });
+  board.addEventListener("dragover",e=>{
+    if(!currentDrag)return;
+    e.preventDefault();e.dataTransfer.dropEffect="move";
+    if(currentDrag.type==="card"){
+      const colBody=e.target.closest(".col-body");
+      if(!colBody)return;
+      document.querySelectorAll(".drop-placeholder").forEach(el=>el.remove());
+      const cards=[...colBody.querySelectorAll(".card:not(.dragging)")];
+      const afterEl=getDragAfterElement(colBody,e.clientY);
+      const ph=document.createElement("div");ph.className="drop-placeholder";
+      if(afterEl)colBody.insertBefore(ph,afterEl);else{const addBtn=colBody.querySelector(".add-card-btn");colBody.insertBefore(ph,addBtn);}
+    }else if(currentDrag.type==="column"){
+      const cols=[...board.querySelectorAll(".column")];
+      cols.forEach(c=>c.classList.remove("drag-over-col"));
+      const col=e.target.closest(".column");
+      if(col&&+col.dataset.ci!==currentDrag.ci)col.classList.add("drag-over-col");
+    }
+  });
+  function getDragAfterElement(container,y){
+    const cards=[...container.querySelectorAll(".card:not(.dragging)")];
+    return cards.reduce((closest,child)=>{
+      const box=child.getBoundingClientRect();const offset=y-box.top-box.height/2;
+      if(offset<0&&offset>closest.offset)return{offset,element:child};return closest;
+    },{offset:Number.NEGATIVE_INFINITY}).element||null;
+  }
+  board.addEventListener("drop",e=>{
+    e.preventDefault();if(!currentDrag)return;
+    if(currentDrag.type==="card"){
+      const colBody=e.target.closest(".col-body");
+      if(!colBody)return;
+      const targetCi=+colBody.dataset.ci;
+      const srcCol=lastData.columns[currentDrag.ci];
+      const card=srcCol.cards.splice(currentDrag.cardIdx,1)[0];
+      const tgtCol=lastData.columns[targetCi];
+      const cards=[...colBody.querySelectorAll(".card:not(.dragging)")];
+      const afterEl=getDragAfterElement(colBody,e.clientY);
+      if(afterEl){const idx=cards.indexOf(afterEl);tgtCol.cards.splice(idx,0,card);}
+      else{const addBtn=colBody.querySelector(".add-card-btn");const btnIdx=[...colBody.children].indexOf(addBtn);tgtCol.cards.splice(Math.max(0,btnIdx),0,card);}
+    }else if(currentDrag.type==="column"){
+      const targetCol=e.target.closest(".column");
+      if(!targetCol)return;
+      const targetCi=+targetCol.dataset.ci;
+      if(targetCi===currentDrag.ci)return;
+      const cols=lastData.columns;const moved=cols.splice(currentDrag.ci,1)[0];
+      const newTarget=cols.indexOf(lastData.columns[targetCi>currentDrag.ci?targetCi-1:targetCi]);
+      cols.splice(targetCi>currentDrag.ci?newTarget+1:newTarget,0,moved);
+    }
+    document.querySelectorAll(".drag-over-col").forEach(el=>el.classList.remove("drag-over-col"));
+    document.querySelectorAll(".drop-placeholder").forEach(el=>el.remove());
+    currentDrag=null;render();queueSave();
+  });
+
+  board.addEventListener("click",e=>{
+    if(!editMode){
+      const card=e.target.closest(".card");
+      if(card&&!e.target.closest("button")){
+        const ci=+card.dataset.ci,cardIdx=+card.dataset.card;
+        lastData.columns[ci].cards[cardIdx].done=!lastData.columns[ci].cards[cardIdx].done;
+        render();queueSave();
+      }
+      return;
+    }
+    const addCard=e.target.closest(".add-card-btn");
+    if(addCard){openCardModal(+addCard.dataset.ci,null);return;}
+    const addCol=e.target.closest("#addColBtn");
+    if(addCol){openColModal(null,false);return;}
+    const btn=e.target.closest("button[data-act]");
+    if(!btn)return;
+    const act=btn.dataset.act,ci=+btn.dataset.ci;
+    if(act==="edit"){openCardModal(ci,+btn.dataset.card);return;}
+    if(act==="del"){
+      if(!confirm(t("confirmDelCard")))return;
+      lastData.columns[ci].cards.splice(+btn.dataset.card,1);render();queueSave();return;
+    }
+    if(act==="left"){
+      if(ci<=0)return;const cardIdx=+btn.dataset.card;
+      const card=lastData.columns[ci].cards.splice(cardIdx,1)[0];
+      lastData.columns[ci-1].cards.push(card);render();queueSave();return;
+    }
+    if(act==="right"){
+      if(ci>=lastData.columns.length-1)return;const cardIdx=+btn.dataset.card;
+      const card=lastData.columns[ci].cards.splice(cardIdx,1)[0];
+      lastData.columns[ci+1].cards.unshift(card);render();queueSave();return;
+    }
+    if(act==="editcol"){openColModal(ci,true);return;}
+    if(act==="leftcol"){
+      if(ci<=0)return;const cols=lastData.columns;const tmp=cols[ci];cols[ci]=cols[ci-1];cols[ci-1]=tmp;
+      render();queueSave();return;
+    }
+    if(act==="rightcol"){
+      if(ci>=lastData.columns.length-1)return;const cols=lastData.columns;const tmp=cols[ci];cols[ci]=cols[ci+1];cols[ci+1]=tmp;
+      render();queueSave();return;
+    }
+  });
+
+  document.getElementById("cardSave").addEventListener("click",saveCardModal);
+  document.getElementById("cardCancel").addEventListener("click",()=>document.getElementById("cardModal").classList.remove("show"));
+  document.getElementById("cardDelete").addEventListener("click",deleteCard);
+  document.getElementById("colSave").addEventListener("click",saveColModal);
+  document.getElementById("colCancel").addEventListener("click",()=>document.getElementById("colModal").classList.remove("show"));
+  document.getElementById("colDelete").addEventListener("click",deleteCol);
+  document.querySelectorAll(".modal-overlay").forEach(ov=>ov.addEventListener("click",e=>{if(e.target===ov)ov.classList.remove("show");}));
+
+  document.getElementById("openBtn").addEventListener("click",openPicker);
+  document.getElementById("refreshBtn").addEventListener("click",refresh);
+  document.getElementById("editBtn").addEventListener("click",async()=>{
+    if(!editMode){
+      if(!fileHandle||!fileHandle.createWritable){alert(t("needHandle"));return;}
+      if(!await ensureWritable())return;
+      editMode=true;
+    }else{flushSaves();editMode=false;}
+    document.getElementById("editBtn").classList.toggle("on",editMode);
+    document.body.classList.toggle("editing",editMode);
+    if(lastData)render();
+  });
+  document.getElementById("langBtn").addEventListener("click",()=>{
+    lang=lang==="ja"?"en":"ja";
+    try{localStorage.setItem("kanbanLang",lang);}catch(_){}
+    applyLang();if(lastData)render();
+  });
+  document.getElementById("fallbackInput").addEventListener("change",async e=>{
+    const f=e.target.files[0];if(f){fileHandle=null;fileMtime=0;
+      try{lastData=normalize(JSON.parse(await f.text()));render();}
+      catch(err){alert(t("jsonFail")(t("fileLabel")(f.name,f.size),err.message));}}
+  });
+  const drop=document.getElementById("openBtn");
+  ["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over");}));
+  ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over");}));
+  document.addEventListener("dragover",e=>e.preventDefault());
+  document.addEventListener("drop",e=>e.preventDefault());
+  drop.addEventListener("drop",async e=>{
+    const it=e.dataTransfer.items&&e.dataTransfer.items[0];
+    const fb=e.dataTransfer.files[0]||null;
+    if(it&&it.getAsFileSystemHandle){
+      try{const h=await it.getAsFileSystemHandle();
+        if(h&&h.kind==="file"){const f=await h.getFile();if(f.size>0||!fb||fb.size===0){await loadFromHandle(h,true);return;}}}catch(_){}
+    }
+    if(fb){fileHandle=null;fileMtime=0;
+      try{lastData=normalize(JSON.parse(await fb.text()));render();}
+      catch(err){alert(t("jsonFail")(t("fileLabel")(fb.name,fb.size),err.message));}}
+    else alert(t("dropFail"));
+  });
+  window.addEventListener("beforeunload",e=>{
+    if(!editMode)return;
+    if(dirty){flushSaves();e.preventDefault();}
+  });
+  window.addEventListener("keydown",e=>{
+    if((e.ctrlKey||e.metaKey)&&e.key==="s"){e.preventDefault();if(editMode&&dirty)flushSaves();}
+    if(e.key==="Escape"){document.querySelectorAll(".modal-overlay.show").forEach(m=>m.classList.remove("show"));}
+  });
+
+  function applyLang(){
+    document.documentElement.lang=lang;
+    document.getElementById("openBtn").innerHTML=`${esc(t("open"))}<span class="sub">${esc(t("openSub"))}</span>`;
+    [["refreshBtn","reload"],["editBtn","edit"],["langBtn","langBtn"]].forEach(([id,k])=>{document.getElementById(id).textContent=t(k);});
+    document.getElementById("empty").innerHTML=t("empty");
+    document.getElementById("cardModalTitle").textContent=t("cardTitle");
+    document.getElementById("lblTitle").childNodes[0].textContent=t("lblTitle");
+    document.getElementById("lblDesc").childNodes[0].textContent=t("lblDesc");
+    document.getElementById("lblAsg").childNodes[0].textContent=t("lblAsg");
+    document.getElementById("lblPri").childNodes[0].textContent=t("lblPri");
+    document.getElementById("lblDue").childNodes[0].textContent=t("lblDue");
+    document.getElementById("lblTags").childNodes[0].textContent=t("lblTags");
+    document.getElementById("lblColName").childNodes[0].textContent=t("lblColName");
+    document.getElementById("lblColColor").childNodes[0].textContent=t("lblColColor");
+    document.getElementById("optHigh").textContent=t("priHigh");
+    document.getElementById("optMed").textContent=t("priMed");
+    document.getElementById("optLow").textContent=t("priLow");
+    document.getElementById("optNone").textContent=t("priNone");
+    document.getElementById("cardSave").textContent=t("save");
+    document.getElementById("cardCancel").textContent=t("cancel");
+    document.getElementById("cardDelete").textContent=t("delete");
+    document.getElementById("colSave").textContent=t("save");
+    document.getElementById("colCancel").textContent=t("cancel");
+    document.getElementById("colDelete").textContent=t("delete");
+    if(!lastData)document.getElementById("stat").textContent=t("notLoaded");
+  }
+  applyLang();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+{
+  "title": "",
+  "content": "",
+  "mimetype": "text/plain",
+  "attachments": [],
+  "children": [
+    {
+      "title": "TG9hZCBNdXNpYyBGaWxl",
+      "content": "",
+      "mimetype": "text/plain",
+      "attachments": [],
+      "children": [],
+      "nodeType": "assemble",
+      "btAction": "loadLocalFile",
+      "btLocalFilePath": "music.mp3",
+      "btOutputKey": "music_audio"
+    },
+    {
+      "title": "R2VuZXJhdGUgVGhlbWU=",
+      "content": "",
+      "mimetype": "text/plain",
+      "attachments": [],
+      "children": [],
+      "nodeType": "assemble",
+      "selectedRecipe": "Radio Theme Generator",
+      "btOutputKey": "topic",
+      "btPrompt": "U3VnZ2VzdCBhIGNyZWF0aXZlIG11c2ljIHRoZW1lIGZvciB0b2RheSdzIHJhZGlvIHNob3cgYmFzZWQgb24gdGhlIGxvYWRlZCBtdXNpYyBmaWxlLiBSZXR1cm4gYSBzaG9ydCBkZXNjcmlwdGlvbiBvZiB0aGUgdGhlbWUsIG1vb2QsIGFuZCBnZW5yZS4="
+    },
+    {
+      "title": "UHJvZHVjZQ==",
+      "content": "",
+      "mimetype": "text/plain",
+      "attachments": [],
+      "children": [
+        {
+          "title": "RGVzY3JpYmUgTXVzaWM=",
+          "content": "",
+          "mimetype": "text/plain",
+          "attachments": [],
+          "children": [],
+          "nodeType": "assemble",
+          "selectedRecipe": "Radio Music Fetcher",
+          "btInputKey": "music_audio",
+          "btInputType": "media",
+          "btOutputKey": "music_info",
+          "btPrompt": "RGVzY3JpYmUgdGhlIGF0dGFjaGVkIGF1ZGlvIGZpbGUuIElkZW50aWZ5IHRoZSBnZW5yZSwgbW9vZCwgdGVtcG8sIGluc3RydW1lbnRzLCBhbmQgb3ZlcmFsbCBzdHlsZS4="
+        },
+        {
+          "title": "V3JpdGUgQXJ0aWNsZQ==",
+          "content": "",
+          "mimetype": "text/plain",
+          "attachments": [],
+          "children": [],
+          "nodeType": "assemble",
+          "selectedRecipe": "Radio Article Writer",
+          "btInputKey": "topic",
+          "btInputType": "text",
+          "btOutputKey": "article",
+          "btPrompt": "V3JpdGUgYSAyMDAtd29yZCByYWRpbyBESiBpbnRyb2R1Y3Rpb24gZm9yIGEgc2hvdyB3aXRoIHRoZW1lOiB7YmI6dG9waWN9"
+        }
+      ],
+      "nodeType": "assemble",
+      "btType": "parallel"
+    }
+  ],
+  "nodeType": "root",
+  "btType": "sequence"
+}

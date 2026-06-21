@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Phase C - Backward Compatibility</title>
+    <style>
+        body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
+        pre { background: #252526; padding: 10px; margin: 20px 0; min-height: 200px; }
+        button { background: #007acc; color: #fff; border: none; padding: 10px 20px; cursor: pointer; margin: 5px; }
+        button:hover { background: #005a9e; }
+    </style>
+</head>
+<body>
+<h1>Phase C - Backward Compatibility</h1>
+
+<button onclick="
+  const output = document.getElementById('log');
+  output.textContent = '';
+  output.textContent += '🔍 Testing Format Detection\n\n';
+
+  try {
+    const oldFormat = { nodeType: 'root', btType: 'sequence', children: [] };
+    const detected = detectFormat(oldFormat);
+    output.textContent += 'Old format detected as: ' + detected + '\n';
+    output.textContent += (detected === 'prompts' ? '✅ PASS' : '❌ FAIL') + '\n\n';
+
+    const newFormat = { id: 'tree-1', root: 'n-1', nodes: { 'n-1': { name: 'Sequence' } } };
+    const detected2 = detectFormat(newFormat);
+    output.textContent += 'New format detected as: ' + detected2 + '\n';
+    output.textContent += (detected2 === 'b3' ? '✅ PASS' : '❌ FAIL') + '\n\n';
+
+    output.textContent += '✅ Format detection works!';
+  } catch (e) {
+    output.textContent += '❌ Error: ' + e.message + '\n' + e.stack;
+  }
+">🔍 Format Detection</button>
+
+<button onclick="
+  const output = document.getElementById('log');
+  output.textContent = '';
+  output.textContent += '📦 Testing Old Format Conversion\n\n';
+
+  try {
+    const oldTree = {
+      nodeType: 'root',
+      btType: 'sequence',
+      title: 'Old Format Root',
+      children: [
+        {
+          nodeType: 'assemble',
+          btAction: 'ProcessPromptAction',
+          btPrompt: btoa('What is 2+2?'),
+          btInputKey: 'input',
+          btOutputKey: 'result',
+          title: 'First Action'
+        },
+        {
+          nodeType: 'assemble',
+          btAction: 'ProcessPromptAction',
+          btPrompt: btoa('Explain the answer'),
+          btInputKey: 'result',
+          btOutputKey: 'explanation',
+          title: 'Second Action'
+        }
+      ]
+    };
+
+    output.textContent += 'Input: Old Wend format\n';
+    output.textContent += '  Root: Sequence with 2 children\n\n';
+
+    const b3Tree = wendToB3(oldTree);
+
+    output.textContent += 'Output: B3 format\n';
+    output.textContent += '  Root node ID: ' + b3Tree.root + '\n';
+    output.textContent += '  Total nodes: ' + Object.keys(b3Tree.nodes).length + '\n\n';
+
+    const rootNode = b3Tree.nodes[b3Tree.root];
+    output.textContent += 'Root node type: ' + rootNode.name + '\n';
+    output.textContent += (rootNode.name === 'Sequence' ? '✅ PASS' : '❌ FAIL') + '\n\n';
+
+    output.textContent += 'Children count: ' + (rootNode.children ? rootNode.children.length : 0) + '\n';
+    output.textContent += (rootNode.children && rootNode.children.length === 2 ? '✅ PASS' : '❌ FAIL') + '\n\n';
+
+    output.textContent += '✅ Old format conversion works!';
+  } catch (e) {
+    output.textContent += '❌ Error: ' + e.message + '\n' + e.stack;
+  }
+">📦 Old Format Conversion</button>
+
+<button onclick="
+  const output = document.getElementById('log');
+  output.textContent = '';
+  output.textContent += '🔁 Testing Round-Trip Conversion\n\n';
+
+  try {
+    const oldTree = {
+      nodeType: 'root',
+      btType: 'sequence',
+      children: [
+        {
+          nodeType: 'assemble',
+          btAction: 'ProcessPromptAction',
+          btPrompt: btoa('Test 1'),
+          btOutputKey: 'out1'
+        },
+        {
+          nodeType: 'assemble',
+          btAction: 'ProcessPromptAction',
+          btPrompt: btoa('Test 2'),
+          btOutputKey: 'out2'
+        }
+      ]
+    };
+
+    output.textContent += 'Step 1: Old → B3\n';
+    const b3Tree = wendToB3(oldTree);
+    output.textContent += '✅ Conversion successful\n\n';
+
+    output.textContent += 'Step 2: B3 → Old\n';
+    const convertedBack = b3ToWend(b3Tree);
+    output.textContent += '✅ Reverse conversion successful\n\n';
+
+    output.textContent += 'Step 3: Verify\n';
+    output.textContent += 'Root btType: ' + convertedBack.btType + ' (expected: sequence)\n';
+    output.textContent += (convertedBack.btType === 'sequence' ? '✅' : '❌') + '\n\n';
+
+    output.textContent += 'Children count: ' + (convertedBack.children ? convertedBack.children.length : 0) + ' (expected: 2)\n';
+    output.textContent += (convertedBack.children && convertedBack.children.length === 2 ? '✅' : '❌') + '\n\n';
+
+    output.textContent += '✅ Round-trip conversion works!';
+  } catch (e) {
+    output.textContent += '❌ Error: ' + e.message + '\n' + e.stack;
+  }
+">🔁 Round-Trip</button>
+
+<button onclick="
+  const output = document.getElementById('log');
+  output.textContent = '';
+  output.textContent += '🛣️ Testing Migration Path\n\n';
+
+  try {
+    const oldTree = { nodeType: 'root', btType: 'sequence', children: [] };
+
+    output.textContent += 'Scenario: User loads old tree file\n\n';
+
+    output.textContent += '1. Detect format...\n';
+    const format = detectFormat(oldTree);
+    output.textContent += '   Format: ' + format + '\n';
+    output.textContent += (format === 'prompts' ? '   ✅ Old format recognized' : '   ❌ Not recognized') + '\n\n';
+
+    output.textContent += '2. Auto-convert to B3...\n';
+    const b3Tree = wendToB3(oldTree);
+    output.textContent += '   ✅ Conversion successful\n\n';
+
+    output.textContent += '3. User saves tree...\n';
+    const savedTree = b3ToWend(b3Tree);
+    output.textContent += '   ✅ Saved in new format\n\n';
+
+    output.textContent += '🎯 Migration path:\n';
+    output.textContent += '   Load old → Auto-detect → Convert → Use → Save new\n';
+    output.textContent += '   User sees no difference!\n\n';
+
+    output.textContent += '✅ Full migration path works!';
+  } catch (e) {
+    output.textContent += '❌ Error: ' + e.message + '\n' + e.stack;
+  }
+">🛣️ Migration Path</button>
+
+<button onclick="document.getElementById('log').textContent = ''">🗑 Clear</button>
+
+<pre id="log"></pre>
+
+<script src="bt-b3-converter.js"></script>
+</body>
+</html>

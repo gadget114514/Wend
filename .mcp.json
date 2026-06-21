@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "wend-bt": {
+      "command": "node",
+      "args": ["D:\\ws\\Wend\\mcp-server\\index.js"]
+    }
+  }
+}

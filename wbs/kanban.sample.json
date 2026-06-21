@@ -1,0 +1,160 @@
+{
+  "board": "Project Alpha",
+  "columns": [
+    {
+      "id": "col-backlog",
+      "name": "Backlog",
+      "color": "#6b7280",
+      "cards": [
+        {
+          "id": "c001",
+          "title": "User research for new dashboard",
+          "description": "Conduct interviews with 5 key users to understand their workflow needs and pain points.",
+          "assignee": "Suzuki",
+          "priority": "low",
+          "dueDate": "2026-07-15",
+          "tags": ["research", "ux"],
+          "done": false
+        },
+        {
+          "id": "c002",
+          "title": "Evaluate database migration options",
+          "description": "Compare PostgreSQL vs MySQL for the new microservice architecture.",
+          "assignee": "Tanaka",
+          "priority": "medium",
+          "dueDate": "2026-07-20",
+          "tags": ["backend", "database"],
+          "done": false
+        },
+        {
+          "id": "c003",
+          "title": "Write API documentation",
+          "description": "Document all REST endpoints for the v2 API using OpenAPI spec.",
+          "assignee": "Yamada",
+          "priority": "low",
+          "dueDate": null,
+          "tags": ["docs"],
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "col-todo",
+      "name": "To Do",
+      "color": "#3b82f6",
+      "cards": [
+        {
+          "id": "c004",
+          "title": "Design login page mockup",
+          "description": "Create high-fidelity mockups for the new SSO login flow.",
+          "assignee": "Sato",
+          "priority": "high",
+          "dueDate": "2026-06-20",
+          "tags": ["design", "frontend"],
+          "done": false
+        },
+        {
+          "id": "c005",
+          "title": "Set up CI/CD pipeline",
+          "description": "Configure GitHub Actions for automated testing and deployment to staging.",
+          "assignee": "Watanabe",
+          "priority": "high",
+          "dueDate": "2026-06-25",
+          "tags": ["devops"],
+          "done": false
+        },
+        {
+          "id": "c006",
+          "title": "Implement search feature",
+          "description": "Full-text search with filters for the main content area.",
+          "assignee": "Ito",
+          "priority": "medium",
+          "dueDate": "2026-07-01",
+          "tags": ["frontend", "backend"],
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "col-progress",
+      "name": "In Progress",
+      "color": "#f59e0b",
+      "cards": [
+        {
+          "id": "c007",
+          "title": "Implement user authentication",
+          "description": "OAuth2 + JWT token-based auth with refresh token rotation.",
+          "assignee": "Tanaka",
+          "priority": "high",
+          "dueDate": "2026-06-18",
+          "tags": ["backend", "security"],
+          "done": false
+        },
+        {
+          "id": "c008",
+          "title": "Create REST API endpoints",
+          "description": "CRUD endpoints for the project resource with pagination and sorting.",
+          "assignee": "Yamada",
+          "priority": "medium",
+          "dueDate": "2026-06-22",
+          "tags": ["backend"],
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "col-review",
+      "name": "Review",
+      "color": "#a855f7",
+      "cards": [
+        {
+          "id": "c009",
+          "title": "Fix navigation bug on mobile",
+          "description": "Hamburger menu not closing after link click on iOS Safari.",
+          "assignee": "Sato",
+          "priority": "high",
+          "dueDate": "2026-06-15",
+          "tags": ["bug", "frontend"],
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "col-done",
+      "name": "Done",
+      "color": "#22c55e",
+      "cards": [
+        {
+          "id": "c010",
+          "title": "Set up project repository",
+          "description": "Initialize monorepo with Turborepo, configure linting and formatting.",
+          "assignee": "Watanabe",
+          "priority": "high",
+          "dueDate": "2026-06-10",
+          "tags": ["devops"],
+          "done": true
+        },
+        {
+          "id": "c011",
+          "title": "Define database schema",
+          "description": "ER diagram and migration scripts for core tables.",
+          "assignee": "Ito",
+          "priority": "medium",
+          "dueDate": "2026-06-12",
+          "tags": ["backend", "database"],
+          "done": true
+        },
+        {
+          "id": "c012",
+          "title": "Create wireframes",
+          "description": "Low-fidelity wireframes for all major screens approved by stakeholders.",
+          "assignee": "Sato",
+          "priority": "medium",
+          "dueDate": "2026-06-08",
+          "tags": ["design"],
+          "done": true
+        }
+      ]
+    }
+  ]
+}

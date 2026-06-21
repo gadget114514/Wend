@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kanban Board - 使い方ガイド</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:#f7f8fa;color:#1f2430}
+  body{font-family:-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",Meiryo,sans-serif;font-size:14px;line-height:1.7}
+  .wrap{max-width:780px;margin:0 auto;padding:32px 20px 60px}
+  h1{font-size:24px;margin:0 0 4px;display:flex;align-items:center;gap:10px}
+  h1 .ver{font-size:11px;color:#6b7280;font-weight:400}
+  .subtitle{color:#6b7280;margin:0 0 28px;font-size:13px}
+  h2{font-size:18px;margin:36px 0 12px;padding-bottom:6px;border-bottom:2px solid #e4e7ec}
+  h3{font-size:15px;margin:24px 0 8px}
+  p{margin:0 0 12px}
+  ul{margin:0 0 14px;padding-left:22px}
+  li{margin-bottom:4px}
+  code{background:#eef0f3;padding:1px 5px;border-radius:4px;font-size:13px;font-family:"Consolas","Menlo",monospace}
+  pre{background:#1e293b;color:#e2e8f0;padding:16px 18px;border-radius:10px;overflow-x:auto;font-size:12.5px;line-height:1.6;margin:0 0 16px;position:relative;font-family:"Consolas","Menlo",monospace}
+  pre code{background:transparent;padding:0;color:inherit}
+  .copy-btn{position:absolute;top:8px;right:8px;font-size:11px;padding:3px 10px;border:1px solid #475569;background:#334155;color:#e2e8f0;border-radius:5px;cursor:pointer}
+  .copy-btn:hover{background:#475569}
+  .copy-btn.copied{background:#16a34a;border-color:#16a34a}
+  .box{background:#fff;border:1px solid #d7dbe0;border-radius:10px;padding:16px 20px;margin:0 0 16px}
+  .box.tip{background:#f0fdf4;border-color:#86efac}
+  .box.warn{background:#fff7d6;border-color:#e3d9a8}
+  .box.info{background:#eff6ff;border-color:#93c5fd}
+  .box b{display:block;margin-bottom:4px}
+  .step{display:flex;gap:12px;margin:0 0 14px;align-items:flex-start}
+  .step .num{flex:0 0 30px;height:30px;border-radius:50%;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+  .step .body{flex:1}
+  .step .body b{display:block;margin-bottom:2px}
+  table{width:100%;border-collapse:collapse;margin:0 0 16px;font-size:13px}
+  th,td{border:1px solid #d7dbe0;padding:7px 10px;text-align:left}
+  th{background:#eef0f3;font-weight:600}
+  .key{display:inline-block;padding:1px 7px;background:#eef0f3;border:1px solid #d7dbe0;border-radius:4px;font-size:12px;font-family:monospace}
+  .toc{background:#fff;border:1px solid #d7dbe0;border-radius:10px;padding:16px 20px;margin:0 0 24px}
+  .toc b{display:block;margin-bottom:6px;font-size:13px}
+  .toc ul{margin:0;padding-left:18px}
+  .toc li{margin-bottom:2px;font-size:13px}
+  .toc a{color:#2563eb;text-decoration:none}
+  .toc a:hover{text-decoration:underline}
+  a{color:#2563eb}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>
+<svg width="28" height="28" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><rect width="20" height="20" rx="3" fill="#1e2f63"/><rect x="2" y="2" width="4.5" height="16" rx="1.5" fill="#7da4f7"/><rect x="7.5" y="2" width="4.5" height="12" rx="1.5" fill="#cdd9f5"/><rect x="13" y="2" width="4.5" height="8" rx="1.5" fill="#4aa44a"/></svg>
+Kanban Board <span class="ver">v1.0.0 - 使い方ガイド</span>
+</h1>
+<p class="subtitle">インストール不要・ブラウザだけで使えるシングルファイルかんばんボード</p>
+
+<div class="toc">
+<b>目次</b>
+<ul>
+  <li><a href="#quick">1. クイックスタート（kanban.json がなくてもOK）</a></li>
+  <li><a href="#open">2. ファイルの開き方</a></li>
+  <li><a href="#view">3. 閲覧モード</a></li>
+  <li><a href="#edit">4. 編集モード</a></li>
+  <li><a href="#drag">5. ドラッグ＆ドロプ操作</a></li>
+  <li><a href="#json">6. JSON フォーマット</a></li>
+  <li><a href="#template">7. すぐ使えるテンプレート</a></li>
+  <li><a href="#keys">8. キーボードショートカット</a></li>
+  <li><a href="#tips">9. ヒント・注意点</a></li>
+</ul>
+</div>
+
+<h2 id="quick">1. クイックスタート（kanban.json がなくてもOK）</h2>
+
+<p>kanban.json を用意していなくても、以下の3ステップですぐ始められます。</p>
+
+<div class="step">
+  <div class="num">1</div>
+  <div class="body">
+    <b>kanban.html をブラウザで開く</b>
+    Chrome で <code>kanban.html</code> をダブルクリックするだけで起動します。インストールは不要です。
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">2</div>
+  <div class="body">
+    <b>テンプレートから kanban.json を作る</b>
+    <code>kanban.template.json</code> をコピーして <code>kanban.json</code> という名前で保存します。
+    または、メモ帳を開き、<a href="#template">7. すぐ使えるテンプレート</a> の JSON をコピー＆ペーストして保存してもOKです。
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">3</div>
+  <div class="body">
+    <b>kanban.html に kanban.json をドラッグ＆ドロップ</b>
+    画面上部の「ファイルを開く」ボタンに JSON ファイルを D&D するか、クリックしてファイル選択ダイアログから選びます。
+  </div>
+</div>
+
+<div class="box tip">
+<b>Tip: 最初から編集したい場合</b>
+「ファイルを開く」で kanban.json を選んだ後、ツールバーの「編集」ボタンを押すと、カードの追加・削除・移動がすべてブラウザ上でできるようになります。
+</div>
+
+<h2 id="open">2. ファイルの開き方</h2>
+
+<table>
+<tr><th>方法</th><th>説明</th><th>編集可能?</th></tr>
+<tr><td>「ファイルを開く」クリック</td><td>ファイル選択ダイアログが開きます</td><td>Yes</td></tr>
+<tr><td>ドラッグ＆ドロップ</td><td>「ファイルを開く」ボタンに JSON をドロップ</td><td>Yes</td></tr>
+<tr><td>「更新」ボタン</td><td>現在開いているファイルを再読み込み</td><td>-</td></tr>
+</table>
+
+<div class="box info">
+<b>ブラウザについて</b>
+File System Access API に対応した <b>Chrome / Edge</b> での利用を推奨します。Firefox や Safari でも閲覧は可能ですが、編集時の自動保存が利用できません。
+</div>
+
+<h2 id="view">3. 閲覧モード</h2>
+
+<p>ファイルを読み込むと、列（カラム）とカードが並んだかんばんボードが表示されます。</p>
+
+<table>
+<tr><th>操作</th><th>結果</th></tr>
+<tr><td>カードをクリック</td><td>完了/未完了をトグル（緑背景 = 完了）</td></tr>
+<tr><td>カードの左ボーダー色</td><td>優先度: <span style="color:#dc2626">■</span> 高 / <span style="color:#f59e0b">■</span> 中 / <span style="color:#22c55e">■</span> 低 / <span style="color:#9ca3af">■</span> 無</td></tr>
+<tr><td>期限超過カード</td><td>赤い背景 + ⚠ マークで表示</td></tr>
+<tr><td>完了カード</td><td>取り消し線 + 薄緑背景で表示</td></tr>
+</table>
+
+<h3>カードに表示される情報</h3>
+<ul>
+  <li><b>タイトル</b> - カードの題名</li>
+  <li><b>説明</b> - 2行まで表示（詳細は編集モーダルで確認）</li>
+  <li><b>担当者</b> - 頭文字のアイコン + 名前</li>
+  <li><b>期日</b> - YYYY-MM-DD 形式。期限超過は赤表示</li>
+  <li><b>タグ</b> - カンマ区切りのラベル</li>
+</ul>
+
+<h2 id="edit">4. 編集モード</h2>
+
+<p>「編集」ボタン（緑に変わります）を押すと編集モードが有効になります。</p>
+
+<div class="box warn">
+<b>初回の編集について</b>
+編集をONにすると、書き込み権限の取得のため保存ダイアログが表示されます。現在開いている <code>kanban.json</code> をそのまま選んで「保存」を押してください。これ以降、変更は自動保存されます。
+</div>
+
+<h3>カードの操作</h3>
+<table>
+<tr><th>操作</th><th>方法</th></tr>
+<tr><td>カード追加</td><td>各列下部の「＋カードを追加」をクリック</td></tr>
+<tr><td>カード編集</td><td>カード右上の ✎ ボタンをクリック → モーダルで編集</td></tr>
+<tr><td>カード削除</td><td>カード右上の ✕ ボタン、またはモーダルの「削除」</td></tr>
+<tr><td>カード移動（列間）</td><td>カード下部の ◀ ▶ ボタン、または D&D</td></tr>
+</table>
+
+<h3>列の操作</h3>
+<table>
+<tr><th>操作</th><th>方法</th></tr>
+<tr><td>列追加</td><td>最右の「＋列を追加」をクリック</td></tr>
+<tr><td>列名・色変更</td><td>列ヘッダーの ✎ ボタンをクリック</td></tr>
+<tr><td>列の並び替え</td><td>列ヘッダーの ◀ ▶ ボタン、または D&D</td></tr>
+<tr><td>列削除</td><td>列編集モーダルの「削除」（中のカードも全て削除）</td></tr>
+</table>
+
+<h3>カード編集モーダルの項目</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>タイトル</td><td>カードの題名（必須）</td></tr>
+<tr><td>説明</td><td>詳細テキスト（URL は自動リンク化）</td></tr>
+<tr><td>担当者</td><td>担当者名</td></tr>
+<tr><td>優先度</td><td>高 / 中 / 低 / 無</td></tr>
+<tr><td>期日</td><td>YYYY-MM-DD 形式の日付</td></tr>
+<tr><td>タグ</td><td>カンマ区切り（例: <code>frontend, bug</code>）</td></tr>
+</table>
+
+<h2 id="drag">5. ドラッグ＆ドロプ操作</h2>
+
+<p>編集モードでは、マウスでドラッグ＆ドロップによる直感的な操作ができます。</p>
+
+<ul>
+  <li><b>カードの D&D</b> - カードをドラッグして別の列や列内の別の位置にドロップ</li>
+  <li><b>列の D&D</b> - 列ヘッダーをドラッグして列の順番を変更</li>
+</ul>
+
+<div class="box tip">
+<b>Tip</b>
+D&D 中、ドロップ先に青い破線のプレースホルダーが表示されます。これがカードの挿入位置です。
+</div>
+
+<h2 id="json">6. JSON フォーマット</h2>
+
+<p><code>kanban.json</code> の構造は以下の通りです。</p>
+
+<pre><code>{
+  "board": "プロジェクト名",
+  "columns": [
+    {
+      "id": "列のユニークID",
+      "name": "列名",
+      "color": "#6366f1",
+      "cards": [
+        {
+          "id": "カードのユニークID",
+          "title": "カードのタイトル",
+          "description": "説明テキスト",
+          "assignee": "担当者名",
+          "priority": "high",
+          "dueDate": "2026-07-01",
+          "tags": ["タグ1", "タグ2"],
+          "done": false
+        }
+      ]
+    }
+  ]
+}</code></pre>
+
+<h3>各フィールドの説明</h3>
+<table>
+<tr><th>フィールド</th><th>必須</th><th>型</th><th>説明</th></tr>
+<tr><td><code>board</code></td><td>任意</td><td>string</td><td>ボード名（表示には未使用・識別用）</td></tr>
+<tr><td><code>columns</code></td><td>Yes</td><td>array</td><td>列の配列</td></tr>
+<tr><td><code>columns[].id</code></td><td>自動</td><td>string</td><td>列ID（省略時は自動生成）</td></tr>
+<tr><td><code>columns[].name</code></td><td>Yes</td><td>string</td><td>列の名前</td></tr>
+<tr><td><code>columns[].color</code></td><td>任意</td><td>string</td><td>列ドットの色（#hex、既定: #6366f1）</td></tr>
+<tr><td><code>columns[].cards</code></td><td>任意</td><td>array</td><td>カードの配列</td></tr>
+<tr><td><code>cards[].id</code></td><td>自動</td><td>string</td><td>カードID（省略時は自動生成）</td></tr>
+<tr><td><code>cards[].title</code></td><td>Yes</td><td>string</td><td>カードのタイトル</td></tr>
+<tr><td><code>cards[].description</code></td><td>任意</td><td>string</td><td>説明（URLは自動リンク化）</td></tr>
+<tr><td><code>cards[].assignee</code></td><td>任意</td><td>string</td><td>担当者名</td></tr>
+<tr><td><code>cards[].priority</code></td><td>任意</td><td>string</td><td><code>high</code> / <code>medium</code> / <code>low</code> / <code>none</code>（既定: none）</td></tr>
+<tr><td><code>cards[].dueDate</code></td><td>任意</td><td>string/null</td><td>期日（YYYY-MM-DD または null）</td></tr>
+<tr><td><code>cards[].tags</code></td><td>任意</td><td>array</td><td>タグ文字列の配列</td></tr>
+<tr><td><code>cards[].done</code></td><td>任意</td><td>boolean</td><td>完了フラグ（既定: false）</td></tr>
+</table>
+
+<div class="box tip">
+<b>Tip: 最小構成</b>
+必須なのは <code>columns</code> 配列と各列の <code>name</code>、各カードの <code>title</code> だけです。<code>id</code> は省略しても自動生成されます。
+</div>
+
+<h2 id="template">7. すぐ使えるテンプレート</h2>
+
+<p>以下の JSON をコピーして <code>kanban.json</code> として保存すれば、すぐに使い始められます。</p>
+
+<pre id="templateJson"><button class="copy-btn" onclick="copyTemplate(this)">コピー</button><code>{
+  "board": "My Kanban",
+  "columns": [
+    {
+      "id": "todo",
+      "name": "To Do",
+      "color": "#3b82f6",
+      "cards": [
+        {
+          "id": "card1",
+          "title": "最初のタスクを書く",
+          "description": "ここにタスクの詳細を記入します。",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": null,
+          "tags": [],
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "progress",
+      "name": "In Progress",
+      "color": "#f59e0b",
+      "cards": []
+    },
+    {
+      "id": "done",
+      "name": "Done",
+      "color": "#22c55e",
+      "cards": []
+    }
+  ]
+}</code></pre>
+
+<div class="box info">
+<b>5列テンプレート（より本格的）</b>
+Backlog / To Do / In Progress / Review / Done の5列構成なら、こちらをどうぞ。
+</div>
+
+<pre id="templateFull"><button class="copy-btn" onclick="copyFull(this)">コピー</button><code>{
+  "board": "Project Alpha",
+  "columns": [
+    {
+      "id": "backlog",
+      "name": "Backlog",
+      "color": "#6b7280",
+      "cards": []
+    },
+    {
+      "id": "todo",
+      "name": "To Do",
+      "color": "#3b82f6",
+      "cards": []
+    },
+    {
+      "id": "progress",
+      "name": "In Progress",
+      "color": "#f59e0b",
+      "cards": []
+    },
+    {
+      "id": "review",
+      "name": "Review",
+      "color": "#a855f7",
+      "cards": []
+    },
+    {
+      "id": "done",
+      "name": "Done",
+      "color": "#22c55e",
+      "cards": []
+    }
+  ]
+}</code></pre>
+
+<h2 id="keys">8. キーボードショートカット</h2>
+
+<table>
+<tr><th>キー</th><th>動作</th></tr>
+<tr><td><span class="key">Ctrl</span> + <span class="key">S</span></td><td>変更を即座に保存（編集モード時のみ）</td></tr>
+<tr><td><span class="key">Esc</span></td><td>モーダルを閉じる</td></tr>
+</table>
+
+<h2 id="tips">9. ヒント・注意点</h2>
+
+<ul>
+  <li><b>自動保存</b> - 編集モードで変更すると400ms後に自動保存されます。保存状態はステータスバーに表示されます。</li>
+  <li><b>外部変更の検知</b> - 別のツールで kanban.json が変更された場合、保存時に上書き確認ダイアログが表示されます。</li>
+  <li><b>言語切替</b> - 右上の「EN」/「日本語」ボタンで UI 言語を切り替えられます。設定はブラウザに保存されます。</li>
+  <li><b>URLの自動リンク化</b> - カードの説明に <code>https://...</code> を書くと、自動的にクリック可能なリンクになります。</li>
+  <li><b>データのバックアップ</b> - kanban.json はプレーンな JSON ファイルなので、Git で管理したりコピーでバックアップできます。</li>
+  <li><b>オフライン利用</b> - 外部通信は一切行いません。インターネット接続不要で動作します。</li>
+  <li><b>リロード時の注意</b> - 編集モードで未保存の変更がある状態でページを閉じると、ブラウザの警告ダイアログが表示されます。</li>
+</ul>
+
+<div class="box warn">
+<b>注意点</b>
+<ul style="margin:4px 0 0">
+  <li><code>file://</code> プロトコルで開いた場合、編集時に毎回ファイル選択ダイアログが表示されることがあります（ブラウザの仕様）。</li>
+  <li>Firebase / Safari など File System Access API 非対応環境では、編集後の保存ができません（閲覧のみ）。</li>
+</ul>
+</div>
+
+</div>
+
+<script>
+function copyBtnText(btn,orig){btn.textContent="コピーしました!";btn.classList.add("copied");setTimeout(()=>{btn.textContent=orig;btn.classList.remove("copied");},1800);}
+function copyTemplate(btn){
+  var t=document.querySelector("#templateJson code").textContent;
+  navigator.clipboard.writeText(t).then(()=>copyBtnText(btn,"コピー")).catch(()=>fallbackCopy(t,btn));
+}
+function copyFull(btn){
+  var t=document.querySelector("#templateFull code").textContent;
+  navigator.clipboard.writeText(t).then(()=>copyBtnText(btn,"コピー")).catch(()=>fallbackCopy(t,btn));
+}
+function fallbackCopy(text,btn){
+  var ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();
+  try{document.execCommand("copy");copyBtnText(btn,"コピー");}catch(e){}
+  document.body.removeChild(ta);
+}
+</script>
+</body>
+</html>

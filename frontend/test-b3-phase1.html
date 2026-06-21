@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phase B1 Validation Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #4ec9b0;
+            border-bottom: 2px solid #4ec9b0;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #9cdcfe;
+            margin-top: 30px;
+        }
+        .test-section {
+            background: #252526;
+            border-left: 4px solid #007acc;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .test-item {
+            margin: 10px 0;
+            padding: 8px;
+            border-radius: 3px;
+        }
+        .pass {
+            background: #1e6b1e;
+            color: #6a9955;
+        }
+        .fail {
+            background: #6b1e1e;
+            color: #f48771;
+        }
+        .info {
+            background: #1e3a6b;
+            color: #9cdcfe;
+        }
+        .loading {
+            background: #3a3a1e;
+            color: #dcdcaa;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .summary {
+            background: #1e2d2d;
+            border: 2px solid #4ec9b0;
+            padding: 15px;
+            margin-top: 30px;
+            border-radius: 4px;
+        }
+        button {
+            background: #007acc;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 14px;
+            margin: 10px 5px 10px 0;
+        }
+        button:hover {
+            background: #005a9e;
+        }
+        button:disabled {
+            background: #333;
+            cursor: not-allowed;
+            color: #888;
+        }
+        .console-output {
+            background: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .console-line {
+            margin: 2px 0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🧪 Phase B1 Validation Test Suite</h1>
+    <p>Testing behavior3js integration components</p>
+
+    <div class="summary" id="loading-status" style="text-align: center; color: #dcdcaa;">
+        ⏳ Loading dependencies... Please wait
+    </div>
+
+    <div style="margin-top: 20px;">
+        <button onclick="runPhase1Tests()">▶ Run All Tests</button>
+        <button onclick="runConverterTests()">📋 Converter Tests</button>
+        <button onclick="runAdapterTests()">🔧 Adapter Tests</button>
+        <button onclick="runRegistryTests()">📚 Registry Tests</button>
+        <button onclick="clearConsole()">🗑 Clear Output</button>
+    </div>
+
+    <h2>Test Output</h2>
+    <div class="console-output" id="console-output"></div>
+
+    <div class="summary" id="test-summary" style="display: none;">
+        <h3>📊 Test Summary</h3>
+        <div id="summary-content"></div>
+    </div>
+</div>
+
+<!-- Load dependencies in order -->
+<script src="b3-shim.js"></script>
+<script src="bt-b3-node-registry.js"></script>
+<script src="bt-b3-actions.js"></script>
+<script src="bt-b3-converter.js"></script>
+<script src="bt-b3-adapter.js"></script>
+
+<script>
+// Console output capture
+const outputDiv = document.getElementById('console-output');
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+
+function log(message, type = 'info') {
+    const line = document.createElement('div');
+    line.className = 'console-line';
+
+    let className = 'info';
+    if (message.includes('✅')) className = 'pass';
+    if (message.includes('❌')) className = 'fail';
+    if (message.includes('⚠')) className = 'info';
+
+    line.style.color =
+        className === 'pass' ? '#6a9955' :
+        className === 'fail' ? '#f48771' :
+        '#9cdcfe';
+
+    line.textContent = message;
+    outputDiv.appendChild(line);
+    outputDiv.scrollTop = outputDiv.scrollHeight;
+
+    originalLog(message);
+}
+
+function clearConsole() {
+    outputDiv.innerHTML = '';
+}
+
+// Redirect console.log
+console.log = log;
+
+function checkDependencies() {
+    log('\n🔍 Checking dependencies...\n');
+
+    let allGood = true;
+
+    // Check b3
+    if (typeof b3 === 'undefined') {
+        log('❌ behavior3js library not loaded');
+        allGood = false;
+    } else {
+        log(`✅ behavior3js loaded (version: ${b3.VERSION || 'unknown'})`);
+    }
+
+    // Check classes
+    if (typeof B3NodeRegistry === 'undefined') {
+        log('❌ B3NodeRegistry not defined');
+        allGood = false;
+    } else {
+        log('✅ B3NodeRegistry loaded');
+    }
+
+    if (typeof ProcessPromptAction === 'undefined') {
+        log('❌ ProcessPromptAction not defined');
+        allGood = false;
+    } else {
+        log('✅ ProcessPromptAction loaded');
+    }
+
+    if (typeof LoadLocalFileAction === 'undefined') {
+        log('❌ LoadLocalFileAction not defined');
+        allGood = false;
+    } else {
+        log('✅ LoadLocalFileAction loaded');
+    }
+
+    if (typeof B3TreeConverter === 'undefined') {
+        log('❌ B3TreeConverter not defined');
+        allGood = false;
+    } else {
+        log('✅ B3TreeConverter loaded');
+    }
+
+    if (typeof Behavior3Adapter === 'undefined') {
+        log('❌ Behavior3Adapter not defined');
+        allGood = false;
+    } else {
+        log('✅ Behavior3Adapter loaded');
+    }
+
+    if (typeof b3NodeRegistry === 'undefined') {
+        log('❌ b3NodeRegistry instance not created');
+        allGood = false;
+    } else {
+        log('✅ b3NodeRegistry instance created');
+    }
+
+    return allGood;
+}
+
+function runRegistryTests() {
+    log('\n📚 Running Node Registry Tests...\n');
+
+    try {
+        // Check basic composites
+        log('Testing basic composite registration...');
+        if (b3NodeRegistry.has('Sequence')) {
+            log('✅ Sequence registered');
+        } else {
+            log('❌ Sequence not registered');
+            return false;
+        }
+
+        // Check decorators
+        log('Testing decorator registration...');
+        if (b3NodeRegistry.has('Inverter')) {
+            log('✅ Inverter registered');
+        } else {
+            log('❌ Inverter not registered');
+            return false;
+        }
+
+        // Check pre-composed nodes
+        log('Testing pre-composed decorator+composite nodes...');
+        const preComposed = ['RepeatSequence', 'RepeatSelector', 'RepeatMemSequence', 'RepeatMemSelector'];
+        for (const nodeName of preComposed) {
+            if (b3NodeRegistry.has(nodeName)) {
+                log(`✅ ${nodeName} registered`);
+            } else {
+                log(`❌ ${nodeName} not registered`);
+                return false;
+            }
+        }
+
+        // Check helper methods
+        log('Testing helper methods...');
+        if (b3NodeRegistry.isComposite('Sequence')) {
+            log('✅ isComposite() works');
+        } else {
+            log('❌ isComposite() failed');
+            return false;
+        }
+
+        if (b3NodeRegistry.isDecorator('Inverter')) {
+            log('✅ isDecorator() works');
+        } else {
+            log('❌ isDecorator() failed');
+            return false;
+        }
+
+        if (b3NodeRegistry.getBaseComposite('RepeatSequence') === 'Sequence') {
+            log('✅ getBaseComposite() works');
+        } else {
+            log('❌ getBaseComposite() failed');
+            return false;
+        }
+
+        log('\n✅ All registry tests passed!\n');
+        return true;
+    } catch (e) {
+        log(`❌ Registry test failed: ${e.message}`);
+        console.error(e);
+        return false;
+    }
+}
+
+function runConverterTests() {
+    log('\n📋 Running Tree Converter Tests...\n');
+
+    try {
+        // Test 1: Simple sequence
+        log('Test 1: Simple Sequence conversion');
+        const simpleSeq = {
+            nodeType: 'root',
+            title: 'Root',
+            btType: 'sequence',
+            children: [
+                {
+                    nodeType: 'assemble',
+                    title: 'Action 1',
+                    btType: 'leaf',
+                    btAction: 'processPrompt',
+                    btPrompt: btoa('Hello World'),
+                    btOutputKey: 'result1'
+                }
+            ]
+        };
+
+        const b3Format1 = B3TreeConverter.wendToB3(simpleSeq);
+        if (b3Format1.root && b3Format1.nodes) {
+            log('✅ Converted to B3 format');
+            console.log('B3 format:', JSON.stringify(b3Format1, null, 2));
+        } else {
+            log('❌ Failed to convert to B3 format');
+            return false;
+        }
+
+        const backToWend1 = B3TreeConverter.b3ToWend(b3Format1);
+
+        // Debug output
+        if (!backToWend1) {
+            log('❌ b3ToWend returned null/undefined');
+            return false;
+        }
+        log(`   Debug: btType=${backToWend1.btType}, children=${backToWend1.children ? backToWend1.children.length : 'undefined'}`);
+
+        if (backToWend1.btType === 'sequence' && backToWend1.children && backToWend1.children.length === 1) {
+            log('✅ Converted back to Wend format');
+        } else {
+            log('❌ Failed to convert back to Wend format');
+            log(`   Expected: btType='sequence', 1 child`);
+            log(`   Got: btType='${backToWend1.btType}', ${backToWend1.children ? backToWend1.children.length : 0} children`);
+            console.log('Full result:', JSON.stringify(backToWend1, null, 2));
+            return false;
+        }
+
+        // Test 2: RepeatSequence
+        log('\nTest 2: RepeatSequence with repeat count');
+        const repeatSeq = {
+            nodeType: 'root',
+            title: 'Repeat Test',
+            btType: 'repeatSequence',
+            btRepeatCount: '3',
+            children: [
+                {
+                    nodeType: 'assemble',
+                    title: 'Loop Action',
+                    btType: 'leaf',
+                    btAction: 'processPrompt',
+                    btPrompt: btoa('Loop Prompt'),
+                    btOutputKey: 'loopResult'
+                }
+            ]
+        };
+
+        const b3Repeat = B3TreeConverter.wendToB3(repeatSeq);
+        if (b3Repeat.nodes[b3Repeat.root].name === 'RepeatSequence') {
+            log('✅ RepeatSequence converted to B3');
+        } else {
+            log(`❌ Expected RepeatSequence, got ${b3Repeat.nodes[b3Repeat.root].name}`);
+            return false;
+        }
+
+        const backRepeat = B3TreeConverter.b3ToWend(b3Repeat);
+        if (backRepeat.btRepeatCount === '3') {
+            log('✅ Repeat count preserved');
+        } else {
+            log(`❌ Repeat count not preserved. Expected: 3, Got: ${backRepeat.btRepeatCount}`);
+            return false;
+        }
+
+        // Test 3: Format detection
+        log('\nTest 3: Format detection');
+        if (B3TreeConverter.detectFormat({children: []}) === 'prompts') {
+            log('✅ Wend format detected');
+        } else {
+            log('❌ Failed to detect Wend format');
+            return false;
+        }
+
+        if (B3TreeConverter.detectFormat({nodes: {}, root: 'n-0'}) === 'b3') {
+            log('✅ B3 format detected');
+        } else {
+            log('❌ Failed to detect B3 format');
+            return false;
+        }
+
+        log('\n✅ All converter tests passed!\n');
+        return true;
+    } catch (e) {
+        log(`❌ Converter test failed: ${e.message}`);
+        console.error(e);
+        return false;
+    }
+}
+
+function runAdapterTests() {
+    log('\n🔧 Running Adapter Tests...\n');
+
+    try {
+        // Test 1: Instantiation
+        log('Test 1: Adapter instantiation');
+        const mockApp = {
+            getNodeByPath: () => ({ title: btoa('Test'), nodeType: 'root' }),
+            state: { btRunState: new Map(), pipelineRun: { running: false } },
+            renderTree: () => {},
+            addLog: () => {}
+        };
+
+        const adapter = new Behavior3Adapter(mockApp);
+        if (adapter) {
+            log('✅ Behavior3Adapter instantiated');
+        } else {
+            log('❌ Failed to instantiate Behavior3Adapter');
+            return false;
+        }
+
+        // Test 2: Public API methods
+        log('\nTest 2: Public API methods');
+        const methods = ['setTarget', 'run', 'step', 'pause', 'stop',
+                        'getBlackboard', 'bbSetText', 'bbSetMedia',
+                        'bbClearSlot', 'bbClearKey', 'getConfig', 'setConfig'];
+
+        for (const method of methods) {
+            if (typeof adapter[method] === 'function') {
+                log(`✅ Method ${method} exists`);
+            } else {
+                log(`❌ Method ${method} missing`);
+                return false;
+            }
+        }
+
+        // Test 3: Blackboard operations
+        log('\nTest 3: Blackboard operations');
+        adapter.bbSetText('testVar', 'Hello');
+        const bb = adapter.getBlackboard();
+        if (bb.testVar && bb.testVar.text === 'Hello') {
+            log('✅ Text storage works');
+        } else {
+            log('❌ Text storage failed');
+            return false;
+        }
+
+        adapter.bbSetMedia('testVar', [{name: 'file.txt'}]);
+        const bb2 = adapter.getBlackboard();
+        if (bb2.testVar && bb2.testVar.media && bb2.testVar.media.length > 0) {
+            log('✅ Media storage works');
+        } else {
+            log('❌ Media storage failed');
+            return false;
+        }
+
+        adapter.bbClearSlot('testVar', 'text');
+        const bb3 = adapter.getBlackboard();
+        if (bb3.testVar && !bb3.testVar.text) {
+            log('✅ Slot clear works');
+        } else {
+            log('❌ Slot clear failed');
+            return false;
+        }
+
+        adapter.bbClearKey('testVar');
+        const bb4 = adapter.getBlackboard();
+        if (!bb4.testVar) {
+            log('✅ Key clear works');
+        } else {
+            log('❌ Key clear failed');
+            return false;
+        }
+
+        // Test 4: Configuration
+        log('\nTest 4: Configuration management');
+        adapter.setConfig({mode: 'cycle', count: 5});
+        const cfg = adapter.getConfig();
+        if (cfg.mode === 'cycle' && cfg.count === 5) {
+            log('✅ Configuration works');
+        } else {
+            log('❌ Configuration failed');
+            return false;
+        }
+
+        log('\n✅ All adapter tests passed!\n');
+        return true;
+    } catch (e) {
+        log(`❌ Adapter test failed: ${e.message}`);
+        console.error(e);
+        return false;
+    }
+}
+
+async function runPhase1Tests() {
+    clearConsole();
+    document.getElementById('test-summary').style.display = 'none';
+
+    log('🚀 Running Phase B1 Complete Validation\n');
+    log('═'.repeat(50) + '\n');
+
+    const results = {
+        dependencies: false,
+        registry: false,
+        converter: false,
+        adapter: false
+    };
+
+    // Check dependencies
+    results.dependencies = checkDependencies();
+
+    // Give a moment for visual separation
+    await new Promise(r => setTimeout(r, 500));
+
+    // Run tests
+    results.registry = runRegistryTests();
+    await new Promise(r => setTimeout(r, 300));
+
+    results.converter = runConverterTests();
+    await new Promise(r => setTimeout(r, 300));
+
+    results.adapter = runAdapterTests();
+
+    // Summary
+    log('\n' + '═'.repeat(50));
+    log('\n📊 PHASE B1 VALIDATION SUMMARY\n');
+
+    const summaryHtml = `
+        <div style="margin: 15px 0;">
+            <div class="test-item ${results.dependencies ? 'pass' : 'fail'}">
+                Dependencies: ${results.dependencies ? '✅ PASS' : '❌ FAIL'}
+            </div>
+            <div class="test-item ${results.registry ? 'pass' : 'fail'}">
+                Node Registry: ${results.registry ? '✅ PASS' : '❌ FAIL'}
+            </div>
+            <div class="test-item ${results.converter ? 'pass' : 'fail'}">
+                Tree Converter: ${results.converter ? '✅ PASS' : '❌ FAIL'}
+            </div>
+            <div class="test-item ${results.adapter ? 'pass' : 'fail'}">
+                Behavior3Adapter: ${results.adapter ? '✅ PASS' : '❌ FAIL'}
+            </div>
+        </div>
+        <div style="margin-top: 20px; font-weight: bold; font-size: 16px;">
+            ${Object.values(results).every(x => x)
+                ? '🎉 ALL TESTS PASSED - Phase B1 Ready for B2!'
+                : '⚠️ Some tests failed - Review output above'}
+        </div>
+    `;
+
+    document.getElementById('test-summary').innerHTML = summaryHtml;
+    document.getElementById('test-summary').style.display = 'block';
+
+    log('\n' + '═'.repeat(50) + '\n');
+}
+
+// Check dependencies on load
+window.addEventListener('load', () => {
+    const loadingStatus = document.getElementById('loading-status');
+    if (checkDependencies()) {
+        loadingStatus.innerHTML = '✅ All dependencies loaded successfully!<br><br>Click "Run All Tests" to begin validation.';
+        loadingStatus.style.color = '#6a9955';
+    } else {
+        loadingStatus.innerHTML = '❌ Some dependencies failed to load. See console output.';
+        loadingStatus.style.color = '#f48771';
+    }
+});
+</script>
+</body>
+</html>

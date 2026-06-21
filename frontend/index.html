@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wend</title>
+<link rel="stylesheet" href="style.css">
+<script src="lib/marked.min.js"></script>
+<script src="lib/mark.min.js"></script>
+<script src="lib/mermaid.min.js"></script>
+</head>
+<body>
+<div id="app">
+    <div id="tab-bar"></div>
+    <div id="main-content">
+        <div id="tree-pane" class="pane">
+            <div class="pane-header" onclick="app.togglePane('tree-pane')">📂 <span data-i18n="Tree">Tree</span> <span id="tree-selection-label" style="font-size:9px;color:#555;margin-left:4px"></span></div>
+            <div class="tree-tabs">
+                <button id="btn-tree-tab-pipeline" class="tree-tab-btn active" onclick="app.switchTreeTab('pipeline')">BT/pipeline</button>
+                <button id="btn-tree-tab-file" class="tree-tab-btn" onclick="app.switchTreeTab('file')">File</button>
+                <button id="btn-tree-tab-manager" class="tree-tab-btn" onclick="app.switchTreeTab('manager')">🚀 Manager</button>
+                <button class="tree-add-btn" onclick="app.addRootNode()" title="Add Root Node" data-i18n-title="AddRootNode">➕</button>
+            </div>
+            <div id="bt-toolbar">
+                <span id="bt-target-label" class="bt-target-label">—</span>
+                <span id="bt-cycle-badge" class="bt-cycle-badge" style="display:none"></span>
+                <button id="btn-bt-run"   class="btn-bt" title="Run BT"              data-i18n-title="BTRun"            onclick="app.btCtrlRun()"   disabled>▶</button>
+                <button id="btn-bt-step"  class="btn-bt" title="Step Execution"     data-i18n-title="BTStepExec"       onclick="app.btCtrlStep()"  disabled>⏭</button>
+                <button id="btn-bt-pause" class="btn-bt" title="Pause"              data-i18n-title="Pause"            onclick="app.btCtrlPause()" disabled>⏸</button>
+                <button id="btn-bt-stop"  class="btn-bt btn-bt-stop" title="Stop"   data-i18n-title="Stop"            onclick="app.btCtrlStop()" disabled>⏹</button>
+                <button id="btn-bt-bb" class="btn-bt btn-bt-config" title="Manage Blackboard" data-i18n-title="ManageBlackboard" onclick="app.btBlackboardDialog()">📋</button>
+                <button id="btn-bt-lock" class="btn-bt btn-bt-lock" title="Execution Lock (when ON, nothing runs)" data-i18n-title="ExecLockTitle" onclick="app.btCtrlToggleLock()">🔓</button>
+            </div>
+            <div id="tree-content" class="pane-content"></div>
+            <div id="file-tree-content" class="pane-content" style="display:none"></div>
+            <div id="task-manager-content" class="pane-content task-manager-pane" style="display:none;flex-direction:column;padding:0">
+                <div class="task-manager-header-pane">
+                    <span>Task Manager</span>
+                    <button class="task-manager-pane-btn" onclick="app.refreshTaskMetrics()" title="Refresh">⟳</button>
+                </div>
+                <div class="task-manager-body-pane">
+                    <!-- Summary Stats -->
+                    <div class="task-summary">
+                        <div class="stat-box">
+                            <div class="stat-label">Active</div>
+                            <div class="stat-value" id="task-active-count">0</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">Queued</div>
+                            <div class="stat-value" id="task-queued-count">0</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">Completed</div>
+                            <div class="stat-value" id="task-completed-count">0</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">Failed</div>
+                            <div class="stat-value" id="task-failed-count">0</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">Avg Duration</div>
+                            <div class="stat-value" id="task-avg-duration">--</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">Total Tokens</div>
+                            <div class="stat-value" id="task-total-tokens">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Groups Section -->
+                    <div class="task-groups-section">
+                        <div class="groups-header">Execution Groups</div>
+                        <div id="task-groups-container" class="task-groups-container">
+                            <!-- Groups will be inserted here -->
+                        </div>
+                    </div>
+
+                    <!-- Individual Runs Section -->
+                    <div class="task-runs-section">
+                        <div class="runs-header">All Runs</div>
+                        <div id="task-runs-container" class="task-runs-container">
+                            <!-- Runs will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="vertical-resize-handle" id="tree-resize-handle"></div>
+        <div id="prompt-pane" class="pane">
+            <div class="pane-header" onclick="app.togglePane('prompt-pane')">
+                🔧 <span data-i18n="Operator">Operation</span>
+                <span class="pane-meta" style="font-size:9px;color:#555;margin-left:4px">(op)</span>
+                <span class="pane-meta" id="prompt-meta"></span>
+                <span class="recipe-badge" id="recipe-badge"></span>
+            </div>
+            <div id="prompt-content" class="pane-content stream-content"></div>
+        </div>
+        <div class="vertical-resize-handle" id="prompt-resize-handle"></div>
+        <div id="input-pane" class="pane">
+            <div class="pane-header" onclick="app.togglePane('input-pane')">
+                ▲ <span data-i18n="Input">Input</span>
+                <span class="pane-meta" style="font-size:9px;color:#555;margin-left:4px">(src)</span>
+                <span class="input-meta" id="input-meta"></span>
+            </div>
+            <div id="input-content" class="pane-content stream-content"></div>
+        </div>
+        <div class="vertical-resize-handle" id="input-resize-handle"></div>
+        <div id="output-pane" class="pane">
+            <div class="pane-header" onclick="app.togglePane('output-pane')">
+                ▼ <span data-i18n="Output">Output</span>
+                <span class="pane-meta" style="font-size:9px;color:#555;margin-left:4px">(dst)</span>
+                <span class="pane-meta" id="output-meta"></span>
+            </div>
+            <div id="output-content" class="pane-content stream-content">
+                <div id="output-result-container" class="output-split-pane"></div>
+                <div id="output-resize-handle" class="output-split-handle"></div>
+                <div id="output-run-container" class="output-split-pane"></div>
+            </div>
+        </div>
+    </div>
+    <div id="messages-pane" class="pane">
+        <div id="messages-resize-handle"></div>
+        <div class="pane-header" onclick="app.togglePane('messages-pane')">
+            <span class="msg-tabs">
+                <button class="msg-tab msg-tab-active" data-tab="log" onclick="event.stopPropagation();app.switchMsgTab('log')">📝 <span data-i18n="Messages">Log</span></button>
+                <button class="msg-tab" data-tab="http" onclick="event.stopPropagation();app.switchMsgTab('http')">🌐 HTTP</button>
+            </span>
+            <span class="messages-actions">
+                <button class="msg-action-btn" onclick="event.stopPropagation();app.copyAllLogs()" title="Copy all logs" data-hint="Copy all logs">📋</button>
+                <button class="msg-action-btn" onclick="event.stopPropagation();app.clearLogs()" title="Clear logs" data-hint="Clear logs">✕</button>
+            </span>
+        </div>
+        <div id="messages-content" oncontextmenu="event.preventDefault();app.showLogContextMenu(event)"></div>
+        <div id="http-log-content" style="display:none;overflow-y:auto;flex:1;font-family:monospace;font-size:11px;padding:4px;background:#1e1e1e;"></div>
+    </div>
+    <!-- BT Config Dialog -->
+    <div id="bt-config-modal" class="modal" style="display:none" onclick="if(event.target===this)app.btConfigClose()">
+        <div class="modal-content bt-config-content">
+            <span class="modal-close" onclick="app.btConfigClose()">&times;</span>
+            <h3 style="margin:0 0 14px" data-i18n="BTExecSettings">BT Execution Settings</h3>
+            <div class="bt-cfg-row">
+                <label class="bt-cfg-label" data-i18n="ExecMode">Execution Mode</label>
+                <div class="bt-cfg-radios">
+                    <label><input type="radio" name="bt-exec-mode" value="single" checked onchange="app._btCfgModeChange(this)"> <span data-i18n="SingleRun">Single run</span></label>
+                    <label><input type="radio" name="bt-exec-mode" value="cycle"        onchange="app._btCfgModeChange(this)"> <span data-i18n="RepeatExec">Repeat</span></label>
+                </div>
+            </div>
+            <div class="bt-cfg-row" id="bt-cfg-count-row" style="display:none">
+                <label class="bt-cfg-label" data-i18n="RepeatCount">Repeat Count</label>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <input type="number" id="bt-cfg-count" class="bt-cfg-count" value="1" min="0" step="1">
+                    <span style="font-size:11px;color:#888" data-i18n="InfiniteLoopHint">0 = Infinite Loop</span>
+                </div>
+            </div>
+            <div class="modal-actions" style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end">
+                <button class="btn-primary" onclick="app.btConfigSave()">OK</button>
+                <button onclick="app.btConfigClose()" data-i18n="Cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+    <!-- BT Blackboard Dialog -->
+    <div id="bt-bb-modal" class="modal" style="display:none" onclick="if(event.target===this)app.btBbClose()">
+        <div class="modal-content bt-bb-modal-content">
+            <div class="bt-bb-header">
+                <span class="bt-bb-title">📋 <span data-i18n="Blackboard">Blackboard</span></span>
+                <span class="bt-bb-subtitle" data-i18n="BlackboardSubtitle">Shared variables during BT execution</span>
+                <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+                    <button class="copy-btn" onclick="app._btBbAddNew()">＋ 追加</button>
+                    <button class="copy-btn" onclick="app._renderBbDialog()">↻ 更新</button>
+                    <span class="modal-close" style="position:static;font-size:18px" onclick="app.btBbClose()">&times;</span>
+                </div>
+            </div>
+            <div id="bt-bb-body" class="bt-bb-body"></div>
+        </div>
+    </div>
+    <!-- Log Context Menu -->
+    <div id="log-context-menu" class="context-menu" style="display:none"></div>
+    <!-- Tree Context Menu -->
+    <div id="tree-context-menu" class="context-menu" style="display:none"></div>
+    <!-- Tab Context Menu -->
+    <div id="tab-context-menu" class="context-menu" style="display:none"></div>
+</div>
+<!-- Hint Tooltip -->
+<div id="hint-tooltip" class="hint-tooltip" style="display:none"></div>
+
+<!-- Settings Modal -->
+<div id="settings-modal" class="modal">
+    <div class="modal-content settings-modal-content">
+        <span class="modal-close" onclick="app.closeSettings()">&times;</span>
+        <h2 data-i18n="SettingsTitle">Settings</h2>
+        <div class="settings-row">
+            <label class="settings-label" data-i18n="SettingsLanguageLabel">Display Language</label>
+            <select id="settings-lang" class="settings-select">
+                <option value="en">English</option>
+                <option value="ja">日本語</option>
+                <option value="fr">Français</option>
+                <option value="es">Español</option>
+                <option value="pt">Português</option>
+                <option value="de">Deutsch</option>
+            </select>
+        </div>
+        <div class="settings-actions">
+            <button onclick="app.saveSettings()" class="btn-primary" data-i18n="SettingsSave">Save</button>
+            <button onclick="app.closeSettings()" data-i18n="SettingsClose">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- About Modal -->
+<div id="about-modal" class="modal">
+    <div class="modal-content about-modal-content">
+        <span class="modal-close" onclick="app.closeAbout()">&times;</span>
+        <div class="about-icon" id="about-icon">🤖</div>
+        <h2 id="about-title" data-i18n="AboutTitle">About Wend</h2>
+        <p id="about-desc" class="about-desc" data-i18n="AboutDesc">AI prompt and pipeline management tool.</p>
+        <div class="about-version"><span data-i18n="AboutVersion">Version</span> <span id="about-ver">1.0</span></div>
+        <div class="about-links">
+            <a href="#" onclick="app.closeAbout(); app.showCopyright(); return false;" data-i18n="MenuCopyright">Copyright &amp; Licenses</a>
+        </div>
+    </div>
+</div>
+
+<!-- Copyright Modal -->
+<div id="copyright-modal" class="modal">
+    <div class="modal-content copyright-modal-content">
+        <span class="modal-close" onclick="app.closeCopyright()">&times;</span>
+        <h2 data-i18n="CopyrightTitle">Copyright &amp; Licenses</h2>
+        <pre id="copyright-body" class="copyright-body"></pre>
+    </div>
+</div>
+
+<!-- Folder Help Modal -->
+<div id="folder-help-modal" class="modal">
+    <div class="modal-content copyright-modal-content">
+        <span class="modal-close" onclick="app.closeFolderHelp()">&times;</span>
+        <h2 data-i18n="FolderHelpTitle">Folder Structure</h2>
+        <pre id="folder-help-body" class="copyright-body"></pre>
+    </div>
+</div>
+
+<!-- Project List Modal -->
+<div id="project-list-modal" class="modal" onclick="if(event.target===this)app.closeProjectList()">
+    <div class="modal-content" style="width:600px;padding:0;display:flex;flex-direction:column;max-height:85vh">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444;flex-shrink:0">
+            <span style="font-size:14px;font-weight:bold;color:#eee" data-i18n="ProjectListTitle">📁 Projects</span>
+            <span class="modal-close" onclick="app.closeProjectList()">&times;</span>
+        </div>
+        <div style="padding:8px 10px;font-size:11px;color:#888;flex-shrink:0;display:flex;justify-content:space-between;align-items:center">
+            <span><span data-i18n="CurrentProject">Current:</span> <span id="project-list-current" style="color:#ccc"></span></span>
+            <span id="project-list-count" style="color:#888"></span>
+        </div>
+        <div style="padding:0 10px 8px;flex-shrink:0;display:flex;gap:8px">
+            <input type="text" id="project-list-search" placeholder="Search projects..." 
+                   style="flex:1;padding:6px 10px;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#eee;font-size:12px"
+                   oninput="app.filterProjectList()">
+            <button onclick="app.newProjectFromList()" style="padding:6px 12px;font-size:11px" data-i18n="NewProject">+ New</button>
+        </div>
+        <div id="project-list-body" style="flex:1;overflow-y:auto;padding:0 10px 8px" tabindex="0"></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 14px;border-top:1px solid #333;flex-shrink:0">
+            <button onclick="app.closeProjectList()" data-i18n="Cancel">Cancel</button>
+            <button id="project-list-open-btn" class="btn-primary" onclick="app.openSelectedProject()" disabled data-i18n="Open">Open</button>
+        </div>
+    </div>
+</div>
+
+<!-- Project Input Modal (for rename, new, duplicate) -->
+<div id="project-input-modal" class="modal" onclick="if(event.target===this)app.closeProjectInputModal()">
+    <div class="modal-content" style="width:400px;padding:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444">
+            <span id="project-input-title" style="font-size:14px;font-weight:bold;color:#eee">Input</span>
+            <span class="modal-close" onclick="app.closeProjectInputModal()">&times;</span>
+        </div>
+        <div style="padding:16px">
+            <p id="project-input-message" style="font-size:13px;color:#ccc;margin-bottom:12px"></p>
+            <input type="text" id="project-input-field" style="width:100%;padding:8px 12px;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#eee;font-size:13px" autocomplete="off" onkeydown="if(event.key==='Enter')app.confirmProjectInput()">
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid #333">
+            <button onclick="app.closeProjectInputModal()" data-i18n="Cancel">Cancel</button>
+            <button id="project-input-ok-btn" class="btn-primary" onclick="app.confirmProjectInput()">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- Project Confirm Modal (for delete) -->
+<div id="project-confirm-modal" class="modal" onclick="if(event.target===this)app.closeProjectConfirmModal()">
+    <div class="modal-content" style="width:400px;padding:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444">
+            <span id="project-confirm-title" style="font-size:14px;font-weight:bold;color:#eee">Confirm</span>
+            <span class="modal-close" onclick="app.closeProjectConfirmModal()">&times;</span>
+        </div>
+        <div style="padding:16px">
+            <p id="project-confirm-message" style="font-size:13px;color:#ccc;margin:0"></p>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid #333">
+            <button onclick="app.closeProjectConfirmModal()" data-i18n="Cancel">Cancel</button>
+            <button id="project-confirm-ok-btn" class="btn-primary" style="background:#5a2020;border-color:#8a3030" onclick="app.confirmProjectAction()">Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- Hamburger Dropdown (created dynamically) -->
+
+<!-- Setup Wizard Modal -->
+<div id="setup-wizard-modal" class="modal">
+    <div class="modal-content wizard-content setup-wizard-content">
+        <div class="wizard-progress" id="sw-progress"></div>
+        <div class="wizard-body" id="sw-body"></div>
+        <div class="wizard-footer">
+            <button id="sw-cancel" onclick="app.closeSetupWizard()" data-i18n="Cancel">Cancel</button>
+            <div class="wizard-nav">
+                <button id="sw-prev" onclick="app.swPrev()" data-i18n="WizardPrev">← Back</button>
+                <button id="sw-next" class="btn-primary" data-i18n="WizardNext">Next →</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Wizard Modal -->
+<div id="wizard-modal" class="modal">
+    <div class="modal-content wizard-content">
+        <div class="wizard-progress" id="wizard-progress"></div>
+        <div class="wizard-body" id="wizard-body"></div>
+        <div class="wizard-footer">
+            <button id="wizard-skip" onclick="app.closeWizard()" data-i18n="Skip">Skip</button>
+            <div class="wizard-nav">
+                <button id="wizard-prev" onclick="app.wizardPrev()" data-i18n="WizardPrev">← Back</button>
+                <button id="wizard-next" class="btn-primary" data-i18n="WizardNext">Next →</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Modal -->
+<div id="filter-modal" class="modal">
+    <div class="modal-content filter-modal-content">
+        <span class="modal-close" onclick="app.closeFilter(); app.closeModal('filter-modal')">&times;</span>
+        <div id="filter-body" class="filter-body"></div>
+        <div class="filter-footer">
+            <button class="btn-primary" onclick="app.closeFilter(); app.closeModal('filter-modal')">Confirm</button>
+            <button onclick="app.closeModal('filter-modal')">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Recovery Modal -->
+<div id="recovery-modal" class="modal">
+    <div class="modal-content recovery-modal-content">
+        <span class="modal-close" onclick="app.closeModal('recovery-modal')">&times;</span>
+        <h2>📋 Incomplete Pipeline Runs</h2>
+        <div id="recovery-body" class="recovery-body"></div>
+    </div>
+</div>
+
+<!-- Input Source Modal -->
+<div id="input-source-modal" class="modal">
+    <div class="modal-content input-source-content">
+        <span class="modal-close" onclick="app.closeModal('input-source-modal')">&times;</span>
+        <div id="input-source-body" class="input-source-body"></div>
+    </div>
+</div>
+
+<!-- Manual Step Modal -->
+<div id="manual-modal" class="modal">
+    <div class="modal-content manual-modal-content">
+        <div class="manual-header">
+            <span id="manual-title">Review</span>
+            <span class="manual-step-badge" id="manual-step-badge"></span>
+        </div>
+        <p id="manual-prompt" class="manual-prompt"></p>
+        <div id="manual-body"></div>
+        <div class="manual-actions" id="manual-actions"></div>
+    </div>
+</div>
+
+<!-- Recipe Manager Modal -->
+<div id="recipe-modal" class="modal">
+    <div class="modal-content recipe-modal-content" style="min-width:850px;max-width:1000px;height:580px;display:flex;flex-direction:column;padding:0">
+        <div class="recipe-modal-header" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444;flex-shrink:0">
+            <span>📋 Recipe Manager</span>
+            <span class="modal-close" onclick="app.closeRecipeManager()">&times;</span>
+        </div>
+        <div id="recipe-manager-path" style="padding:4px 16px;font-size:10px;color:#666;background:#1a1a1a;border-bottom:1px solid #333;line-height:1.6"></div>
+        <div style="display:flex;flex:1;min-height:0">
+            <!-- Left Sidebar: Providers -->
+            <div id="recipe-manager-sidebar" style="width:200px;border-right:1px solid #333;background:#151515;overflow-y:auto;padding:8px 0;display:flex;flex-direction:column;gap:2px">
+            </div>
+            <!-- Right Panel: Grouped recipes & Add form -->
+            <div id="recipe-modal-body" class="recipe-modal-body" style="flex:1;overflow-y:auto;padding:12px 16px;background:#1e1e1e">
+            </div>
+        </div>
+        <div class="recipe-modal-footer" style="display:flex;justify-content:flex-end;gap:8px;padding:10px 14px;border-top:1px solid #333;flex-shrink:0;background:#1a1a1a">
+            <button class="btn" onclick="app.closeRecipeManager()" data-i18n="Close">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Config Panel (non-modal floating) -->
+<div id="config-panel">
+    <div class="config-drag-handle" id="config-drag-handle">
+        <span>⚙ <span data-i18n="ProviderSetting">Provider Setting</span></span>
+        <button onclick="app.closeConfig()">&times;</button>
+    </div>
+    <div class="config-body">
+        <div id="config-tab-providers" class="config-tab-panel">
+            <div class="provider-list" id="provider-list"></div>
+            <div class="config-actions">
+                <button onclick="app.saveProviders()" class="btn-primary" data-i18n="Save">Save</button>
+                <button onclick="app.closeConfig()" data-i18n="Close">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="app-config-panel">
+    <div class="config-drag-handle" id="app-config-drag-handle">
+        <span>⚙ <span data-i18n="ApplicationConfig">Application Config</span></span>
+        <button onclick="app.closeAppConfig()">&times;</button>
+    </div>
+    <div class="config-body">
+        <div class="settings-field-row">
+            <label data-i18n="DefaultProvider">Default Provider</label>
+            <div class="settings-field-control">
+                <select id="config-default-provider" onchange="app.setDefaultProvider(this.value)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;"></select>
+            </div>
+        </div>
+        <div class="settings-field-row">
+            <label data-i18n="DefaultModel">Default Model</label>
+            <div class="settings-field-control">
+                <input type="text" id="config-default-model" placeholder="gpt-4o" onchange="app.setDefaultModel(this.value)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;">
+            </div>
+        </div>
+        <div class="settings-separator"></div>
+        <div class="settings-field-row">
+            <label>Image Viewer Default Fit</label>
+            <div class="settings-field-control">
+                <select id="config-default-image-fit" onchange="app.setDefaultImageFit(this.value)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;">
+                    <option value="contain" data-i18n="ImageFitContain">Fit All (contain)</option>
+                    <option value="fit-height" data-i18n="ImageFitHeight">Fit Height (fit height)</option>
+                    <option value="fit-width" data-i18n="ImageFitWidth">Fit Width (fit width)</option>
+                    <option value="native" data-i18n="ImageFitNative">Native Resolution (native)</option>
+                </select>
+            </div>
+        </div>
+        <div class="settings-separator"></div>
+        <div class="settings-field-row">
+            <label data-i18n="ProjectsRoot">Projects Root Folder</label>
+            <div class="settings-field-hint" data-i18n="ProjectsRootDesc">Location for all project data. Restart required after change. Leave empty for default.</div>
+            <div class="settings-field-control" style="display:flex;gap:4px;align-items:center;">
+                <input type="text" id="config-projects-root" placeholder="(default)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;">
+                <button onclick="app.browseProjectsRoot()" data-i18n="Browse">Browse...</button>
+                <button onclick="app.applyProjectsRoot()" class="btn-primary" data-i18n="Apply">Apply</button>
+                <button onclick="app.resetProjectsRoot()" data-i18n="Reset">Reset</button>
+            </div>
+        </div>
+        <div class="settings-separator"></div>
+        <div class="settings-field-row">
+            <label data-i18n="HistoryRetention">History Retention (runs)</label>
+            <div class="settings-field-hint" data-i18n="HistoryRetentionDesc">Number of execution histories to keep per project.</div>
+            <div class="settings-field-control">
+                <button onclick="app.adjustRetention(-10)" title="Decrease by 10">−10</button>
+                <button onclick="app.adjustRetention(-1)" title="Decrease by 1">−1</button>
+                <input type="number" id="config-history-retention" value="50" min="10" max="500" onchange="app.setHistoryRetention(this.value)">
+                <button onclick="app.adjustRetention(1)" title="Increase by 1">+1</button>
+                <button onclick="app.adjustRetention(10)" title="Increase by 10">+10</button>
+            </div>
+        </div>
+        <div class="settings-separator"></div>
+        <div class="settings-field-row">
+            <label>BT Execution Settings</label>
+            <div class="settings-field-hint">Configure parallel execution limits for Behavior Tree runs and LLM API calls.</div>
+            <div class="settings-field-control" style="display:flex;flex-direction:column;gap:12px;">
+                <!-- Max Parallel Runs -->
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <label style="width:180px;font-size:12px;">Max Parallel BT Runs</label>
+                    <button onclick="app.adjustMaxParallel(-1)" title="Decrease">−</button>
+                    <input type="number" id="config-max-parallel" value="4" min="1" max="16" onchange="app.setMaxParallel(this.value)" style="width:50px;text-align:center;">
+                    <button onclick="app.adjustMaxParallel(1)" title="Increase">+</button>
+                    <span style="font-size:11px;color:#888;">(1-16)</span>
+                </div>
+                <!-- Max Concurrent LLM Calls -->
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <label style="width:180px;font-size:12px;">Max Concurrent HTTP Calls</label>
+                    <button onclick="app.adjustMaxConcurrentLLM(-1)" title="Decrease">−</button>
+                    <input type="number" id="config-max-concurrent-llm" value="4" min="1" max="32" onchange="app.setMaxConcurrentLLM(this.value)" style="width:50px;text-align:center;">
+                    <button onclick="app.adjustMaxConcurrentLLM(1)" title="Increase">+</button>
+                    <span style="font-size:11px;color:#888;">(1-32)</span>
+                </div>
+            </div>
+        </div>
+        <div class="settings-separator"></div>
+        <div class="settings-field-row">
+            <label data-i18n="Theme">Theme</label>
+            <div id="theme-options" class="settings-theme-list"></div>
+            <div id="custom-theme-colors" style="display:none; margin-top: 12px; border-top: 1px solid var(--theme-border); padding-top: 12px; width: 100%;">
+                <div style="font-weight: bold; margin-bottom: 8px;" data-i18n="CustomizeTheme">Customize Theme Colors</div>
+                <div class="custom-color-pickers-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                </div>
+            </div>
+        </div>
+        <div class="settings-separator"></div>
+        <div class="settings-field-row">
+            <label data-i18n="ChestList">Named Chests</label>
+            <div id="config-chest-list" class="settings-chest-list"></div>
+        </div>
+        <div class="settings-separator"></div>
+        <div class="settings-field-row">
+            <label data-i18n="StorageChest">Storage Chest</label>
+            <button onclick="app.clearStorageChest()" class="btn-danger config-danger-btn" data-i18n="ClearStorageChest">Empty Storage Chest</button>
+        </div>
+        <div class="settings-separator"></div>
+        <div class="settings-field-row">
+            <label data-i18n="LogHttpHeaders">Log HTTP Headers</label>
+            <div class="settings-field-hint" data-i18n="LogHttpHeadersDesc">Include HTTP request/response headers in log messages</div>
+            <div class="settings-field-control">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                    <input type="checkbox" id="config-log-http-headers" onchange="app.setLogHttpHeaders(this.checked)">
+                    <span data-i18n="Enabled">Enabled</span>
+                </label>
+            </div>
+        </div>
+        <div class="settings-separator"></div>
+        <div class="settings-field-row">
+            <label data-i18n="ViewOnlyMode">View-Only Mode</label>
+            <div class="settings-field-hint" data-i18n="ViewOnlyModeDesc">Disable editing: prompt, recipe, and attachment management become read-only</div>
+            <div class="settings-field-control">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                    <input type="checkbox" id="config-view-only-mode" onchange="app.setViewOnlyMode(this.checked)">
+                    <span data-i18n="Enabled">Enabled</span>
+                </label>
+            </div>
+        </div>
+        <div class="settings-separator"></div>
+        <div class="settings-field-row">
+            <label data-i18n="PlaceholderArchiveName">Placeholder Name</label>
+            <div class="settings-field-hint" data-i18n="PlaceholderArchiveNameDesc">Default name for new placeholders created via context menu</div>
+            <div class="settings-field-control">
+                <input type="text" id="config-placeholder-archive-name" value="archive" onchange="app.setPlaceholderArchiveName(this.value)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;">
+            </div>
+        </div>
+        <div class="settings-separator"></div>
+        <div class="settings-field-row">
+            <label data-i18n="MaintainByAI">🤖 Maintain by AI</label>
+            <div class="settings-field-hint" data-i18n="MaintainByAIDesc">Configure AI recipe for automatic error fixing and configuration maintenance</div>
+            <div class="settings-field-control" style="display:flex;gap:4px;align-items:center;">
+                <select id="config-maintain-recipe" onchange="app.setMaintainRecipe(this.value)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;"></select>
+                <button onclick="app.testMaintainAI()" class="btn-primary" data-i18n="Test">Test</button>
+            </div>
+        </div>
+        <div class="config-actions">
+            <button onclick="app.closeAppConfig()" data-i18n="Close">Close</button>
+        </div>
+    </div>
+</div>
+<!-- Rename Modal -->
+<div id="rename-modal" class="modal">
+    <div class="modal-content" style="width:360px;padding:16px;">
+        <h3 style="margin:0 0 8px;font-size:13px;">✏️ <span data-i18n="RenameNodeTitle">Rename Node</span></h3>
+        <input id="rename-input" type="text" style="width:100%;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:4px 6px;font-size:12px;margin-bottom:8px;box-sizing:border-box;">
+        <div style="display:flex;gap:6px;justify-content:flex-end;">
+            <button onclick="app.renameConfirm()" class="btn-primary" style="padding:4px 12px;font-size:11px;">OK</button>
+            <button onclick="app.renameCancel()" style="padding:4px 12px;font-size:11px;">Cancel</button>
+        </div>
+    </div>
+</div>
+<!-- Optimize Modal -->
+<div id="optimize-modal" class="modal">
+    <div class="modal-content optimize-modal-content">
+        <div class="optimize-header">
+            <span>✨ <span data-i18n="OptimizeTitle">Optimize Pipeline</span></span>
+            <span class="modal-close" onclick="app.closeOptimize()">&times;</span>
+        </div>
+        <!-- Tab bar -->
+        <div class="optimize-tabs">
+            <button class="opt-tab active" onclick="app.switchOptTab('config',this)" data-i18n="OptTabConfig">設定</button>
+            <button class="opt-tab" onclick="app.switchOptTab('versions',this)" data-i18n="OptTabVersions">バージョン履歴</button>
+        </div>
+
+        <!-- Config view -->
+        <div id="optimize-config-view" class="opt-tab-panel">
+            <div id="optimize-eval-summary" class="opt-eval-summary" style="display:none"></div>
+            <div class="opt-field-row">
+                <label data-i18n="OptPipelineLabel">パイプライン</label>
+                <select id="opt-pipeline-select"></select>
+            </div>
+            <div class="opt-field-row">
+                <label data-i18n="OptHistoryLimit">解析する履歴数</label>
+                <input type="number" id="opt-history-limit" value="10" min="1" max="50" style="width:80px">
+            </div>
+            <div class="opt-field-row">
+                <label data-i18n="OptMaxEdits">1ステップあたりの最大編集数</label>
+                <input type="number" id="opt-max-edits" value="3" min="1" max="10" style="width:80px">
+            </div>
+            <div class="opt-field-row">
+                <label data-i18n="OptProviderLabel">Optimizer プロバイダ / モデル</label>
+                <select id="opt-provider-select"></select>
+                <select id="opt-model-select" style="margin-left:6px;flex:1"></select>
+            </div>
+            <div class="optimize-actions">
+                <button id="btn-run-optimize" onclick="app.runOptimize()" class="btn-primary" data-i18n="OptAnalyze">解析して提案を生成</button>
+            </div>
+        </div>
+
+        <!-- Loading view -->
+        <div id="optimize-loading-view" class="opt-tab-panel" style="display:none">
+            <div class="opt-spinner"></div>
+            <div id="optimize-progress-text" class="opt-progress-text"></div>
+        </div>
+
+        <!-- Proposals view -->
+        <div id="optimize-proposals-view" class="opt-tab-panel" style="display:none">
+            <div id="optimize-proposals-list" class="opt-proposals-list"></div>
+            <div class="optimize-actions">
+                <button onclick="app.applyOptimize()" class="btn-primary" data-i18n="OptApplyApproved">承認した提案を適用</button>
+                <button onclick="app.discardOptimize()" data-i18n="OptDiscard">破棄</button>
+            </div>
+        </div>
+
+        <!-- Versions view -->
+        <div id="optimize-versions-view" class="opt-tab-panel" style="display:none">
+            <div id="optimize-versions-list" class="opt-versions-list"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Recipe Select Dialog -->
+<div id="recipe-select-modal" class="modal">
+    <div class="modal-content" style="min-width:720px;max-width:850px;height:500px;display:flex;flex-direction:column;padding:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444;flex-shrink:0">
+            <span style="font-size:14px;font-weight:bold;color:#eee" data-i18n="RecipeSelectTitle">📋 Select Recipe</span>
+            <span class="modal-close" onclick="app.closeRecipeSelectDialog()">&times;</span>
+        </div>
+        <div id="recipe-select-path" style="padding:4px 16px;font-size:10px;color:#666;background:#1a1a1a;border-bottom:1px solid #333;line-height:1.6"></div>
+        <div style="display:flex;flex:1;min-height:0">
+            <!-- Left Sidebar: Providers -->
+            <div id="recipe-select-sidebar" style="width:200px;border-right:1px solid #333;background:#151515;overflow-y:auto;padding:8px 0;display:flex;flex-direction:column;gap:2px">
+            </div>
+            <!-- Right Panel: Search & Usecase Groups -->
+            <div style="flex:1;display:flex;flex-direction:column;min-width:0;background:#1e1e1e">
+                <div style="padding:10px 14px;border-bottom:1px solid #2d2d2d;flex-shrink:0">
+                    <input id="recipe-select-search" type="text" placeholder="🔍 Search by name or description..." data-i18n-placeholder="SearchPlaceholder" oninput="app.filterRecipeSelectDialog()"
+                        style="width:100%;box-sizing:border-box;background:#121212;border:1px solid #3c3c3c;color:#eee;padding:6px 10px;border-radius:4px;font-size:12px;outline:none">
+                </div>
+                <div id="recipe-select-list" style="flex:1;overflow-y:auto;padding:12px 16px"></div>
+            </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 14px;border-top:1px solid #333;flex-shrink:0;background:#1a1a1a">
+            <button class="btn" onclick="app.closeRecipeSelectDialog()" data-i18n="Cancel">Cancel</button>
+            <button class="btn-primary" onclick="app.applyRecipeSelectDialog()" data-i18n="Apply">Apply</button>
+        </div>
+    </div>
+</div>
+<!-- History Modal -->
+<div id="history-modal" class="modal">
+    <div class="modal-content history-modal-content">
+        <div class="history-modal-header">
+            <span data-i18n="RunHistoryTitle">📜 Run History</span>
+            <span class="modal-close" onclick="app.closeHistory()">&times;</span>
+        </div>
+        <div id="history-list-view"></div>
+        <div id="history-detail-view" style="display:none"></div>
+    </div>
+</div>
+<!-- Pipeline Manager Modal -->
+<div id="pipeline-manager-modal" class="modal">
+    <div class="modal-content pm-content">
+        <span class="modal-close" onclick="app.closePipelineManager()">&times;</span>
+        <h2 data-i18n="PipelineManager">Pipeline Manager</h2>
+        <div class="pm-layout">
+            <div class="pm-sidebar">
+                <div class="pm-sidebar-header">
+                    <span data-i18n="Pipelines">Pipelines</span>
+                    <button onclick="app.pmNewPipeline()" class="pm-new-btn" title="New Pipeline">+</button>
+                </div>
+                <div id="pm-pipeline-list" class="pm-pipeline-list"></div>
+            </div>
+            <div class="pm-main">
+                <div id="pm-editor" style="display:none">
+                    <div class="pm-toolbar">
+                        <input type="text" id="pm-name" class="pm-name-input" placeholder="Pipeline name" oninput="app.pmDirty()">
+                        <div class="pm-mode-tabs">
+                            <button class="pm-mode-tab active" onclick="app.pmSwitchMode('basic',this)" data-i18n="Basic">Basic</button>
+                            <button class="pm-mode-tab" onclick="app.pmSwitchMode('expert',this)" data-i18n="Expert">Expert</button>
+                        </div>
+                    </div>
+                    <div class="pm-body" id="pm-body-basic">
+                        <div class="pm-steps-col">
+                            <div class="pm-section-title" data-i18n="Steps">Steps</div>
+                            <div id="pm-step-list" class="pm-step-list"></div>
+                            <div class="pm-step-add-row">
+                                <select id="pm-step-type-select" class="pm-step-type-select">
+                                    <option value="ai">🤖 AI Call</option>
+                                    <option value="wizard">🚀 Wizard</option>
+                                    <option value="manual">📝 Manual Review</option>
+                                    <option value="command">⚙️ CLI Command</option>
+                                    <option value="tool">🔧 External Tool</option>
+                                    <option value="fetch">🌐 HTTP Fetch</option>
+                                    <option value="condition">🔀 Condition</option>
+                                    <option value="transform">🔄 Transform</option>
+                                    <option value="call_pipeline">📦 Call Pipeline</option>
+                                    <option value="foreach">🔁 Foreach</option>
+                                    <option value="parallel">⚡ Parallel</option>
+                                    <option value="wait">⏱️ Wait</option>
+                                    <option value="history">📜 History</option>
+                                </select>
+                                <button onclick="app.pmAddStep()" data-i18n="Add">Add</button>
+                            </div>
+                        </div>
+                        <div class="pm-flow-col">
+                            <div class="pm-section-title" data-i18n="FlowPreview">Flow Preview</div>
+                            <div id="pm-mermaid" class="pm-mermaid"></div>
+                        </div>
+                    </div>
+                    <div class="pm-body" id="pm-body-expert" style="display:none">
+                        <p style="color:#888;text-align:center;padding:40px" data-i18n="ExpertModeComingSoon">Expert mode (Cytoscape.js) coming soon.</p>
+                    </div>
+                    <div class="pm-footer">
+                        <div class="pm-settings-row">
+                            <label data-i18n="Output">Output:</label>
+                            <select id="pm-output-mode" onchange="app.pmDirty()">
+                                <option value="child">child</option>
+                                <option value="sibling">sibling</option>
+                                <option value="replace">replace</option>
+                            </select>
+                            <label data-i18n="OutputNaming">Naming:</label>
+                            <input type="text" id="pm-output-naming" value="{pipeline_name}_{timestamp}" oninput="app.pmDirty()">
+                            <label data-i18n="Retry">Retry:</label>
+                            <input type="number" id="pm-retry-count" value="3" min="0" style="width:50px" oninput="app.pmDirty()">
+                            <span data-i18n="Times">×</span>
+                            <input type="number" id="pm-retry-delay" value="2000" min="0" style="width:70px" oninput="app.pmDirty()">
+                            <span>ms</span>
+                        </div>
+                        <div class="pm-actions">
+                            <button onclick="app.pmRunNow()" class="btn-primary" data-i18n="RunNow">▶ Run Now</button>
+                            <button onclick="app.pmSave()" data-i18n="Save">💾 Save</button>
+                            <button onclick="app.pmDelete()" class="btn-danger" data-i18n="Delete">🗑 Delete</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="pm-empty" class="pm-empty">
+                    <p data-i18n="SelectPipeline">Select a pipeline or create a new one</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Step Edit Modal -->
+<div id="pm-step-edit-modal" class="modal">
+    <div class="modal-content pm-step-edit-content">
+        <span class="modal-close" onclick="app.pmCloseStepEdit()">&times;</span>
+        <h3 id="pm-step-edit-title" data-i18n="EditStep">Edit Step</h3>
+        <div id="pm-step-edit-form" class="pm-step-edit-form"></div>
+        <div class="pm-step-edit-actions">
+            <button onclick="app.pmSaveStepEdit()" class="btn-primary" data-i18n="Save">Save</button>
+            <button onclick="app.pmCloseStepEdit()" data-i18n="Cancel">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Node Properties Modal -->
+<!-- Custom BT Type Modal (toggle builder) -->
+<div id="bt-custom-type-modal" class="modal" onclick="if(event.target===this)app.btCustomTypeCancel()">
+    <div class="modal-content" style="width:440px;padding:16px;">
+        <h3 style="margin:0 0 12px;font-size:14px;">🔧 <span data-i18n="BTCustomType">Custom BT Type</span></h3>
+        <div style="margin-bottom:10px;font-size:11px;color:#888;">Decorators (click to toggle, outermost→innermost)</div>
+        <div id="bt-dec-toggles" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px;"></div>
+        <div style="margin-bottom:6px;font-size:11px;color:#888;">Composite (innermost)</div>
+        <div id="bt-comp-toggles" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px;"></div>
+        <div style="margin-bottom:8px;font-size:11px;color:#888;">Preview</div>
+        <div id="bt-custom-type-preview" style="background:#1e1e1e;border:1px solid #3c3c3c;padding:6px 8px;border-radius:3px;font-size:12px;font-family:monospace;margin-bottom:12px;min-height:18px;color:#ccc;"></div>
+        <div style="display:flex;gap:6px;justify-content:flex-end;">
+            <button onclick="app.btCustomTypeConfirm()" class="btn-primary" style="padding:4px 12px;font-size:11px;">Apply</button>
+            <button onclick="app.btCustomTypeCancel()" style="padding:4px 12px;font-size:11px;">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<div id="node-props-modal" class="modal" onclick="if(event.target===this)app.closeNodeProperties()">
+    <div class="modal-content" style="width:420px;max-height:80vh;overflow-y:auto;padding:16px;">
+        <span class="modal-close" onclick="app.closeNodeProperties()">&times;</span>
+        <h3 style="margin:0 0 12px;font-size:14px;">📋 <span data-i18n="NodeProperties">Node Properties</span></h3>
+        <div id="node-props-body" style="font-size:12px;line-height:1.6;"></div>
+    </div>
+</div>
+
+<!-- behavior3js shim + integration layer -->
+<script src="b3-shim.js"></script>
+<script src="bt-b3-node-registry.js"></script>
+<script src="bt-b3-actions.js"></script>
+<script src="bt-b3-converter.js"></script>
+<script src="bt-b3-adapter.js"></script>
+
+<!-- Core BT and App -->
+<script src="bt.js"></script>
+<!-- Chest Manager Modal -->
+<div id="chest-modal" class="modal">
+    <div class="modal-content chest-modal-content">
+        <div class="chest-modal-header">
+            <span>📦 Chest Manager</span>
+            <span class="modal-close" onclick="app.closeChestManager()">&times;</span>
+        </div>
+        <div id="chest-modal-body" class="chest-modal-body"></div>
+        <div class="chest-modal-footer">
+            <button class="btn" onclick="app.closeChestManager()" data-i18n="Close">Close</button>
+        </div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

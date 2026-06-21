@@ -1,0 +1,470 @@
+{
+  "projects": [
+    {
+      "name": "Wend — AI Pipeline Editor",
+      "milestones": [
+        { "date": "2026-07-15", "label": "v0.2.0 (Command/Tool)", "color": "#3b82f6" },
+        { "date": "2026-08-31", "label": "v0.3.0 (Advanced Steps)", "color": "#10b981" },
+        { "date": "2027-01-31", "label": "v1.0.0 (Stream Model)", "color": "#ef4444" }
+      ],
+      "tasks": [
+        {
+          "id": "0",
+          "name": "Phase 0: BT エンジン整備 (完了)",
+          "children": [
+            {
+              "id": "0.1",
+              "name": "BT 実行エンジン基盤 (BehaviorTreeEngine)",
+              "qty": 1, "hours": 8, "assignee": "",
+              "plan": { "start": "2026-06-14", "end": "2026-06-14" },
+              "actual": { "start": "2026-06-14", "end": "2026-06-14" },
+              "note": "sequence/selector/parallel/leaf 実行ロジック、run/step/pause/stop 制御、btRunState 管理。エラー時に running ノードを ng に変更するバグ修正を含む"
+            },
+            {
+              "id": "0.2",
+              "name": "BT ブラックボード実装",
+              "qty": 1, "hours": 8, "assignee": "",
+              "plan": { "start": "2026-06-14", "end": "2026-06-15" },
+              "actual": { "start": "2026-06-14", "end": "2026-06-15" },
+              "note": "blackboard[key]={text,media} の typed slot 構造。btInputKey/btInputType/btOutputKey/btPrompt をノードに保存。{bb:key} プレースホルダー展開。processPrompt() への btRunContext 注入"
+            },
+            {
+              "id": "0.3",
+              "name": "Op ペイン BT 設定アコーディオン",
+              "qty": 1, "hours": 4, "assignee": "",
+              "plan": { "start": "2026-06-15", "end": "2026-06-15" },
+              "actual": { "start": "2026-06-15", "end": "2026-06-15" },
+              "note": "演算ペイン下部に <details> アコーディオン追加。BT プロンプト / 入力キー+型 / 出力キー フィールドと保存ボタン"
+            },
+            {
+              "id": "0.4",
+              "name": "ブラックボード管理ダイアログ",
+              "qty": 1, "hours": 4, "assignee": "",
+              "plan": { "start": "2026-06-15", "end": "2026-06-15" },
+              "actual": { "start": "2026-06-15", "end": "2026-06-15" },
+              "note": "BT ツールバー 📋 ボタンから開くモーダル。変数一覧・テキスト編集・メディアアップロード・個別クリア・新規追加"
+            },
+            {
+              "id": "0.5",
+              "name": "BT ツールバー改善",
+              "qty": 1, "hours": 3, "assignee": "",
+              "plan": { "start": "2026-06-15", "end": "2026-06-15" },
+              "actual": { "start": "2026-06-15", "end": "2026-06-15" },
+              "note": "🔓/🔒 ロックボタン追加。⚙ 設定ボタン削除（単回/繰り返しはノード属性）。ツールバーを tree ペイン幅に合わせて flex-wrap 折りたたみ対応"
+            },
+            {
+              "id": "0.6",
+              "name": "実行タイマー・ステータスバッジ",
+              "qty": 1, "hours": 3, "assignee": "",
+              "plan": { "start": "2026-06-15", "end": "2026-06-15" },
+              "actual": { "start": "2026-06-15", "end": "2026-06-15" },
+              "note": "リーフ実行中はスピナーと経過時間をリアルタイム表示 (setInterval)。出力ペインに run-status-badge 追加。データノード選択時は出力タブを「結果」のみ表示"
+            },
+            {
+              "id": "0.7",
+              "name": "連結モード自動追加抑止と手動追加 UI",
+              "qty": 1, "hours": 3, "assignee": "",
+              "plan": { "start": "2026-06-15", "end": "2026-06-15" },
+              "actual": { "start": "2026-06-15", "end": "2026-06-15" },
+              "note": "連結モードでの自動 _updateLinkedInput を抑止。Ctrl+クリックで手動追加。右クリックメニューに「📥 出力を入力へ追加」を追加（演算ノード選択中のデータノードのみ表示）"
+            },
+            {
+              "id": "0.8",
+              "name": "バグ修正・細部改善",
+              "qty": 1, "hours": 2, "assignee": "",
+              "plan": { "start": "2026-06-15", "end": "2026-06-15" },
+              "actual": { "start": "2026-06-15", "end": "2026-06-15" },
+              "note": "Tree ペイン File タブが空表示になるバグ修正 (getFileTreeJson に type:'file' 追加)。入力ペインの画像削除ボタン背景色をグレー→白に修正"
+            }
+          ]
+        },
+        {
+          "id": "1",
+          "name": "Phase 1: Core Step Types (v0.2.0)",
+          "children": [
+            {
+              "id": "1.1",
+              "name": "command ステップ実装",
+              "qty": 1, "hours": 40, "assignee": "",
+              "plan": { "start": "2026-06-15", "end": "2026-06-25" },
+              "actual": { "start": "2026-06-14", "end": "2026-06-14" },
+              "note": "child_process.spawn + stdout pipe → stream_chunk。{content_file} プレースホルダー対応"
+            }
+          ]
+        },
+        {
+          "id": "2",
+          "name": "Phase 2: AI Agent Harness (v1.0.0+)",
+          "children": [
+            {
+              "id": "2.1",
+              "name": "ハーネスデータモデル実装",
+              "qty": 1, "hours": 24, "assignee": "",
+              "plan": { "start": "2026-06-26", "end": "2026-07-10" },
+              "actual": { "start": null, "end": null },
+              "note": "harnesses/ ディレクトリ、systemPrompt/memory/skills/config/baseline"
+            },
+            {
+              "id": "2.2",
+              "name": "ハーネス操作ステップ実装",
+              "qty": 1, "hours": 24, "assignee": "",
+              "plan": { "start": "2026-07-11", "end": "2026-07-20" },
+              "actual": { "start": null, "end": null },
+              "note": "harness_enhance / harness_reset / harness_save ステップ"
+            },
+            {
+              "id": "2.3",
+              "name": "Harness Manager UI",
+              "qty": 1, "hours": 32, "assignee": "",
+              "plan": { "start": "2026-07-21", "end": "2026-08-05" },
+              "actual": { "start": null, "end": null },
+              "note": "一覧・編集・スナップショット管理 UI"
+            }
+          ]
+        },
+        {
+          "id": "3",
+          "name": "Phase 3: BT ノード重複調査・不足実装",
+          "children": [
+            {
+              "id": "3.1",
+              "name": "BT ノードと既存ステップの重複調査",
+              "qty": 1, "hours": 16, "assignee": "",
+              "plan": { "start": "2026-08-06", "end": "2026-08-12" },
+              "actual": { "start": null, "end": null },
+              "note": "BehaviorTree の sequence/selector/parallel/leaf と既存パイプラインステップの機能重複を洗い出し、統合方針を決定"
+            },
+            {
+              "id": "3.2",
+              "name": "BT 不足機能の実装",
+              "qty": 1, "hours": 24, "assignee": "",
+              "plan": { "start": "2026-08-13", "end": "2026-08-25" },
+              "actual": { "start": null, "end": null },
+              "note": "調査結果に基づき不足している BT ノードタイプ・実行ロジック・UI を実装。条件分岐・デコレーター等"
+            }
+          ]
+        },
+        {
+          "id": "4",
+          "name": "Phase 4: Advanced Step Types (v0.3.0)",
+          "children": [
+            {
+              "id": "4.1",
+              "name": "fetch ステップ実装",
+              "qty": 1, "hours": 24, "assignee": "",
+              "plan": { "start": "2026-08-16", "end": "2026-08-25" },
+              "actual": { "start": null, "end": null },
+              "note": "HTTP GET/POST、auth (providers.json 参照)、resultAs (text/attachment/json)"
+            },
+            {
+              "id": "4.2",
+              "name": "transform ステップ実装",
+              "qty": 1, "hours": 24, "assignee": "",
+              "plan": { "start": "2026-08-26", "end": "2026-09-05" },
+              "actual": { "start": null, "end": null },
+              "note": "engine: regex / json_path / template / js"
+            },
+            {
+              "id": "4.3",
+              "name": "foreach ステップ実装",
+              "qty": 1, "hours": 32, "assignee": "",
+              "plan": { "start": "2026-09-06", "end": "2026-09-17" },
+              "actual": { "start": null, "end": null },
+              "note": "配列ループ、itemVariable、concurrency、aggregateAs (newline/json_array/csv)"
+            },
+            {
+              "id": "4.4",
+              "name": "parallel ステップ実装",
+              "qty": 1, "hours": 32, "assignee": "",
+              "plan": { "start": "2026-09-18", "end": "2026-09-30" },
+              "actual": { "start": null, "end": null },
+              "note": "並列ブランチ実行、outputMode (merge/first/branch.*)"
+            },
+            {
+              "id": "4.5",
+              "name": "wait ステップ実装",
+              "qty": 1, "hours": 16, "assignee": "",
+              "plan": { "start": "2026-10-01", "end": "2026-10-07" },
+              "actual": { "start": null, "end": null },
+              "note": "durationMs、until 条件ポーリング、timeoutMs"
+            }
+          ]
+        },
+        {
+          "id": "5",
+          "name": "Phase 5: Stream Model — Project Isolation (v1.0.0)",
+          "children": [
+            {
+              "id": "5.1",
+              "name": "プロジェクトディレクトリ構造再編",
+              "qty": 1, "hours": 32, "assignee": "",
+              "plan": { "start": "2026-10-08", "end": "2026-10-27" },
+              "actual": { "start": null, "end": null },
+              "note": "projects/{name}/ 分離、chests/、storage_chest/ 導入"
+            },
+            {
+              "id": "5.2",
+              "name": "5-ペイン UI 再構築",
+              "qty": 1, "hours": 48, "assignee": "",
+              "plan": { "start": "2026-10-28", "end": "2026-11-20" },
+              "actual": { "start": null, "end": null },
+              "note": "Tree | Input | Calculation | Output | Messages。CSS Grid 再設計"
+            },
+            {
+              "id": "5.3",
+              "name": "Checkpoint 永続化システム",
+              "qty": 1, "hours": 40, "assignee": "",
+              "plan": { "start": "2026-11-21", "end": "2026-12-10" },
+              "actual": { "start": null, "end": null },
+              "note": "SaveCheckpoint/LoadCheckpoint、ScanIncompleteRuns、ResumePartialRun"
+            },
+            {
+              "id": "5.4",
+              "name": "プロジェクト管理 UI",
+              "qty": 1, "hours": 24, "assignee": "",
+              "plan": { "start": "2026-12-11", "end": "2026-12-25" },
+              "actual": { "start": null, "end": null },
+              "note": "プロジェクトセレクター、作成/切替 UI"
+            }
+          ]
+        },
+        {
+          "id": "6",
+          "name": "Phase 6: Chest System & Input Sources (v1.0.0)",
+          "children": [
+            {
+              "id": "6.1",
+              "name": "Named Chest 実装",
+              "qty": 1, "hours": 32, "assignee": "",
+              "plan": { "start": "2026-12-26", "end": "2027-01-10" },
+              "actual": { "start": null, "end": null },
+              "note": "SaveToNamedChest/LoadFromNamedChest、Steel Chest / Requester Chest"
+            },
+            {
+              "id": "6.2",
+              "name": "Input Source 選択 UI",
+              "qty": 1, "hours": 32, "assignee": "",
+              "plan": { "start": "2027-01-11", "end": "2027-01-25" },
+              "actual": { "start": null, "end": null },
+              "note": "ソース dropdown (prev step / checkpoint / chest / file / manual)、[📤] [📥] ボタン"
+            },
+            {
+              "id": "6.3",
+              "name": "chest ステップ実装",
+              "qty": 1, "hours": 24, "assignee": "",
+              "plan": { "start": "2027-01-26", "end": "2027-02-08" },
+              "actual": { "start": null, "end": null },
+              "note": "mode: put/take、chestType: steel/requester"
+            }
+          ]
+        },
+        {
+          "id": "7",
+          "name": "Phase 7: Filter & Evaluate Steps (v1.0.0)",
+          "children": [
+            {
+              "id": "7.1",
+              "name": "filter ステップ実装",
+              "qty": 1, "hours": 32, "assignee": "",
+              "plan": { "start": "2027-02-09", "end": "2027-02-28" },
+              "actual": { "start": null, "end": null },
+              "note": "mode: auto/auto_pass/manual/manual_split、✔/✕ UI"
+            },
+            {
+              "id": "7.2",
+              "name": "evaluate ステップ実装",
+              "qty": 1, "hours": 32, "assignee": "",
+              "plan": { "start": "2027-03-01", "end": "2027-03-20" },
+              "actual": { "start": null, "end": null },
+              "note": "AI 絶対評価 (★ n/10)、スコア表示、評価結果保存"
+            },
+            {
+              "id": "7.3",
+              "name": "比較 UI (Compare/Diff)",
+              "qty": 1, "hours": 24, "assignee": "",
+              "plan": { "start": "2027-03-21", "end": "2027-04-05" },
+              "actual": { "start": null, "end": null },
+              "note": "複数出力の並列表示、行レベル Diff、🤖 Evaluate ボタン"
+            }
+          ]
+        },
+        {
+          "id": "8",
+          "name": "Phase 8: Additional Step Types & Phase 1 残り (Post v1.0.0)",
+          "children": [
+            {
+              "id": "8.1",
+              "name": "cache ステップ実装",
+              "qty": 1, "hours": 24, "assignee": "",
+              "plan": { "start": "2027-04-06", "end": "2027-04-17" },
+              "actual": { "start": null, "end": null },
+              "note": "SHA-256 ハッシュキャッシュ、TTL、namespace、Clear Cache UI"
+            },
+            {
+              "id": "8.2",
+              "name": "assert ステップ実装",
+              "qty": 1, "hours": 16, "assignee": "",
+              "plan": { "start": "2027-04-18", "end": "2027-04-25" },
+              "actual": { "start": null, "end": null },
+              "note": "出力バリデーション、onFail (cancel/warn/goto_step)"
+            },
+            {
+              "id": "8.3",
+              "name": "set_var ステップ実装",
+              "qty": 1, "hours": 16, "assignee": "",
+              "plan": { "start": "2027-04-26", "end": "2027-05-03" },
+              "actual": { "start": null, "end": null },
+              "note": "名前付き変数格納、{var.NAME} 参照"
+            },
+            {
+              "id": "8.4",
+              "name": "notify ステップ実装",
+              "qty": 1, "hours": 16, "assignee": "",
+              "plan": { "start": "2027-05-04", "end": "2027-05-10" },
+              "actual": { "start": null, "end": null },
+              "note": "Windows トースト通知 (winrt Toast API)"
+            },
+            {
+              "id": "8.5",
+              "name": "calculation ステップ実装",
+              "qty": 1, "hours": 24, "assignee": "",
+              "plan": { "start": "2027-05-11", "end": "2027-05-22" },
+              "actual": { "start": null, "end": null },
+              "note": "軽量データ変換 (math/string/JSON)、expression/outputType/format"
+            },
+            {
+              "id": "8.6",
+              "name": "tool ステップ実装",
+              "qty": 1, "hours": 32, "assignee": "",
+              "plan": { "start": "2026-06-14", "end": "2026-06-22" },
+              "actual": { "start": "2026-06-14", "end": null },
+              "note": "外部GUIアプリ起動、WaitForSingleObject、resultAs (file/clipboard/attachment)"
+            },
+            {
+              "id": "8.7",
+              "name": "Blob GC 実装",
+              "qty": 1, "hours": 16, "assignee": "",
+              "plan": { "start": "2026-06-14", "end": "2026-06-18" },
+              "actual": { "start": "2026-06-14", "end": null },
+              "note": "起動時スキャン、未参照 blob 削除、history 参照考慮"
+            },
+            {
+              "id": "8.8",
+              "name": "Recent Files 実装",
+              "qty": 1, "hours": 16, "assignee": "",
+              "plan": { "start": "2026-06-14", "end": "2026-06-19" },
+              "actual": { "start": "2026-06-14", "end": null },
+              "note": "recent_files.json、init メッセージで送信、メニューサブメニュー"
+            }
+          ]
+        },
+        {
+          "id": "9",
+          "name": "Phase 9: Variable Placeholders & Enhancements (Post v1.0.0)",
+          "children": [
+            {
+              "id": "9.1",
+              "name": "拡張プレースホルダー実装",
+              "qty": 1, "hours": 16, "assignee": "",
+              "plan": { "start": "2027-06-20", "end": "2027-07-01" },
+              "actual": { "start": null, "end": null },
+              "note": "{date}/{time}/{node.*}/{pipeline.name}/{step.current}/{step.total}/{env.VAR_NAME}"
+            },
+            {
+              "id": "9.2",
+              "name": "command ステップ stdin 対応",
+              "qty": 1, "hours": 16, "assignee": "",
+              "plan": { "start": "2027-07-02", "end": "2027-07-10" },
+              "actual": { "start": null, "end": null },
+              "note": "stdin フィールド追加、UTF-8 エンコード書き込み"
+            },
+            {
+              "id": "9.3",
+              "name": "node_created トリガー実装",
+              "qty": 1, "hours": 24, "assignee": "",
+              "plan": { "start": "2027-07-11", "end": "2027-07-23" },
+              "actual": { "start": null, "end": null },
+              "note": "ノード作成イベント検出、自動パイプライン起動"
+            },
+            {
+              "id": "9.4",
+              "name": "inputSpec バリデーション実装",
+              "qty": 1, "hours": 16, "assignee": "",
+              "plan": { "start": "2027-07-24", "end": "2027-07-31" },
+              "actual": { "start": null, "end": null },
+              "note": "パイプライン実行前の入力検証、mimetypes/minAttachments/contentNotEmpty"
+            }
+          ]
+        },
+        {
+          "id": "10",
+          "name": "Phase 10: Triggers & Automation (Low Priority)",
+          "children": [
+            {
+              "id": "10.1",
+              "name": "schedule トリガー実装",
+              "qty": 1, "hours": 24, "assignee": "",
+              "plan": { "start": "2027-08-01", "end": "2027-08-12" },
+              "actual": { "start": null, "end": null },
+              "note": "CRON 式パーサー、定期実行スケジューラー"
+            },
+            {
+              "id": "10.2",
+              "name": "file_watcher トリガー実装",
+              "qty": 1, "hours": 24, "assignee": "",
+              "plan": { "start": "2027-08-13", "end": "2027-08-24" },
+              "actual": { "start": null, "end": null },
+              "note": "ディレクトリ監視、ファイル作成/変更検出"
+            },
+            {
+              "id": "10.3",
+              "name": "webhook トリガー実装",
+              "qty": 1, "hours": 32, "assignee": "",
+              "plan": { "start": "2027-08-25", "end": "2027-09-08" },
+              "actual": { "start": null, "end": null },
+              "note": "ローカル HTTP サーバー、エンドポイント処理、auth 連携"
+            },
+            {
+              "id": "10.4",
+              "name": "Trigger Manager UI",
+              "qty": 1, "hours": 24, "assignee": "",
+              "plan": { "start": "2027-09-09", "end": "2027-09-20" },
+              "actual": { "start": null, "end": null },
+              "note": "Pipeline Manager 内 Trigger タブ、追加/編集/有効切替 UI"
+            }
+          ]
+        },
+        {
+          "id": "11",
+          "name": "Phase 11: Expert Mode (Low Priority)",
+          "children": [
+            {
+              "id": "11.1",
+              "name": "Cytoscape.js ノードエディタ基盤",
+              "qty": 1, "hours": 40, "assignee": "",
+              "plan": { "start": "2027-09-21", "end": "2027-10-12" },
+              "actual": { "start": null, "end": null },
+              "note": "DAG 形式 (nodes[]/edges[])、ドラッグ&ドロップ、ズーム/パン"
+            },
+            {
+              "id": "11.2",
+              "name": "Expert モード UI 実装",
+              "qty": 1, "hours": 40, "assignee": "",
+              "plan": { "start": "2027-10-13", "end": "2027-11-03" },
+              "actual": { "start": null, "end": null },
+              "note": "分岐/並列/条件分岐のビジュアル編集、Basic ↔ Expert 変換"
+            },
+            {
+              "id": "11.3",
+              "name": "Expert モード実行エンジン",
+              "qty": 1, "hours": 40, "assignee": "",
+              "plan": { "start": "2027-11-04", "end": "2027-11-25" },
+              "actual": { "start": null, "end": null },
+              "note": "DAG 実行、並列スケジューリング、条件分岐ループ"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

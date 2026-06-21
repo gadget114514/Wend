@@ -1,0 +1,6 @@
+{
+    "historyRetention": 50,
+    "defaultProvider": "openai",
+    "defaultModel": "",
+    "theme": "dark"
+}

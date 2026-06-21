@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Converter Loading</title>
+    <style>
+        body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
+        pre { background: #252526; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+<h1>Testing Converter Loading</h1>
+<pre id="log"></pre>
+
+<script src="bt-b3-converter.js"></script>
+
+<script>
+const log = document.getElementById('log');
+
+log.textContent += 'B3TreeConverter class: ' + (typeof B3TreeConverter !== 'undefined' ? 'DEFINED' : 'MISSING') + '\n';
+log.textContent += 'wendToB3 function: ' + (typeof wendToB3 !== 'undefined' ? 'DEFINED' : 'MISSING') + '\n';
+log.textContent += 'b3ToWend function: ' + (typeof b3ToWend !== 'undefined' ? 'DEFINED' : 'MISSING') + '\n';
+log.textContent += 'detectFormat function: ' + (typeof detectFormat !== 'undefined' ? 'DEFINED' : 'MISSING') + '\n';
+
+if (typeof detectFormat !== 'undefined') {
+    log.textContent += '\n✅ All functions loaded!\n';
+    log.textContent += 'Testing detectFormat:\n';
+    const result = detectFormat({ children: [] });
+    log.textContent += 'detectFormat({children: []}) = ' + result + '\n';
+} else {
+    log.textContent += '\n❌ Functions not defined\n';
+    log.textContent += 'window keys: ' + Object.keys(window).filter(k => k.includes('B3') || k.includes('prompts') || k.includes('detect')).join(', ') + '\n';
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,682 @@
+diff --git a/frontend/app.js b/frontend/app.js
+index e389f2d..6a0719d 100644
+--- a/frontend/app.js
++++ b/frontend/app.js
+@@ -91,6 +91,7 @@ const app = {
+                 this.state.language = msg.payload.language || 'en';
+                 this.state.embedded = msg.payload.embedded || false;
+                 this.state.appDataPath = msg.payload.appDataPath || '';
++                this.state.activeProject = msg.payload.currentProject || 'Default';
+                 this.loadLanguage(this.state.language);
+                 if (msg.payload.tabs && msg.payload.tabs.length > 0) {
+                     this.state.tabs = msg.payload.tabs.map(t => ({
+@@ -125,6 +126,12 @@ const app = {
+                         this.state.defaultModel = msg.payload.config.defaultModel;
+                     if (msg.payload.config.defaultImageFit)
+                         this.state.defaultImageFit = msg.payload.config.defaultImageFit;
++                    if (msg.payload.config.customThemeColors) {
++                        this.themes.custom.colors = {
++                            ...this.themes.custom.colors,
++                            ...msg.payload.config.customThemeColors
++                        };
++                    }
+                     if (msg.payload.config.theme) {
+                         this.state.theme = msg.payload.config.theme;
+                         this.applyTheme(this.state.theme);
+@@ -245,6 +252,9 @@ const app = {
+             case 'save_as_result':
+                 this.onSaveAsResult(msg.payload.path);
+                 break;
++            case 'file_saved':
++                this.addLog('💾 ' + msg.payload.path);
++                break;
+             case 'pipeline_list':
+                 this.state.pipelines = msg.payload.pipelines || [];
+                 // If pipeline manager is open, sync its local list
+@@ -349,7 +359,41 @@ const app = {
+             }
+             case 'project_list':
+                 console.log('[ProjectList] project_list received:', msg.payload.projects);
+-                this.showProjectListDialog(msg.payload.projects || []);
++                // Only show dialog if not already open (refresh case)
++                const modal = document.getElementById('project-list-modal');
++                if (modal && modal.classList.contains('visible')) {
++                    this._allProjects = msg.payload.projects.map(p => ({
++                        name: p,
++                        path: this.getProjectPath(p)
++                    }));
++                    this.filterProjectList();
++                } else {
++                    this.showProjectListDialog(msg.payload.projects || []);
++                }
++                break;
++            case 'project_renamed':
++                this.addLog(`📝 Project renamed: ${msg.payload.oldName} → ${msg.payload.newName}`);
++                if (this.state.activeProject === msg.payload.oldName) {
++                    this.state.activeProject = msg.payload.newName;
++                }
++                break;
++            case 'project_duplicated':
++                this.addLog(`📋 Project duplicated: ${msg.payload.sourceName} → ${msg.payload.newName}`);
++                break;
++            case 'project_deleted':
++                this.addLog(`🗑️ Project deleted: ${msg.payload.name}`);
++                break;
++            case 'project_verified': {
++                const v = msg.payload;
++                let logMsg = `✓ Verify "${v.name}": ${v.status}`;
++                if (v.issues.length > 0) logMsg += `\n  Issues: ${v.issues.join(', ')}`;
++                if (v.fixes.length > 0) logMsg += `\n  Fixed: ${v.fixes.join(', ')}`;
++                this.addLog(logMsg);
++                break;
++            }
++            case 'project_error':
++                this.addLog(`❌ Project error: ${msg.payload.message}`);
++                alert(`Project error: ${msg.payload.message}`);
+                 break;
+             case 'projects_root_result':
+                 this.showProjectsRootDialog(msg.payload.current, msg.payload.default);
+@@ -662,9 +706,14 @@ const app = {
+         this.addLog('💾 ' + this.t('ProjectSaved'));
+     },
+     newProject() {
+-        const name = prompt('New project name:');
+-        if (!name) return;
+-        this.postMessage({ type: 'create_project', payload: { projectName: name } });
++        this.showProjectInputModal(
++            'New Project',
++            'Enter a name for the new project:',
++            '',
++            (name) => {
++                this.postMessage({ type: 'create_project', payload: { projectName: name } });
++            }
++        );
+     },
+     showProjectSwitcher() {
+         // Get list of projects from backend
+@@ -1290,6 +1339,30 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+         this.addLog('⚙ ' + this.t('ConfigOpened'));
+     },
+ 
++    showAppConfig() {
++        const panel = document.getElementById('app-config-panel');
++        if (!panel) return;
++        panel.classList.add('visible');
++        this.initAppConfigDrag();
++        this.renderGeneralConfig();
++        this.renderThemeConfig();
++        this.addLog('⚙ Application Config opened');
++    },
++
++    closeAppConfig() {
++        const panel = document.getElementById('app-config-panel');
++        if (!panel) return;
++        this.postMessage({ type: 'save_config', payload: {
++            historyRetention: this.state.historyRetention,
++            defaultProvider: this.state.defaultProvider,
++            defaultModel: this.state.defaultModel,
++            defaultImageFit: this.state.defaultImageFit,
++            theme: this.state.theme,
++            customThemeColors: this.themes.custom.colors,
++        }});
++        panel.classList.remove('visible');
++    },
++
+     closeConfig() {
+         const panel = document.getElementById('config-panel');
+         if (!panel) return;
+@@ -1302,6 +1375,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+             defaultModel: this.state.defaultModel,
+             defaultImageFit: this.state.defaultImageFit,
+             theme: this.state.theme,
++            customThemeColors: this.themes.custom.colors,
+         }});
+         panel.classList.remove('visible');
+     },
+@@ -1440,7 +1514,8 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+             detail = `<span class="recipe-mgr-item-detail-text">⚙️ ${this.escapeHtml(r.command || '')}</span>`;
+         } else {
+             const capBadge = this._renderCapabilityBadge(r.provider);
+-            detail = `<span class="recipe-mgr-item-detail-text">${this.escapeHtml(r.provider)}${r.model ? ' / ' + this.escapeHtml(r.model) : ''}${capBadge}</span>`;
++            const urlInfo = r.baseUrl ? ` (${this.escapeHtml(r.baseUrl)})` : '';
++            detail = `<span class="recipe-mgr-item-detail-text">${this.escapeHtml(r.provider)}${r.model ? ' / ' + this.escapeHtml(r.model) : ''}${urlInfo}${capBadge}</span>`;
+         }
+         return `
+             <div class="recipe-mgr-item">
+@@ -1486,6 +1561,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+                     <textarea id="edit-system-prompt" placeholder="System prompt (optional)" class="recipe-textarea" style="flex:3">${this.escapeHtml(r.systemPrompt || '')}</textarea>
+                     <input type="number" id="edit-temperature" value="${r.temperature ?? 0.7}" min="0" max="2" step="0.1" placeholder="Temp" class="recipe-input" style="width:60px">
+                 </div>
++                <div class="recipe-edit-row">
++                    <input type="text" id="edit-base-url" value="${this.escapeHtml(r.baseUrl || '')}" placeholder="Base URL override (optional, e.g. https://api.openai.com/v1)" class="recipe-input" style="flex:1">
++                </div>
+                 <div class="recipe-edit-row">
+                     <textarea id="edit-custom-params" placeholder="Custom parameters (JSON, e.g. {&quot;negative_prompt&quot;: &quot;ugly&quot;})" class="recipe-textarea" style="flex:3">${this.escapeHtml(r.customParams ? JSON.stringify(r.customParams) : '')}</textarea>
+                 </div>` : ''}
+@@ -1519,6 +1597,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+                         <button class="recipe-btn" onclick="app.fetchModelsForProvider(document.getElementById('rm-provider')?.value)" style="font-size:10px;padding:2px 6px">🔄</button>
+                         <input type="number" id="rm-temperature" placeholder="Temp" value="0.7" min="0" max="2" step="0.1" class="recipe-input" style="width:70px">
+                     </div>
++                    <div class="recipe-edit-row">
++                        <input type="text" id="rm-base-url" placeholder="Base URL override (optional, e.g. https://api.openai.com/v1)" class="recipe-input" style="flex:1">
++                    </div>
+                     <div class="recipe-edit-row">
+                         <textarea id="rm-system-prompt" placeholder="System prompt (optional)" class="recipe-textarea"></textarea>
+                     </div>
+@@ -1577,12 +1658,13 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+         if (!this.state.recipes) this.state.recipes = [];
+         if (type === 'command') {
+             const command = document.getElementById('rm-command')?.value?.trim() || '';
+-            this.state.recipes.push({ type, name, command, provider: '', model: '', temperature: 0.7, systemPrompt: '', customParams: {} });
++            this.state.recipes.push({ type, name, command, provider: '', model: '', temperature: 0.7, systemPrompt: '', baseUrl: '', customParams: {} });
+         } else {
+             const provider = document.getElementById('rm-provider')?.value || 'openai';
+             const model = document.getElementById('rm-model')?.value?.trim() || '';
+             const temp = parseFloat(document.getElementById('rm-temperature')?.value || '0.7');
+             const systemPrompt = document.getElementById('rm-system-prompt')?.value?.trim() || '';
++            const baseUrl = document.getElementById('rm-base-url')?.value?.trim() || '';
+             const customParamsStr = document.getElementById('rm-custom-params')?.value?.trim() || '';
+             let customParams = {};
+             if (customParamsStr) {
+@@ -1593,7 +1675,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+                     return;
+                 }
+             }
+-            this.state.recipes.push({ type, name, provider, model, temperature: temp, systemPrompt, command: '', customParams });
++            this.state.recipes.push({ type, name, provider, model, temperature: temp, systemPrompt, baseUrl, command: '', customParams });
+         }
+         this.renderRecipeManager();
+         this.saveRecipes();
+@@ -1619,6 +1701,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+             recipe.model = document.getElementById('edit-model')?.value?.trim() || '';
+             recipe.systemPrompt = document.getElementById('edit-system-prompt')?.value?.trim() || '';
+             recipe.temperature = parseFloat(document.getElementById('edit-temperature')?.value || '0.7');
++            recipe.baseUrl = document.getElementById('edit-base-url')?.value?.trim() || '';
+             const customParamsStr = document.getElementById('edit-custom-params')?.value?.trim() || '';
+             let customParams = {};
+             if (customParamsStr) {
+@@ -1670,6 +1753,33 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+         document.onmouseup = () => { dragging = false; };
+     },
+ 
++    initAppConfigDrag() {
++        const panel = document.getElementById('app-config-panel');
++        const handle = document.getElementById('app-config-drag-handle');
++        if (!panel || !handle) return;
++        // Remove old listeners
++        const newHandle = handle.cloneNode(true);
++        handle.parentNode.replaceChild(newHandle, handle);
++        let dragging = false, startX, startY, origX, origY;
++        newHandle.onmousedown = (e) => {
++            if (e.target.tagName === 'BUTTON') return;
++            dragging = true;
++            const rect = panel.getBoundingClientRect();
++            startX = e.clientX; startY = e.clientY;
++            origX = rect.left; origY = rect.top;
++            panel.style.left = origX + 'px';
++            panel.style.top = origY + 'px';
++            panel.style.right = 'auto';
++            e.preventDefault();
++        };
++        document.onmousemove = (e) => {
++            if (!dragging) return;
++            panel.style.left = (origX + e.clientX - startX) + 'px';
++            panel.style.top = (origY + e.clientY - startY) + 'px';
++        };
++        document.onmouseup = () => { dragging = false; };
++    },
++
+     switchConfigTab(name, btn) {
+         document.querySelectorAll('.config-tab-panel').forEach(p => p.style.display = 'none');
+         document.querySelectorAll('.config-tab').forEach(b => b.classList.remove('active'));
+@@ -1796,6 +1906,70 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+                 danger: '#ff7ba8',
+                 dangerBg: '#6b2a4a'
+             }
++        },
++        mono: {
++            name: 'Mono',
++            colors: {
++                bg: '#f0f0f0',
++                bg2: '#ffffff',
++                bg3: '#e5e5e5',
++                text: '#000000',
++                text2: '#555555',
++                border: '#cccccc',
++                accent: '#000000',
++                accentHover: '#333333',
++                accentActive: '#111111',
++                danger: '#cc3333',
++                dangerBg: '#ffcccc'
++            }
++        },
++        gray: {
++            name: 'Gray & Black',
++            colors: {
++                bg: '#121212',
++                bg2: '#1e1e1e',
++                bg3: '#2d2d2d',
++                text: '#e0e0e0',
++                text2: '#888888',
++                border: '#333333',
++                accent: '#888888',
++                accentHover: '#aaaaaa',
++                accentActive: '#666666',
++                danger: '#ff6b6b',
++                dangerBg: '#3a1a1a'
++            }
++        },
++        pink: {
++            name: 'Pink & Black',
++            colors: {
++                bg: '#ffccd5',
++                bg2: '#fff0f3',
++                bg3: '#ffb3c1',
++                text: '#000000',
++                text2: '#590d22',
++                border: '#ff85a1',
++                accent: '#000000',
++                accentHover: '#2b2d42',
++                accentActive: '#1a1a24',
++                danger: '#cc3333',
++                dangerBg: '#ffcccc'
++            }
++        },
++        custom: {
++            name: 'Custom',
++            colors: {
++                bg: '#1e1e1e',
++                bg2: '#252526',
++                bg3: '#333333',
++                text: '#cccccc',
++                text2: '#aaaaaa',
++                border: '#444444',
++                accent: '#4a9eff',
++                accentHover: '#5bb1ff',
++                accentActive: '#3a8eef',
++                danger: '#fc8181',
++                dangerBg: '#6b2a2a'
++            }
+         }
+     },
+ 
+@@ -1816,6 +1990,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+         });
+         document.body.className = `theme-${themeName}`;
+         this.state.theme = themeName;
++        this.renderThemeConfig();
+     },
+ 
+     renderThemeConfig() {
+@@ -1832,6 +2007,75 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+                 </span>
+             </button>
+         `).join('');
++
++        const customEl = document.getElementById('custom-theme-colors');
++        if (customEl) {
++            if (this.state.theme === 'custom') {
++                customEl.style.display = 'block';
++                const grid = customEl.querySelector('.custom-color-pickers-grid');
++                if (grid) {
++                    const colorLabels = {
++                        bg: 'Background',
++                        bg2: 'Panel/Card',
++                        bg3: 'Hover Background',
++                        text: 'Main Text',
++                        text2: 'Muted Text',
++                        border: 'Border',
++                        accent: 'Accent',
++                        danger: 'Danger'
++                    };
++                    grid.innerHTML = Object.entries(this.themes.custom.colors)
++                        .filter(([key]) => colorLabels[key])
++                        .map(([key, val]) => `
++                            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--theme-bg3); padding: 6px 10px; border-radius: 4px; border: 1px solid var(--theme-border);">
++                                <span style="font-size: 11px; color: var(--theme-text); font-weight: 500;">${colorLabels[key]}</span>
++                                <input type="color" value="${val}" onchange="app.updateCustomColor('${key}', this.value)" style="border: none; background: none; width: 28px; height: 28px; cursor: pointer; padding: 0;">
++                            </div>
++                        `).join('');
++                }
++            } else {
++                customEl.style.display = 'none';
++            }
++        }
++    },
++
++    updateCustomColor(key, value) {
++        if (!this.themes.custom) return;
++        this.themes.custom.colors[key] = value;
++        
++        if (key === 'accent') {
++            this.themes.custom.colors.accentHover = this.adjustColorBrightness(value, 15);
++            this.themes.custom.colors.accentActive = this.adjustColorBrightness(value, -15);
++        }
++        if (key === 'danger') {
++            this.themes.custom.colors.dangerBg = value + '33';
++        }
++
++        this.applyTheme('custom');
++    },
++
++    adjustColorBrightness(hex, percent) {
++        let R = parseInt(hex.substring(1, 3), 16);
++        let G = parseInt(hex.substring(3, 5), 16);
++        let B = parseInt(hex.substring(5, 7), 16);
++
++        R = parseInt(R * (100 + percent) / 100);
++        G = parseInt(G * (100 + percent) / 100);
++        B = parseInt(B * (100 + percent) / 100);
++
++        R = (R < 255) ? R : 255;
++        G = (G < 255) ? G : 255;
++        B = (B < 255) ? B : 255;
++
++        R = (R > 0) ? R : 0;
++        G = (G > 0) ? G : 0;
++        B = (B > 0) ? B : 0;
++
++        const rHex = R.toString(16).padStart(2, '0');
++        const gHex = G.toString(16).padStart(2, '0');
++        const bHex = B.toString(16).padStart(2, '0');
++
++        return `#${rHex}${gHex}${bHex}`;
+     },
+ 
+     // ── Recipes ──────────────────────────────────────────────
+@@ -1848,7 +2092,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+                 <div class="recipe-item-detail">
+                     ${r.type === 'command'
+                         ? '⚙️ ' + this.escapeHtml(r.command || '')
+-                        : this.escapeHtml(r.provider) + (r.model ? ' / ' + this.escapeHtml(r.model) : '')}
++                        : this.escapeHtml(r.provider) + (r.model ? ' / ' + this.escapeHtml(r.model) : '') + (r.baseUrl ? ` (${this.escapeHtml(r.baseUrl)})` : '')}
+                 </div>
+                 <div class="recipe-item-actions">
+                     <button class="recipe-sm-btn" onclick="app.editRecipe(${i})">✏️</button>
+@@ -1876,6 +2120,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+                         <input type="text" id="new-recipe-model" placeholder="model" class="recipe-config-input" style="flex:1">
+                         <input type="number" id="new-recipe-temperature" placeholder="Temp" value="0.7" min="0" max="2" step="0.1" class="recipe-config-input" style="width:60px">
+                     </div>
++                    <div class="recipe-config-row">
++                        <input type="text" id="new-recipe-base-url" placeholder="Base URL override (optional, e.g. https://api.openai.com/v1)" class="recipe-config-input" style="flex:3">
++                    </div>
+                     <div class="recipe-config-row">
+                         <input type="text" id="new-recipe-system-prompt" placeholder="System prompt (optional)" class="recipe-config-input" style="flex:3">
+                     </div>
+@@ -1912,13 +2159,14 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+         if (!this.state.recipes) this.state.recipes = [];
+         if (type === 'command') {
+             const command = document.getElementById('new-recipe-command')?.value?.trim() || '';
+-            this.state.recipes.push({ type, name, command, provider: '', model: '', temperature: 0.7, systemPrompt: '' });
++            this.state.recipes.push({ type, name, command, provider: '', model: '', temperature: 0.7, systemPrompt: '', baseUrl: '' });
+         } else {
+             const provider = document.getElementById('new-recipe-provider')?.value || 'openai';
+             const model = document.getElementById('new-recipe-model')?.value?.trim() || '';
+             const systemPrompt = document.getElementById('new-recipe-system-prompt')?.value?.trim() || '';
+             const temp = parseFloat(document.getElementById('new-recipe-temperature')?.value || '0.7');
+-            this.state.recipes.push({ type, name, provider, model, temperature: temp, systemPrompt, command: '' });
++            const baseUrl = document.getElementById('new-recipe-base-url')?.value?.trim() || '';
++            this.state.recipes.push({ type, name, provider, model, temperature: temp, systemPrompt, baseUrl, command: '' });
+         }
+         this.renderRecipesConfig();
+         this.saveRecipes();
+@@ -1987,6 +2235,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+             model: this.state.defaultModel || '',
+             temperature: 0.7,
+             systemPrompt: '',
++            baseUrl: '',
+             command: ''
+         };
+     },
+@@ -2248,6 +2497,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+             case 'import_pipeline': this.importPipeline(); break;
+             case 'config':          this.showConfig(); break;
+             case 'test_connection': this.showConfig(); break;
++            case 'app_config':      this.showAppConfig(); break;
+             case 'recipe_manager':  this.showRecipeManager(); break;
+             case 'bt_run':          this.btCtrlRun(); break;
+             case 'bt_step':         this.btCtrlStep(); break;
+@@ -3426,6 +3676,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+                     model: recipe.model,
+                     systemPrompt: recipe.systemPrompt,
+                     temperature: recipe.temperature,
++                    baseUrl: recipe.baseUrl || '',
+                     attachments: targetNode.attachments || [],        // machine-level (op pane)
+                     inputAttachments: [                               // belt-level (input pane) + linked + BB media
+                         ...(ctx ? [] : (node.tempInputAttachments ? node.tempInputAttachments.files : (node.inputAttachments || []))),
+@@ -4116,7 +4367,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+                   '<div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px">' +
+                   '<span style="background:#4caf50;color:#000;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:12px;flex-shrink:0">1</span>' +
+                   '<div style="flex:1"><b>Setup Provider</b><br><span style="font-size:11px;color:#aaa">⚙ Config → Providers tab, enter API key<br>Supports OpenAI / Anthropic / Gemini / Ollama</span>' +
+-                  '<br><button class="wizard-action-btn" style="display:inline-block;margin:6px 0 0" onclick="app.showConfigTab(\'providers\')">⚙ Open Providers</button></div>' +
++                  '<br><button class="wizard-action-btn" style="display:inline-block;margin:6px 0 0" onclick="app.showConfig()">⚙ Open Providers</button></div>' +
+                   '</div>' +
+                   '<div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px">' +
+                   '<span style="background:#4caf50;color:#000;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:12px;flex-shrink:0">2</span>' +
+@@ -6461,31 +6712,87 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+         const current = this.state.activeProject || '';
+         const currentEl = document.getElementById('project-list-current');
+         if (currentEl) currentEl.textContent = current || '(' + this.t('None') + ')';
++        
++        // Store full project list with paths
++        this._allProjects = projects.map(p => ({
++            name: p,
++            path: this.getProjectPath(p)
++        }));
++        this._filteredProjects = this._allProjects.slice();
+ 
+-        const body = document.getElementById('project-list-body');
+-        if (body) {
+-            if (projects.length === 0) {
+-                body.innerHTML = `<div style="padding:20px;text-align:center;color:#888">${this.t('NoProjets') || 'No projects found.'}</div>`;
+-            } else {
+-                body.innerHTML = projects.map(p => `
+-                    <div class="project-list-item${p === current ? ' project-list-item-current' : ''}"
+-                         onclick="app._selectProjectItem(this,'${p.replace(/'/g,"\\'")}')">
+-                        <span style="margin-right:6px">${p === current ? '📂' : '📁'}</span>${p}
+-                    </div>`).join('');
+-            }
+-        }
++        const countEl = document.getElementById('project-list-count');
++        if (countEl) countEl.textContent = `${projects.length} project${projects.length !== 1 ? 's' : ''}`;
++
++        const searchInput = document.getElementById('project-list-search');
++        if (searchInput) searchInput.value = '';
++
++        this.renderProjectList();
+         this._selectedProject = null;
+         const openBtn = document.getElementById('project-list-open-btn');
+         if (openBtn) openBtn.disabled = true;
+         const modal = document.getElementById('project-list-modal');
+-        console.log('[ProjectList] modal element:', modal);
+-        if (modal) {
+-            modal.classList.add('visible');
+-            console.log('[ProjectList] modal.classList:', modal.className);
++        if (modal) modal.classList.add('visible');
++        this.applyTranslations();
++    },
++
++    getProjectPath(name) {
++        const appDataPath = this.state.appDataPath || '';
++        return `${appDataPath}\\projects\\${name}`;
++    },
++
++    renderProjectList() {
++        const body = document.getElementById('project-list-body');
++        if (!body) return;
++        
++        const current = this.state.activeProject || '';
++        const projects = this._filteredProjects || [];
++        
++        if (projects.length === 0) {
++            body.innerHTML = `<div style="padding:20px;text-align:center;color:#888">${this.t('NoProjets') || 'No projects found.'}</div>`;
++            return;
++        }
++
++        body.innerHTML = projects.map((p, idx) => {
++            const isCurrent = p.name === current;
++            const isSelected = p.name === this._selectedProject;
++            const isFirst = idx === 0;
++            const isLast = idx === projects.length - 1;
++            return `
++                <div class="project-list-item${isCurrent ? ' project-list-item-current' : ''}${isSelected ? ' project-list-item-selected' : ''}"
++                     data-name="${p.name}" data-index="${idx}"
++                     onclick="app._selectProjectItem(this,'${p.name.replace(/'/g,"\\'")}')">
++                    <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
++                        <span style="flex-shrink:0">${isCurrent ? '📂' : '📁'}</span>
++                        <div style="flex:1;min-width:0">
++                            <div style="font-weight:${isCurrent ? 'bold' : 'normal'};color:#eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
++                            <div style="font-size:10px;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${p.path}">${p.path}</div>
++                        </div>
++                    </div>
++                    <div style="display:flex;gap:4px;flex-shrink:0" onclick="event.stopPropagation()">
++                        <button class="proj-action-btn" onclick="app.moveProjectUp('${p.name}')" ${isFirst ? 'disabled' : ''} title="Move up">↑</button>
++                        <button class="proj-action-btn" onclick="app.moveProjectDown('${p.name}')" ${isLast ? 'disabled' : ''} title="Move down">↓</button>
++                        <button class="proj-action-btn" onclick="app.renameProject('${p.name}')" title="Rename">✏️</button>
++                        <button class="proj-action-btn" onclick="app.duplicateProject('${p.name}')" title="Duplicate">📋</button>
++                        <button class="proj-action-btn" onclick="app.verifyProject('${p.name}')" title="Verify">✓</button>
++                        <button class="proj-action-btn proj-action-delete" onclick="app.deleteProject('${p.name}')" title="Delete">🗑️</button>
++                    </div>
++                </div>`;
++        }).join('');
++    },
++
++    filterProjectList() {
++        const searchInput = document.getElementById('project-list-search');
++        const query = (searchInput?.value || '').toLowerCase().trim();
++        
++        if (!query) {
++            this._filteredProjects = this._allProjects.slice();
+         } else {
+-            console.error('[ProjectList] #project-list-modal not found in DOM');
++            this._filteredProjects = this._allProjects.filter(p => 
++                p.name.toLowerCase().includes(query) || 
++                p.path.toLowerCase().includes(query)
++            );
+         }
+-        this.applyTranslations();
++        this.renderProjectList();
+     },
+ 
+     _selectProjectItem(el, name) {
+@@ -6506,11 +6813,119 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
+     closeProjectList() {
+         document.getElementById('project-list-modal').classList.remove('visible');
+         this._selectedProject = null;
++        this._allProjects = null;
++        this._filteredProjects = null;
+     },
+ 
+     newProjectFromList() {
+         this.closeProjectList();
+-        this.newProject();
++        this.showProjectInputModal(
++            'New Project',
++            'Enter a name for the new project:',
++            '',
++            (name) => {
++                this.postMessage({ type: 'create_project', payload: { projectName: name } });
++            }
++        );
++    },
++
++    moveProjectUp(name) {
++        this.postMessage({ type: 'move_project', payload: { name, direction: 'up' } });
++    },
++
++    moveProjectDown(name) {
++        this.postMessage({ type: 'move_project', payload: { name, direction: 'down' } });
++    },
++
++    renameProject(name) {
++        this.showProjectInputModal(
++            'Rename Project',
++            `Rename project "${name}" to:`,
++            name,
++            (newName) => {
++                if (newName !== name) {
++                    this.postMessage({ type: 'rename_project', payload: { oldName: name, newName: newName } });
++                }
++            }
++        );
++    },
++
++    duplicateProject(name) {
++        this.showProjectInputModal(
++            'Duplicate Project',
++            `Duplicate project "${name}" as:`,
++            `${name}_copy`,
++            (newName) => {
++                this.postMessage({ type: 'duplicate_project', payload: { sourceName: name, newName: newName } });
++            }
++        );
++    },
++
++    deleteProject(name) {
++        if (name === this.state.activeProject) {
++            this.addLog('❌ Cannot delete the currently active project.');
++            return;
++        }
++        this.showProjectConfirmModal(
++            'Delete Project',
++            `Delete project "${name}"?\n\nThis will permanently remove the project and all its data.`,
++            () => {
++                this.postMessage({ type: 'delete_project', payload: { name } });
++            }
++        );
++    },
++
++    verifyProject(name) {
++        this.postMessage({ type: 'verify_project', payload: { name } });
++    },
++
++    // ── Project Input Modal ───────────────────────────────────────
++    _projectInputCallback: null,
++
++    showProjectInputModal(title, message, defaultValue, callback) {
++        this._projectInputCallback = callback;
++        document.getElementById('project-input-title').textContent = title;
++        document.getElementById('project-input-message').textContent = message;
++        const input = document.getElementById('project-input-field');
++        input.value = defaultValue || '';
++        document.getElementById('project-input-modal').classList.add('visible');
++        setTimeout(() => { input.focus(); input.select(); }, 100);
++    },
++
++    closeProjectInputModal() {
++        document.getElementById('project-input-modal').classList.remove('visible');
++        this._projectInputCallback = null;
++    },
++
++    confirmProjectInput() {
++        const input = document.getElementById('project-input-field');
++        const value = input.value.trim();
++        if (value && this._projectInputCallback) {
++            this._projectInputCallback(value);
++        }
++        this.closeProjectInputModal();
++    },
++
++    // ── Project Confirm Modal ─────────────────────────────────────
++    _projectConfirmCallback: null,
++
++    showProjectConfirmModal(title, message, callback) {
++        this._projectConfirmCallback = callback;
++        document.getElementById('project-confirm-title').textContent = title;
++        document.getElementById('project-confirm-message').textContent = message;
++        document.getElementById('project-confirm-modal').classList.add('visible');
++    },
++
++    closeProjectConfirmModal() {
++        document.getElementById('project-confirm-modal').classList.remove('visible');
++        this._projectConfirmCallback = null;
++    },
++
++    confirmProjectAction() {
++        if (this._projectConfirmCallback) {
++            this._projectConfirmCallback();
++        }
++        this.closeProjectConfirmModal();
+     },
+ 
+     setHistoryRetention(val) {

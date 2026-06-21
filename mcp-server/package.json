@@ -1,0 +1,16 @@
+{
+  "name": "wend-bt-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for controlling Wend Behavior Tree engine remotely",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "keywords": ["mcp", "behavior-tree", "wend", "ai"],
+  "author": "",
+  "license": "MIT"
+}

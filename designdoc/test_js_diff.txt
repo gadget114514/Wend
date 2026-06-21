@@ -1,0 +1,1198 @@
+diff --git a/electron/test.js b/electron/test.js
+index 5e7b0fb..369b737 100644
+--- a/electron/test.js
++++ b/electron/test.js
+@@ -61,11 +61,14 @@ function getDefaultRecipes() {
+         { name: 'Music Info Fetcher', type: 'ai', provider: 'openai', model: 'gpt-4o-mini', temperature: 0.3, systemPrompt: 'You are a music metadata assistant.', command: '', customParams: {} },
+         { name: 'Article Writer (GPT)', type: 'ai', provider: 'openai', model: 'gpt-4.1', temperature: 0.8, systemPrompt: 'You are a radio DJ and music journalist.', command: '', customParams: {} },
+         { name: 'Article Writer (Claude)', type: 'ai', provider: 'anthropic', model: 'claude-sonnet-4-20250514', temperature: 0.8, systemPrompt: 'You are a radio DJ and music journalist.', command: '', customParams: {} },
+-        { name: 'Article Writer (Gemini)', type: 'ai', provider: 'gemini', model: 'gemini-2.5-pro', temperature: 0.8, systemPrompt: 'You are a radio DJ and music journalist.', command: '', customParams: {} },
++        { name: 'Article Writer (Gemini)', type: 'ai', provider: 'gemini', model: 'gemini-3.1-pro-preview', temperature: 0.8, systemPrompt: 'You are a radio DJ and music journalist.', command: '', customParams: {} },
+         { name: 'Music Generator', type: 'ai', provider: 'replicate', model: 'meta/musicgen', temperature: 0.7, systemPrompt: '', command: '', customParams: {} },
+         { name: 'OpenAI TTS HD', type: 'ai', provider: 'openai', model: 'tts-1-hd', temperature: 0.7, systemPrompt: '', command: '', customParams: {} },
+         { name: 'OpenAI TTS', type: 'ai', provider: 'openai', model: 'tts-1', temperature: 0.7, systemPrompt: '', command: '', customParams: {} },
+         { name: 'Replicate TTS', type: 'ai', provider: 'replicate', model: 'lucataco/xtts-v2', temperature: 0.7, systemPrompt: '', command: '', customParams: {} },
++        { name: 'Gemini T2I (Text-to-Image)', type: 'ai', provider: 'gemini-image', model: 'gemini-3-pro-image', temperature: 0.7, systemPrompt: 'You are an AI image generator. Generate high-quality images based on the user prompt.', command: '', customParams: { aspectRatio: '1:1', imageSize: '1K' } },
++        { name: 'Gemini T2I Flash (Text-to-Image)', type: 'ai', provider: 'gemini-image', model: 'gemini-3.1-flash-image', temperature: 0.7, systemPrompt: 'You are an AI image generator. Generate high-quality images based on the user prompt.', command: '', customParams: { aspectRatio: '1:1', imageSize: '1K' } },
++        { name: 'Gemini I2I (Image-to-Image)', type: 'ai', provider: 'gemini-image', model: 'gemini-3.1-flash-image', temperature: 0.7, systemPrompt: 'You are an AI image generator. Generate a modified image based on the input image and the user prompt.', command: '', customParams: { aspectRatio: '1:1', imageSize: '1K' } }
+     ];
+ }
+ 
+@@ -148,8 +151,36 @@ class Storage {
+         catch { return ''; }
+     }
+ 
+-    loadProviders()          { return readJson(path.join(this.basePath, 'providers.json'), {}); }
+-    saveProviders(p)         { writeJson(path.join(this.basePath, 'providers.json'), p); return true; }
++    loadProviders() {
++        const providers = readJson(path.join(this.basePath, 'providers.json'), {});
++        let modified = false;
++        for (const [key, p] of Object.entries(providers)) {
++            if (p && p.baseUrl === 'https://googleapis.com') {
++                p.baseUrl = 'https://generativelanguage.googleapis.com';
++                modified = true;
++            }
++        }
++        if (providers.gemini?.apiKey && providers['gemini-image'] && !providers['gemini-image'].apiKey) {
++            providers['gemini-image'].apiKey = providers.gemini.apiKey;
++            modified = true;
++        }
++        if (modified) {
++            this.saveProviders(providers);
++        }
++        return providers;
++    }
++    saveProviders(providers) {
++        for (const [key, p] of Object.entries(providers)) {
++            if (p && p.baseUrl === 'https://googleapis.com') {
++                p.baseUrl = 'https://generativelanguage.googleapis.com';
++            }
++        }
++        if (providers.gemini?.apiKey && providers['gemini-image'] && !providers['gemini-image'].apiKey) {
++            providers['gemini-image'].apiKey = providers.gemini.apiKey;
++        }
++        writeJson(path.join(this.basePath, 'providers.json'), providers);
++        return true;
++    }
+ 
+     loadPipelines()          { const o = readJson(path.join(this.basePath, 'pipelines.json'), { pipelines: [] }); return o.pipelines || o || []; }
+     savePipelines(pl)        { writeJson(path.join(this.basePath, 'pipelines.json'), { pipelines: pl }); }
+@@ -167,6 +198,18 @@ class Storage {
+             writeJson(path.join(this.basePath, 'recipes.json'), defaults);
+             return defaults;
+         }
++        // Auto-merge any missing predefined default recipes by name
++        const defaults = getDefaultRecipes();
++        let modified = false;
++        for (const def of defaults) {
++            if (!recipes.some(r => r.name === def.name)) {
++                recipes.push(def);
++                modified = true;
++            }
++        }
++        if (modified) {
++            writeJson(path.join(this.basePath, 'recipes.json'), recipes);
++        }
+         return recipes;
+     }
+     saveRecipes(r)           { writeJson(path.join(this.basePath, 'recipes.json'), r); return true; }
+@@ -607,7 +650,7 @@ describe('Storage', () => {
+         const tempSt = new Storage();
+         tempSt.init(emptyDir);
+         const recipes = tempSt.loadRecipes();
+-        assert.equal(recipes.length, 8);
++        assert.equal(recipes.length, 11);
+         assert.equal(recipes[0].name, 'Music Info Fetcher');
+         assert.equal(recipes[1].name, 'Article Writer (GPT)');
+         assert.equal(recipes[7].name, 'Replicate TTS');
+@@ -621,14 +664,15 @@ describe('Storage', () => {
+         const custom = [{ name: 'My Custom Recipe', type: 'ai', provider: 'openai', model: 'gpt-4.1', temperature: 0.7, systemPrompt: '', command: '', customParams: {} }];
+         tempSt.saveRecipes(custom);
+         const loaded = tempSt.loadRecipes();
+-        assert.equal(loaded.length, 1);
+-        assert.equal(loaded[0].name, 'My Custom Recipe');
++        // Preserves custom recipe and merges the missing defaults (1 custom + 11 defaults = 12)
++        assert.equal(loaded.length, 12);
++        assert.ok(loaded.some(r => r.name === 'My Custom Recipe'));
+         rmrf(existingDir);
+     });
+ 
+     test('getDefaultRecipes returns correct structure', () => {
+         const defaults = getDefaultRecipes();
+-        assert.equal(defaults.length, 8);
++        assert.equal(defaults.length, 11);
+         for (const r of defaults) {
+             assert.ok(r.name, 'recipe has name');
+             assert.equal(r.type, 'ai');
+@@ -3881,6 +3925,7 @@ describe('Selection & Color logic', () => {
+             'rm-model': 'stability-ai/sdxl',
+             'rm-temperature': '0.7',
+             'rm-system-prompt': 'Be helpful',
++            'rm-base-url': 'https://custom-api.com',
+             'rm-custom-params': '{"negative_prompt": "ugly, blurry", "steps": 25}'
+         };
+ 
+@@ -3899,6 +3944,7 @@ describe('Selection & Color logic', () => {
+         const added = app.state.recipes[0];
+         assert.equal(added.name, 'New AI Recipe');
+         assert.equal(added.provider, 'replicate');
++        assert.equal(added.baseUrl, 'https://custom-api.com');
+         assert.equal(JSON.stringify(added.customParams), JSON.stringify({ negative_prompt: 'ugly, blurry', steps: 25 }));
+ 
+         // 2. Test edit and saveEditRecipe with modified custom parameters
+@@ -3907,12 +3953,14 @@ describe('Selection & Color logic', () => {
+         uiValues['edit-provider'] = 'fal-ai';
+         uiValues['edit-model'] = 'fal-ai/flux/schnell';
+         uiValues['edit-system-prompt'] = 'Be concise';
++        uiValues['edit-base-url'] = 'https://updated-api.com';
+         uiValues['edit-custom-params'] = '{"aspect_ratio": "16:9"}';
+ 
+         app.saveEditRecipe(0);
+         const edited = app.state.recipes[0];
+         assert.equal(edited.name, 'Updated AI Recipe');
+         assert.equal(edited.provider, 'fal-ai');
++        assert.equal(edited.baseUrl, 'https://updated-api.com');
+         assert.equal(JSON.stringify(edited.customParams), JSON.stringify({ aspect_ratio: '16:9' }));
+ 
+         // 3. Test invalid JSON alerts and does not save
+@@ -3942,6 +3990,7 @@ describe('Selection & Color logic', () => {
+ 
+         const runMsg = postedMessages.find(m => m.type === 'run_prompt_process');
+         assert.ok(runMsg);
++        assert.equal(runMsg.payload.baseUrl, 'https://updated-api.com');
+         assert.equal(JSON.stringify(runMsg.payload.customParams), JSON.stringify({ aspect_ratio: '16:9' }));
+     });
+ 
+@@ -4415,8 +4464,8 @@ describe('Builtin Providers Loading', () => {
+         const providerTests = [
+             { file: 'openai.js', name: 'openai', models: ['gpt-4.1', 'gpt-4o-mini'] },
+             { file: 'anthropic.js', name: 'anthropic', models: ['claude-sonnet-4-6', 'claude-haiku-4-5'] },
+-            { file: 'gemini.js', name: 'gemini', models: ['gemini-2.5-flash', 'gemini-2.5-pro'] },
+-            { file: 'gemini-image.js', name: 'gemini-image', models: ['gemini-3.1-flash-image'] },
++            { file: 'gemini.js', name: 'gemini', models: ['gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-2.5-flash', 'gemini-2.5-pro'] },
++            { file: 'gemini-image.js', name: 'gemini-image', models: ['gemini-3.1-flash-image', 'gemini-3-pro-image'] },
+             { file: 'ollama.js', name: 'ollama', models: ['llama3.2', 'mistral'] },
+             { file: 'mock.js', name: 'mock', models: ['echo', 'fixed', 'image-echo', 'image-compose'] },
+             { file: 'mock-http.js', name: 'mock-http', models: ['echo', 'image-echo', 'image-compose'] },
+@@ -5320,3 +5369,1041 @@ describe('Behavior Tree', () => {
+     });
+ });
+ 
++// ============================================================
++// Project Dialog Tests
++// ============================================================
++
++// Helper functions for project management tests
++function copyDirSync(src, dest) {
++    ensureDir(dest);
++    const entries = fs.readdirSync(src, { withFileTypes: true });
++    for (const entry of entries) {
++        const srcPath = path.join(src, entry.name);
++        const destPath = path.join(dest, entry.name);
++        if (entry.isDirectory()) {
++            copyDirSync(srcPath, destPath);
++        } else {
++            fs.copyFileSync(srcPath, destPath);
++        }
++    }
++}
++
++function deleteDirSync(dirPath) {
++    if (fs.existsSync(dirPath)) {
++        const entries = fs.readdirSync(dirPath, { withFileTypes: true });
++        for (const entry of entries) {
++            const fullPath = path.join(dirPath, entry.name);
++            if (entry.isDirectory()) {
++                deleteDirSync(fullPath);
++            } else {
++                fs.unlinkSync(fullPath);
++            }
++        }
++        fs.rmdirSync(dirPath);
++    }
++}
++
++// Mock project manager for testing
++class ProjectManager {
++    constructor(projectsRoot) {
++        this.projectsRoot = projectsRoot;
++        this.bootstrapConfig = { currentProject: '', projectOrder: [] };
++        ensureDir(this.projectsRoot);
++    }
++
++    listProjects() {
++        if (!fs.existsSync(this.projectsRoot)) return [];
++        const entries = fs.readdirSync(this.projectsRoot, { withFileTypes: true });
++        let projects = entries.filter(e => e.isDirectory()).map(e => e.name);
++        
++        const order = this.bootstrapConfig.projectOrder || [];
++        if (order.length > 0) {
++            projects.sort((a, b) => {
++                const ia = order.indexOf(a);
++                const ib = order.indexOf(b);
++                if (ia === -1 && ib === -1) return a.localeCompare(b);
++                if (ia === -1) return 1;
++                if (ib === -1) return -1;
++                return ia - ib;
++            });
++        }
++        return projects;
++    }
++
++    createProject(name) {
++        const projPath = path.join(this.projectsRoot, name);
++        if (fs.existsSync(projPath)) return false;
++        ensureDir(path.join(projPath, 'data'));
++        ensureDir(path.join(projPath, 'blobs'));
++        ensureDir(path.join(projPath, 'history'));
++        ensureDir(path.join(projPath, 'chests'));
++        writeJson(path.join(projPath, 'session.json'), { tabs: [{ name: 'General', file: 'general.json' }] });
++        writeJson(path.join(projPath, 'pipelines.json'), { pipelines: [] });
++        writeJson(path.join(projPath, 'recipes.json'), []);
++        return true;
++    }
++
++    deleteProject(name) {
++        if (name === this.bootstrapConfig.currentProject) return false;
++        const projPath = path.join(this.projectsRoot, name);
++        if (!fs.existsSync(projPath)) return false;
++        deleteDirSync(projPath);
++        this.bootstrapConfig.projectOrder = (this.bootstrapConfig.projectOrder || []).filter(p => p !== name);
++        return true;
++    }
++
++    renameProject(oldName, newName) {
++        const oldPath = path.join(this.projectsRoot, oldName);
++        const newPath = path.join(this.projectsRoot, newName);
++        if (!fs.existsSync(oldPath) || fs.existsSync(newPath)) return false;
++        fs.renameSync(oldPath, newPath);
++        if (this.bootstrapConfig.currentProject === oldName) {
++            this.bootstrapConfig.currentProject = newName;
++        }
++        const order = this.bootstrapConfig.projectOrder || [];
++        const idx = order.indexOf(oldName);
++        if (idx !== -1) order[idx] = newName;
++        this.bootstrapConfig.projectOrder = order;
++        return true;
++    }
++
++    duplicateProject(sourceName, newName) {
++        const sourcePath = path.join(this.projectsRoot, sourceName);
++        const destPath = path.join(this.projectsRoot, newName);
++        if (!fs.existsSync(sourcePath) || fs.existsSync(destPath)) return false;
++        copyDirSync(sourcePath, destPath);
++        return true;
++    }
++
++    moveProject(name, direction) {
++        let order = this.bootstrapConfig.projectOrder || [];
++        const projects = this.listProjects();
++        if (order.length === 0) {
++            order = [...projects].sort((a, b) => a.localeCompare(b));
++        }
++        for (const p of projects) {
++            if (!order.includes(p)) order.push(p);
++        }
++        const idx = order.indexOf(name);
++        if (idx === -1) return false;
++        if (direction === 'up' && idx > 0) {
++            [order[idx - 1], order[idx]] = [order[idx], order[idx - 1]];
++        } else if (direction === 'down' && idx < order.length - 1) {
++            [order[idx], order[idx + 1]] = [order[idx + 1], order[idx]];
++        } else {
++            return false;
++        }
++        this.bootstrapConfig.projectOrder = order;
++        return true;
++    }
++
++    verifyProject(name) {
++        const projPath = path.join(this.projectsRoot, name);
++        const issues = [];
++        const fixes = [];
++        
++        if (!fs.existsSync(projPath)) {
++            issues.push('Project directory does not exist');
++        } else {
++            const dirs = ['data', 'blobs', 'history', 'chests'];
++            for (const dir of dirs) {
++                const dirPath = path.join(projPath, dir);
++                if (!fs.existsSync(dirPath)) {
++                    issues.push(`Missing ${dir} directory`);
++                    try { ensureDir(dirPath); fixes.push(`Created ${dir} directory`); } catch (e) {}
++                }
++            }
++            const files = [
++                { name: 'session.json', default: { tabs: [{ name: 'General', file: 'general.json' }] } },
++                { name: 'pipelines.json', default: { pipelines: [] } },
++                { name: 'recipes.json', default: [] }
++            ];
++            for (const file of files) {
++                const filePath = path.join(projPath, file.name);
++                if (!fs.existsSync(filePath)) {
++                    issues.push(`Missing ${file.name}`);
++                    try { writeJson(filePath, file.default); fixes.push(`Created ${file.name}`); } catch (e) {}
++                }
++            }
++        }
++        return { issues, fixes, status: issues.length === 0 ? 'OK' : (fixes.length === issues.length ? 'Recovered' : 'Issues found') };
++    }
++
++    setCurrentProject(name) {
++        this.bootstrapConfig.currentProject = name;
++    }
++
++    getCurrentProject() {
++        return this.bootstrapConfig.currentProject;
++    }
++}
++
++describe('Project Dialog', () => {
++    let tempDir;
++    let pm;
++
++    before(() => {
++        tempDir = makeTempDir();
++        pm = new ProjectManager(path.join(tempDir, 'projects'));
++    });
++
++    after(() => {
++        rmrf(tempDir);
++    });
++
++    // ── Basic CRUD Tests ─────────────────────────────────────
++
++    test('P001: list projects returns empty array when no projects exist', () => {
++        const projects = pm.listProjects();
++        assert.deepEqual(projects, []);
++    });
++
++    test('P002: create project returns true for new project', () => {
++        const result = pm.createProject('TestProject1');
++        assert.equal(result, true);
++    });
++
++    test('P003: create project creates directory structure', () => {
++        pm.createProject('TestProject2');
++        const projPath = path.join(tempDir, 'projects', 'TestProject2');
++        assert.ok(fs.existsSync(projPath));
++        assert.ok(fs.existsSync(path.join(projPath, 'data')));
++        assert.ok(fs.existsSync(path.join(projPath, 'blobs')));
++        assert.ok(fs.existsSync(path.join(projPath, 'history')));
++        assert.ok(fs.existsSync(path.join(projPath, 'chests')));
++    });
++
++    test('P004: create project creates session.json with default tab', () => {
++        pm.createProject('TestProject3');
++        const sessionPath = path.join(tempDir, 'projects', 'TestProject3', 'session.json');
++        assert.ok(fs.existsSync(sessionPath));
++        const session = readJson(sessionPath);
++        assert.equal(session.tabs.length, 1);
++        assert.equal(session.tabs[0].name, 'General');
++    });
++
++    test('P005: create project creates empty pipelines.json', () => {
++        pm.createProject('TestProject4');
++        const pipelinesPath = path.join(tempDir, 'projects', 'TestProject4', 'pipelines.json');
++        assert.ok(fs.existsSync(pipelinesPath));
++        const pipelines = readJson(pipelinesPath);
++        assert.deepEqual(pipelines.pipelines, []);
++    });
++
++    test('P006: create project creates empty recipes.json', () => {
++        pm.createProject('TestProject5');
++        const recipesPath = path.join(tempDir, 'projects', 'TestProject5', 'recipes.json');
++        assert.ok(fs.existsSync(recipesPath));
++        const recipes = readJson(recipesPath);
++        assert.deepEqual(recipes, []);
++    });
++
++    test('P007: create project returns false for duplicate name', () => {
++        pm.createProject('DupProject');
++        const result = pm.createProject('DupProject');
++        assert.equal(result, false);
++    });
++
++    test('P008: list projects returns created projects', () => {
++        pm.createProject('ListTest1');
++        pm.createProject('ListTest2');
++        const projects = pm.listProjects();
++        assert.ok(projects.includes('ListTest1'));
++        assert.ok(projects.includes('ListTest2'));
++    });
++
++    test('P009: delete project returns true for existing project', () => {
++        pm.createProject('DeleteTest1');
++        const result = pm.deleteProject('DeleteTest1');
++        assert.equal(result, true);
++    });
++
++    test('P010: delete project removes directory', () => {
++        pm.createProject('DeleteTest2');
++        pm.deleteProject('DeleteTest2');
++        const projPath = path.join(tempDir, 'projects', 'DeleteTest2');
++        assert.ok(!fs.existsSync(projPath));
++    });
++
++    test('P011: delete project returns false for non-existent project', () => {
++        const result = pm.deleteProject('NonExistent');
++        assert.equal(result, false);
++    });
++
++    test('P012: delete project returns false for current project', () => {
++        pm.createProject('CurrentProject');
++        pm.setCurrentProject('CurrentProject');
++        const result = pm.deleteProject('CurrentProject');
++        assert.equal(result, false);
++    });
++
++    test('P013: delete project removes from order list', () => {
++        pm.createProject('OrderDelete');
++        pm.moveProject('OrderDelete', 'up');
++        pm.deleteProject('OrderDelete');
++        assert.ok(!pm.bootstrapConfig.projectOrder.includes('OrderDelete'));
++    });
++
++    // ── Rename Tests ─────────────────────────────────────────
++
++    test('P014: rename project returns true for valid rename', () => {
++        pm.createProject('RenameTest1');
++        const result = pm.renameProject('RenameTest1', 'RenamedProject1');
++        assert.equal(result, true);
++    });
++
++    test('P015: rename project changes directory name', () => {
++        pm.createProject('RenameTest2');
++        pm.renameProject('RenameTest2', 'RenamedProject2');
++        const oldPath = path.join(tempDir, 'projects', 'RenameTest2');
++        const newPath = path.join(tempDir, 'projects', 'RenamedProject2');
++        assert.ok(!fs.existsSync(oldPath));
++        assert.ok(fs.existsSync(newPath));
++    });
++
++    test('P016: rename project returns false for non-existent source', () => {
++        const result = pm.renameProject('NonExistent', 'NewName');
++        assert.equal(result, false);
++    });
++
++    test('P017: rename project returns false if target exists', () => {
++        pm.createProject('RenameSource');
++        pm.createProject('RenameTarget');
++        const result = pm.renameProject('RenameSource', 'RenameTarget');
++        assert.equal(result, false);
++    });
++
++    test('P018: rename project updates current project if renamed', () => {
++        pm.createProject('CurrentRename');
++        pm.setCurrentProject('CurrentRename');
++        pm.renameProject('CurrentRename', 'NewCurrent');
++        assert.equal(pm.getCurrentProject(), 'NewCurrent');
++    });
++
++    test('P019: rename project updates order list', () => {
++        pm.createProject('OrderRename');
++        pm.bootstrapConfig.projectOrder = ['OrderRename'];
++        pm.renameProject('OrderRename', 'RenamedOrder');
++        assert.ok(pm.bootstrapConfig.projectOrder.includes('RenamedOrder'));
++        assert.ok(!pm.bootstrapConfig.projectOrder.includes('OrderRename'));
++    });
++
++    test('P020: rename project preserves data files', () => {
++        pm.createProject('DataRename');
++        const dataPath = path.join(tempDir, 'projects', 'DataRename', 'data', 'test.json');
++        writeJson(dataPath, { test: 'data' });
++        pm.renameProject('DataRename', 'RenamedData');
++        const newDataPath = path.join(tempDir, 'projects', 'RenamedData', 'data', 'test.json');
++        assert.ok(fs.existsSync(newDataPath));
++        const data = readJson(newDataPath);
++        assert.equal(data.test, 'data');
++    });
++
++    // ── Duplicate Tests ──────────────────────────────────────
++
++    test('P021: duplicate project returns true for valid duplicate', () => {
++        pm.createProject('DupSource');
++        const result = pm.duplicateProject('DupSource', 'DupTarget');
++        assert.equal(result, true);
++    });
++
++    test('P022: duplicate project creates new directory', () => {
++        pm.createProject('DupSource2');
++        pm.duplicateProject('DupSource2', 'DupTarget2');
++        const newPath = path.join(tempDir, 'projects', 'DupTarget2');
++        assert.ok(fs.existsSync(newPath));
++    });
++
++    test('P023: duplicate project copies all files', () => {
++        pm.createProject('DupSource3');
++        const dataPath = path.join(tempDir, 'projects', 'DupSource3', 'data', 'test.json');
++        writeJson(dataPath, { test: 'data' });
++        pm.duplicateProject('DupSource3', 'DupTarget3');
++        const newDataPath = path.join(tempDir, 'projects', 'DupTarget3', 'data', 'test.json');
++        assert.ok(fs.existsSync(newDataPath));
++    });
++
++    test('P024: duplicate project returns false for non-existent source', () => {
++        const result = pm.duplicateProject('NonExistent', 'NewDup');
++        assert.equal(result, false);
++    });
++
++    test('P025: duplicate project returns false if target exists', () => {
++        pm.createProject('DupSource4');
++        pm.createProject('DupTarget4');
++        const result = pm.duplicateProject('DupSource4', 'DupTarget4');
++        assert.equal(result, false);
++    });
++
++    test('P026: duplicate project preserves session.json', () => {
++        pm.createProject('DupSession');
++        const sessionPath = path.join(tempDir, 'projects', 'DupSession', 'session.json');
++        writeJson(sessionPath, { tabs: [{ name: 'Custom', file: 'custom.json' }] });
++        pm.duplicateProject('DupSession', 'DupSessionCopy');
++        const newSessionPath = path.join(tempDir, 'projects', 'DupSessionCopy', 'session.json');
++        const session = readJson(newSessionPath);
++        assert.equal(session.tabs[0].name, 'Custom');
++    });
++
++    test('P027: duplicate project preserves pipelines.json', () => {
++        pm.createProject('DupPipelines');
++        const pipelinesPath = path.join(tempDir, 'projects', 'DupPipelines', 'pipelines.json');
++        writeJson(pipelinesPath, { pipelines: [{ name: 'TestPipeline' }] });
++        pm.duplicateProject('DupPipelines', 'DupPipelinesCopy');
++        const newPipelinesPath = path.join(tempDir, 'projects', 'DupPipelinesCopy', 'pipelines.json');
++        const pipelines = readJson(newPipelinesPath);
++        assert.equal(pipelines.pipelines[0].name, 'TestPipeline');
++    });
++
++    test('P028: duplicate project preserves recipes.json', () => {
++        pm.createProject('DupRecipes');
++        const recipesPath = path.join(tempDir, 'projects', 'DupRecipes', 'recipes.json');
++        writeJson(recipesPath, [{ name: 'TestRecipe' }]);
++        pm.duplicateProject('DupRecipes', 'DupRecipesCopy');
++        const newRecipesPath = path.join(tempDir, 'projects', 'DupRecipesCopy', 'recipes.json');
++        const recipes = readJson(newRecipesPath);
++        assert.equal(recipes[0].name, 'TestRecipe');
++    });
++
++    // ── Reorder Tests ────────────────────────────────────────
++
++    test('P029: move project up returns true when not at top', () => {
++        pm.createProject('MoveUp1');
++        pm.createProject('MoveUp2');
++        pm.bootstrapConfig.projectOrder = ['MoveUp1', 'MoveUp2'];
++        const result = pm.moveProject('MoveUp2', 'up');
++        assert.equal(result, true);
++    });
++
++    test('P030: move project up changes order', () => {
++        const pm2 = new ProjectManager(path.join(tempDir, 'p030'));
++        pm2.createProject('MoveUp3');
++        pm2.createProject('MoveUp4');
++        pm2.bootstrapConfig.projectOrder = ['MoveUp3', 'MoveUp4'];
++        pm2.moveProject('MoveUp4', 'up');
++        assert.deepEqual(pm2.bootstrapConfig.projectOrder, ['MoveUp4', 'MoveUp3']);
++    });
++
++    test('P031: move project up returns false when at top', () => {
++        pm.createProject('MoveUpTop');
++        pm.bootstrapConfig.projectOrder = ['MoveUpTop', 'Other'];
++        const result = pm.moveProject('MoveUpTop', 'up');
++        assert.equal(result, false);
++    });
++
++    test('P032: move project down returns true when not at bottom', () => {
++        pm.createProject('MoveDown1');
++        pm.createProject('MoveDown2');
++        pm.bootstrapConfig.projectOrder = ['MoveDown1', 'MoveDown2'];
++        const result = pm.moveProject('MoveDown1', 'down');
++        assert.equal(result, true);
++    });
++
++    test('P033: move project down changes order', () => {
++        const pm2 = new ProjectManager(path.join(tempDir, 'p033'));
++        pm2.createProject('MoveDown3');
++        pm2.createProject('MoveDown4');
++        pm2.bootstrapConfig.projectOrder = ['MoveDown3', 'MoveDown4'];
++        pm2.moveProject('MoveDown3', 'down');
++        assert.deepEqual(pm2.bootstrapConfig.projectOrder, ['MoveDown4', 'MoveDown3']);
++    });
++
++    test('P034: move project down returns false when at bottom', () => {
++        const pm2 = new ProjectManager(path.join(tempDir, 'p034'));
++        pm2.createProject('MoveDownBottom');
++        pm2.bootstrapConfig.projectOrder = ['MoveDownBottom'];
++        const result = pm2.moveProject('MoveDownBottom', 'down');
++        assert.equal(result, false);
++    });
++
++    test('P035: move project returns false for non-existent project', () => {
++        const result = pm.moveProject('NonExistent', 'up');
++        assert.equal(result, false);
++    });
++
++    test('P036: list projects respects order', () => {
++        const pm2 = new ProjectManager(path.join(tempDir, 'p036'));
++        pm2.createProject('OrderA');
++        pm2.createProject('OrderB');
++        pm2.createProject('OrderC');
++        pm2.bootstrapConfig.projectOrder = ['OrderC', 'OrderA', 'OrderB'];
++        const projects = pm2.listProjects();
++        assert.deepEqual(projects, ['OrderC', 'OrderA', 'OrderB']);
++    });
++
++    test('P037: move project initializes order if empty', () => {
++        pm.createProject('InitOrder1');
++        pm.createProject('InitOrder2');
++        pm.bootstrapConfig.projectOrder = [];
++        pm.moveProject('InitOrder2', 'up');
++        assert.ok(pm.bootstrapConfig.projectOrder.length > 0);
++    });
++
++    test('P038: move project adds missing projects to order', () => {
++        pm.createProject('MissingOrder1');
++        pm.createProject('MissingOrder2');
++        pm.bootstrapConfig.projectOrder = ['MissingOrder1'];
++        pm.moveProject('MissingOrder2', 'up');
++        assert.ok(pm.bootstrapConfig.projectOrder.includes('MissingOrder2'));
++    });
++
++    // ── Verify Tests ─────────────────────────────────────────
++
++    test('P039: verify project returns OK for valid project', () => {
++        pm.createProject('VerifyOK');
++        const result = pm.verifyProject('VerifyOK');
++        assert.equal(result.status, 'OK');
++        assert.equal(result.issues.length, 0);
++    });
++
++    test('P040: verify project detects missing data directory', () => {
++        pm.createProject('VerifyMissingData');
++        const dataPath = path.join(tempDir, 'projects', 'VerifyMissingData', 'data');
++        fs.rmdirSync(dataPath);
++        const result = pm.verifyProject('VerifyMissingData');
++        assert.ok(result.issues.some(i => i.includes('data')));
++    });
++
++    test('P041: verify project detects missing blobs directory', () => {
++        pm.createProject('VerifyMissingBlobs');
++        const blobsPath = path.join(tempDir, 'projects', 'VerifyMissingBlobs', 'blobs');
++        fs.rmdirSync(blobsPath);
++        const result = pm.verifyProject('VerifyMissingBlobs');
++        assert.ok(result.issues.some(i => i.includes('blobs')));
++    });
++
++    test('P042: verify project detects missing history directory', () => {
++        pm.createProject('VerifyMissingHistory');
++        const historyPath = path.join(tempDir, 'projects', 'VerifyMissingHistory', 'history');
++        fs.rmdirSync(historyPath);
++        const result = pm.verifyProject('VerifyMissingHistory');
++        assert.ok(result.issues.some(i => i.includes('history')));
++    });
++
++    test('P043: verify project detects missing chests directory', () => {
++        pm.createProject('VerifyMissingChests');
++        const chestsPath = path.join(tempDir, 'projects', 'VerifyMissingChests', 'chests');
++        fs.rmdirSync(chestsPath);
++        const result = pm.verifyProject('VerifyMissingChests');
++        assert.ok(result.issues.some(i => i.includes('chests')));
++    });
++
++    test('P044: verify project detects missing session.json', () => {
++        pm.createProject('VerifyMissingSession');
++        const sessionPath = path.join(tempDir, 'projects', 'VerifyMissingSession', 'session.json');
++        fs.unlinkSync(sessionPath);
++        const result = pm.verifyProject('VerifyMissingSession');
++        assert.ok(result.issues.some(i => i.includes('session.json')));
++    });
++
++    test('P045: verify project detects missing pipelines.json', () => {
++        pm.createProject('VerifyMissingPipelines');
++        const pipelinesPath = path.join(tempDir, 'projects', 'VerifyMissingPipelines', 'pipelines.json');
++        fs.unlinkSync(pipelinesPath);
++        const result = pm.verifyProject('VerifyMissingPipelines');
++        assert.ok(result.issues.some(i => i.includes('pipelines.json')));
++    });
++
++    test('P046: verify project detects missing recipes.json', () => {
++        pm.createProject('VerifyMissingRecipes');
++        const recipesPath = path.join(tempDir, 'projects', 'VerifyMissingRecipes', 'recipes.json');
++        fs.unlinkSync(recipesPath);
++        const result = pm.verifyProject('VerifyMissingRecipes');
++        assert.ok(result.issues.some(i => i.includes('recipes.json')));
++    });
++
++    test('P047: verify project recovers missing data directory', () => {
++        pm.createProject('VerifyRecoverData');
++        const dataPath = path.join(tempDir, 'projects', 'VerifyRecoverData', 'data');
++        fs.rmdirSync(dataPath);
++        const result = pm.verifyProject('VerifyRecoverData');
++        assert.equal(result.status, 'Recovered');
++        assert.ok(fs.existsSync(dataPath));
++    });
++
++    test('P048: verify project recovers missing blobs directory', () => {
++        pm.createProject('VerifyRecoverBlobs');
++        const blobsPath = path.join(tempDir, 'projects', 'VerifyRecoverBlobs', 'blobs');
++        fs.rmdirSync(blobsPath);
++        const result = pm.verifyProject('VerifyRecoverBlobs');
++        assert.equal(result.status, 'Recovered');
++        assert.ok(fs.existsSync(blobsPath));
++    });
++
++    test('P049: verify project recovers missing history directory', () => {
++        pm.createProject('VerifyRecoverHistory');
++        const historyPath = path.join(tempDir, 'projects', 'VerifyRecoverHistory', 'history');
++        fs.rmdirSync(historyPath);
++        const result = pm.verifyProject('VerifyRecoverHistory');
++        assert.equal(result.status, 'Recovered');
++        assert.ok(fs.existsSync(historyPath));
++    });
++
++    test('P050: verify project recovers missing chests directory', () => {
++        pm.createProject('VerifyRecoverChests');
++        const chestsPath = path.join(tempDir, 'projects', 'VerifyRecoverChests', 'chests');
++        fs.rmdirSync(chestsPath);
++        const result = pm.verifyProject('VerifyRecoverChests');
++        assert.equal(result.status, 'Recovered');
++        assert.ok(fs.existsSync(chestsPath));
++    });
++
++    test('P051: verify project recovers missing session.json', () => {
++        pm.createProject('VerifyRecoverSession');
++        const sessionPath = path.join(tempDir, 'projects', 'VerifyRecoverSession', 'session.json');
++        fs.unlinkSync(sessionPath);
++        const result = pm.verifyProject('VerifyRecoverSession');
++        assert.equal(result.status, 'Recovered');
++        assert.ok(fs.existsSync(sessionPath));
++    });
++
++    test('P052: verify project recovers missing pipelines.json', () => {
++        pm.createProject('VerifyRecoverPipelines');
++        const pipelinesPath = path.join(tempDir, 'projects', 'VerifyRecoverPipelines', 'pipelines.json');
++        fs.unlinkSync(pipelinesPath);
++        const result = pm.verifyProject('VerifyRecoverPipelines');
++        assert.equal(result.status, 'Recovered');
++        assert.ok(fs.existsSync(pipelinesPath));
++    });
++
++    test('P053: verify project recovers missing recipes.json', () => {
++        pm.createProject('VerifyRecoverRecipes');
++        const recipesPath = path.join(tempDir, 'projects', 'VerifyRecoverRecipes', 'recipes.json');
++        fs.unlinkSync(recipesPath);
++        const result = pm.verifyProject('VerifyRecoverRecipes');
++        assert.equal(result.status, 'Recovered');
++        assert.ok(fs.existsSync(recipesPath));
++    });
++
++    test('P054: verify project detects non-existent project', () => {
++        const result = pm.verifyProject('NonExistentVerify');
++        assert.ok(result.issues.some(i => i.includes('does not exist')));
++    });
++
++    test('P055: verify project returns correct fix count', () => {
++        pm.createProject('VerifyFixCount');
++        const dataPath = path.join(tempDir, 'projects', 'VerifyFixCount', 'data');
++        const blobsPath = path.join(tempDir, 'projects', 'VerifyFixCount', 'blobs');
++        fs.rmdirSync(dataPath);
++        fs.rmdirSync(blobsPath);
++        const result = pm.verifyProject('VerifyFixCount');
++        assert.equal(result.fixes.length, 2);
++    });
++
++    // ── Current Project Tests ────────────────────────────────
++
++    test('P056: set current project updates bootstrap config', () => {
++        pm.createProject('CurrentTest');
++        pm.setCurrentProject('CurrentTest');
++        assert.equal(pm.getCurrentProject(), 'CurrentTest');
++    });
++
++    test('P057: get current project returns empty string if not set', () => {
++        const pm2 = new ProjectManager(path.join(tempDir, 'projects2'));
++        assert.equal(pm2.getCurrentProject(), '');
++    });
++
++    test('P058: current project persists after rename', () => {
++        pm.createProject('CurrentPersist');
++        pm.setCurrentProject('CurrentPersist');
++        pm.renameProject('CurrentPersist', 'CurrentPersistRenamed');
++        assert.equal(pm.getCurrentProject(), 'CurrentPersistRenamed');
++    });
++
++    // ── Edge Cases ───────────────────────────────────────────
++
++    test('P059: create project with special characters in name', () => {
++        const result = pm.createProject('Test-Project_123');
++        assert.equal(result, true);
++    });
++
++    test('P060: create project with spaces in name', () => {
++        const result = pm.createProject('Test Project With Spaces');
++        assert.equal(result, true);
++    });
++
++    test('P061: rename project to same name returns false', () => {
++        pm.createProject('SameName');
++        const result = pm.renameProject('SameName', 'SameName');
++        assert.equal(result, false);
++    });
++
++    test('P062: duplicate project to same name returns false', () => {
++        pm.createProject('DupSameName');
++        const result = pm.duplicateProject('DupSameName', 'DupSameName');
++        assert.equal(result, false);
++    });
++
++    test('P063: delete project with nested data', () => {
++        pm.createProject('NestedDelete');
++        const nestedPath = path.join(tempDir, 'projects', 'NestedDelete', 'data', 'subdir');
++        ensureDir(nestedPath);
++        writeJson(path.join(nestedPath, 'file.json'), { test: true });
++        const result = pm.deleteProject('NestedDelete');
++        assert.equal(result, true);
++    });
++
++    test('P064: list projects sorts alphabetically when no order', () => {
++        const pm2 = new ProjectManager(path.join(tempDir, 'projects3'));
++        pm2.createProject('Zebra');
++        pm2.createProject('Apple');
++        pm2.createProject('Mango');
++        const projects = pm2.listProjects();
++        assert.deepEqual(projects, ['Apple', 'Mango', 'Zebra']);
++    });
++
++    test('P065: move project up multiple times', () => {
++        const pm2 = new ProjectManager(path.join(tempDir, 'p065'));
++        pm2.createProject('MultiUp1');
++        pm2.createProject('MultiUp2');
++        pm2.createProject('MultiUp3');
++        pm2.bootstrapConfig.projectOrder = ['MultiUp1', 'MultiUp2', 'MultiUp3'];
++        pm2.moveProject('MultiUp3', 'up');
++        pm2.moveProject('MultiUp3', 'up');
++        assert.deepEqual(pm2.bootstrapConfig.projectOrder, ['MultiUp3', 'MultiUp1', 'MultiUp2']);
++    });
++
++    test('P066: move project down multiple times', () => {
++        const pm2 = new ProjectManager(path.join(tempDir, 'p066'));
++        pm2.createProject('MultiDown1');
++        pm2.createProject('MultiDown2');
++        pm2.createProject('MultiDown3');
++        pm2.bootstrapConfig.projectOrder = ['MultiDown1', 'MultiDown2', 'MultiDown3'];
++        pm2.moveProject('MultiDown1', 'down');
++        pm2.moveProject('MultiDown1', 'down');
++        assert.deepEqual(pm2.bootstrapConfig.projectOrder, ['MultiDown2', 'MultiDown3', 'MultiDown1']);
++    });
++
++    test('P067: verify project with corrupted session.json', () => {
++        pm.createProject('CorruptSession');
++        const sessionPath = path.join(tempDir, 'projects', 'CorruptSession', 'session.json');
++        fs.writeFileSync(sessionPath, '{ invalid json', 'utf8');
++        const result = pm.verifyProject('CorruptSession');
++        // Corrupted JSON is still a file that exists, so no issue detected for missing file
++        // The verify function only checks for file existence, not content validity
++        assert.ok(fs.existsSync(sessionPath));
++    });
++
++    test('P068: duplicate project with large data files', () => {
++        pm.createProject('LargeDup');
++        const largePath = path.join(tempDir, 'projects', 'LargeDup', 'data', 'large.json');
++        const largeData = { data: 'x'.repeat(10000) };
++        writeJson(largePath, largeData);
++        pm.duplicateProject('LargeDup', 'LargeDupCopy');
++        const newPath = path.join(tempDir, 'projects', 'LargeDupCopy', 'data', 'large.json');
++        assert.ok(fs.existsSync(newPath));
++        const data = readJson(newPath);
++        assert.equal(data.data.length, 10000);
++    });
++
++    test('P069: rename project preserves all subdirectories', () => {
++        pm.createProject('SubdirsRename');
++        ensureDir(path.join(tempDir, 'projects', 'SubdirsRename', 'data', 'sub1'));
++        ensureDir(path.join(tempDir, 'projects', 'SubdirsRename', 'data', 'sub2'));
++        pm.renameProject('SubdirsRename', 'SubdirsRenamed');
++        const newPath = path.join(tempDir, 'projects', 'SubdirsRenamed', 'data');
++        assert.ok(fs.existsSync(path.join(newPath, 'sub1')));
++        assert.ok(fs.existsSync(path.join(newPath, 'sub2')));
++    });
++
++    test('P070: verify project with empty project directory', () => {
++        const emptyPath = path.join(tempDir, 'projects', 'EmptyVerify');
++        ensureDir(emptyPath);
++        const result = pm.verifyProject('EmptyVerify');
++        assert.ok(result.issues.length > 0);
++        assert.equal(result.status, 'Recovered');
++    });
++
++    // ── Integration Tests ────────────────────────────────────
++
++    test('P071: create, rename, verify workflow', () => {
++        pm.createProject('Workflow1');
++        pm.renameProject('Workflow1', 'Workflow1Renamed');
++        const result = pm.verifyProject('Workflow1Renamed');
++        assert.equal(result.status, 'OK');
++    });
++
++    test('P072: create, duplicate, delete workflow', () => {
++        pm.createProject('Workflow2');
++        pm.duplicateProject('Workflow2', 'Workflow2Copy');
++        pm.deleteProject('Workflow2');
++        const projects = pm.listProjects();
++        assert.ok(projects.includes('Workflow2Copy'));
++        assert.ok(!projects.includes('Workflow2'));
++    });
++
++    test('P073: create, reorder, verify order workflow', () => {
++        const pm2 = new ProjectManager(path.join(tempDir, 'p073'));
++        pm2.createProject('Workflow3A');
++        pm2.createProject('Workflow3B');
++        pm2.createProject('Workflow3C');
++        pm2.bootstrapConfig.projectOrder = ['Workflow3A', 'Workflow3B', 'Workflow3C'];
++        pm2.moveProject('Workflow3C', 'up');
++        pm2.moveProject('Workflow3C', 'up');
++        const projects = pm2.listProjects();
++        assert.deepEqual(projects, ['Workflow3C', 'Workflow3A', 'Workflow3B']);
++    });
++
++    test('P074: create, verify, recover workflow', () => {
++        pm.createProject('Workflow4');
++        const dataPath = path.join(tempDir, 'projects', 'Workflow4', 'data');
++        fs.rmdirSync(dataPath);
++        const result = pm.verifyProject('Workflow4');
++        assert.equal(result.status, 'Recovered');
++        assert.ok(fs.existsSync(dataPath));
++    });
++
++    test('P075: multiple projects with same prefix', () => {
++        pm.createProject('TestProject');
++        pm.createProject('TestProject2');
++        pm.createProject('TestProject3');
++        const projects = pm.listProjects();
++        assert.ok(projects.includes('TestProject'));
++        assert.ok(projects.includes('TestProject2'));
++        assert.ok(projects.includes('TestProject3'));
++    });
++
++    test('P076: duplicate and modify original', () => {
++        pm.createProject('ModifyOrig');
++        pm.duplicateProject('ModifyOrig', 'ModifyOrigCopy');
++        const origPath = path.join(tempDir, 'projects', 'ModifyOrig', 'data', 'test.json');
++        writeJson(origPath, { modified: true });
++        const copyPath = path.join(tempDir, 'projects', 'ModifyOrigCopy', 'data', 'test.json');
++        assert.ok(!fs.existsSync(copyPath));
++    });
++
++    test('P077: rename and duplicate renamed project', () => {
++        pm.createProject('RenameDup');
++        pm.renameProject('RenameDup', 'RenamedDup');
++        pm.duplicateProject('RenamedDup', 'RenamedDupCopy');
++        const projects = pm.listProjects();
++        assert.ok(projects.includes('RenamedDup'));
++        assert.ok(projects.includes('RenamedDupCopy'));
++    });
++
++    test('P078: verify project after duplicate', () => {
++        pm.createProject('VerifyDup');
++        pm.duplicateProject('VerifyDup', 'VerifyDupCopy');
++        const result = pm.verifyProject('VerifyDupCopy');
++        assert.equal(result.status, 'OK');
++    });
++
++    test('P079: reorder after rename', () => {
++        const pm2 = new ProjectManager(path.join(tempDir, 'p079'));
++        pm2.createProject('ReorderRename1');
++        pm2.createProject('ReorderRename2');
++        pm2.bootstrapConfig.projectOrder = ['ReorderRename1', 'ReorderRename2'];
++        pm2.renameProject('ReorderRename1', 'RenamedReorder');
++        pm2.moveProject('RenamedReorder', 'down');
++        assert.deepEqual(pm2.bootstrapConfig.projectOrder, ['ReorderRename2', 'RenamedReorder']);
++    });
++
++    test('P080: delete after reorder', () => {
++        pm.createProject('DeleteReorder1');
++        pm.createProject('DeleteReorder2');
++        pm.createProject('DeleteReorder3');
++        pm.bootstrapConfig.projectOrder = ['DeleteReorder1', 'DeleteReorder2', 'DeleteReorder3'];
++        pm.deleteProject('DeleteReorder2');
++        assert.ok(!pm.bootstrapConfig.projectOrder.includes('DeleteReorder2'));
++    });
++
++    // ── Stress Tests ─────────────────────────────────────────
++
++    test('P081: create many projects', () => {
++        const pm2 = new ProjectManager(path.join(tempDir, 'projects_stress'));
++        for (let i = 0; i < 20; i++) {
++            pm2.createProject(`StressProject${i}`);
++        }
++        const projects = pm2.listProjects();
++        assert.equal(projects.length, 20);
++    });
++
++    test('P082: reorder many projects', () => {
++        const pm2 = new ProjectManager(path.join(tempDir, 'p082'));
++        for (let i = 0; i < 10; i++) {
++            pm2.createProject(`ReorderProject${i}`);
++        }
++        pm2.bootstrapConfig.projectOrder = Array.from({ length: 10 }, (_, i) => `ReorderProject${i}`);
++        // Move last project to first position
++        for (let i = 0; i < 9; i++) {
++            pm2.moveProject('ReorderProject9', 'up');
++        }
++        const projects = pm2.listProjects();
++        assert.equal(projects[0], 'ReorderProject9');
++    });
++
++    test('P083: duplicate large project multiple times', () => {
++        pm.createProject('LargeStress');
++        const dataPath = path.join(tempDir, 'projects', 'LargeStress', 'data', 'large.json');
++        writeJson(dataPath, { data: 'x'.repeat(5000) });
++        for (let i = 0; i < 5; i++) {
++            pm.duplicateProject('LargeStress', `LargeStressCopy${i}`);
++        }
++        const projects = pm.listProjects();
++        assert.ok(projects.filter(p => p.startsWith('LargeStressCopy')).length === 5);
++    });
++
++    test('P084: verify many projects', () => {
++        const pm2 = new ProjectManager(path.join(tempDir, 'projects_verify'));
++        for (let i = 0; i < 10; i++) {
++            pm2.createProject(`VerifyProject${i}`);
++        }
++        for (let i = 0; i < 10; i++) {
++            const result = pm2.verifyProject(`VerifyProject${i}`);
++            assert.equal(result.status, 'OK');
++        }
++    });
++
++    // ── Boundary Tests ───────────────────────────────────────
++
++    test('P085: move single project up returns false', () => {
++        pm.createProject('SingleMove');
++        pm.bootstrapConfig.projectOrder = ['SingleMove'];
++        const result = pm.moveProject('SingleMove', 'up');
++        assert.equal(result, false);
++    });
++
++    test('P086: move single project down returns false', () => {
++        const pm2 = new ProjectManager(path.join(tempDir, 'p086'));
++        pm2.createProject('SingleMoveDown');
++        pm2.bootstrapConfig.projectOrder = ['SingleMoveDown'];
++        const result = pm2.moveProject('SingleMoveDown', 'down');
++        assert.equal(result, false);
++    });
++
++    test('P087: rename to empty string returns false', () => {
++        pm.createProject('RenameEmpty');
++        const result = pm.renameProject('RenameEmpty', '');
++        assert.equal(result, false);
++    });
++
++    test('P088: duplicate to empty string returns false', () => {
++        pm.createProject('DupEmpty');
++        const result = pm.duplicateProject('DupEmpty', '');
++        assert.equal(result, false);
++    });
++
++    test('P089: verify project with only data directory', () => {
++        const partialPath = path.join(tempDir, 'projects', 'PartialVerify');
++        ensureDir(path.join(partialPath, 'data'));
++        const result = pm.verifyProject('PartialVerify');
++        assert.ok(result.issues.length > 0);
++    });
++
++    test('P090: delete project with all files removed manually', () => {
++        pm.createProject('ManualDelete');
++        const projPath = path.join(tempDir, 'projects', 'ManualDelete');
++        const files = fs.readdirSync(projPath, { withFileTypes: true });
++        for (const file of files) {
++            const fullPath = path.join(projPath, file.name);
++            if (file.isDirectory()) {
++                deleteDirSync(fullPath);
++            } else {
++                fs.unlinkSync(fullPath);
++            }
++        }
++        const result = pm.deleteProject('ManualDelete');
++        assert.equal(result, true);
++    });
++
++    // ── Data Integrity Tests ─────────────────────────────────
++
++    test('P091: duplicate preserves tab data content', () => {
++        pm.createProject('TabDataDup');
++        const tabPath = path.join(tempDir, 'projects', 'TabDataDup', 'data', 'general.json');
++        writeJson(tabPath, { title: 'Test', content: 'Content' });
++        pm.duplicateProject('TabDataDup', 'TabDataDupCopy');
++        const copyTabPath = path.join(tempDir, 'projects', 'TabDataDupCopy', 'data', 'general.json');
++        const data = readJson(copyTabPath);
++        assert.equal(data.title, 'Test');
++        assert.equal(data.content, 'Content');
++    });
++
++    test('P092: rename preserves tab data content', () => {
++        pm.createProject('TabDataRename');
++        const tabPath = path.join(tempDir, 'projects', 'TabDataRename', 'data', 'general.json');
++        writeJson(tabPath, { title: 'Test', content: 'Content' });
++        pm.renameProject('TabDataRename', 'TabDataRenamed');
++        const newTabPath = path.join(tempDir, 'projects', 'TabDataRenamed', 'data', 'general.json');
++        const data = readJson(newTabPath);
++        assert.equal(data.title, 'Test');
++        assert.equal(data.content, 'Content');
++    });
++
++    test('P093: duplicate preserves multiple tabs', () => {
++        pm.createProject('MultiTabDup');
++        const sessionPath = path.join(tempDir, 'projects', 'MultiTabDup', 'session.json');
++        writeJson(sessionPath, { tabs: [{ name: 'Tab1', file: 'tab1.json' }, { name: 'Tab2', file: 'tab2.json' }] });
++        pm.duplicateProject('MultiTabDup', 'MultiTabDupCopy');
++        const copySessionPath = path.join(tempDir, 'projects', 'MultiTabDupCopy', 'session.json');
++        const session = readJson(copySessionPath);
++        assert.equal(session.tabs.length, 2);
++    });
++
++    test('P094: verify recovers with correct default session', () => {
++        pm.createProject('RecoverSession');
++        const sessionPath = path.join(tempDir, 'projects', 'RecoverSession', 'session.json');
++        fs.unlinkSync(sessionPath);
++        pm.verifyProject('RecoverSession');
++        const session = readJson(sessionPath);
++        assert.equal(session.tabs.length, 1);
++        assert.equal(session.tabs[0].name, 'General');
++    });
++
++    test('P095: verify recovers with correct default pipelines', () => {
++        pm.createProject('RecoverPipelines');
++        const pipelinesPath = path.join(tempDir, 'projects', 'RecoverPipelines', 'pipelines.json');
++        fs.unlinkSync(pipelinesPath);
++        pm.verifyProject('RecoverPipelines');
++        const pipelines = readJson(pipelinesPath);
++        assert.deepEqual(pipelines.pipelines, []);
++    });
++
++    test('P096: verify recovers with correct default recipes', () => {
++        pm.createProject('RecoverRecipes');
++        const recipesPath = path.join(tempDir, 'projects', 'RecoverRecipes', 'recipes.json');
++        fs.unlinkSync(recipesPath);
++        pm.verifyProject('RecoverRecipes');
++        const recipes = readJson(recipesPath);
++        assert.deepEqual(recipes, []);
++    });
++
++    // ── Concurrent Operation Tests ───────────────────────────
++
++    test('P097: create after delete same name', () => {
++        pm.createProject('ReuseName');
++        pm.deleteProject('ReuseName');
++        const result = pm.createProject('ReuseName');
++        assert.equal(result, true);
++    });
++
++    test('P098: rename after rename', () => {
++        pm.createProject('DoubleRename');
++        pm.renameProject('DoubleRename', 'DoubleRename1');
++        const result = pm.renameProject('DoubleRename1', 'DoubleRename2');
++        assert.equal(result, true);
++    });
++
++    test('P099: duplicate after duplicate', () => {
++        pm.createProject('DoubleDup');
++        pm.duplicateProject('DoubleDup', 'DoubleDup1');
++        const result = pm.duplicateProject('DoubleDup1', 'DoubleDup2');
++        assert.equal(result, true);
++    });
++
++    test('P100: complex workflow - create, duplicate, rename, reorder, verify', () => {
++        const pm2 = new ProjectManager(path.join(tempDir, 'p100'));
++        pm2.createProject('Complex1');
++        pm2.createProject('Complex2');
++        pm2.duplicateProject('Complex1', 'Complex1Copy');
++        pm2.renameProject('Complex2', 'Complex2Renamed');
++        pm2.bootstrapConfig.projectOrder = ['Complex1', 'Complex1Copy', 'Complex2Renamed'];
++        pm2.moveProject('Complex2Renamed', 'up');
++        pm2.moveProject('Complex2Renamed', 'up');
++        const result = pm2.verifyProject('Complex1Copy');
++        assert.equal(result.status, 'OK');
++        const projects = pm2.listProjects();
++        assert.deepEqual(projects, ['Complex2Renamed', 'Complex1', 'Complex1Copy']);
++    });
++});
++

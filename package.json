@@ -1,0 +1,14 @@
+{
+  "name": "wend",
+  "version": "0.1.0",
+  "description": "Wend - AI Pipeline Editor",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix electron start",
+    "build": "npm --prefix electron run build",
+    "test": "npm --prefix electron test"
+  },
+  "dependencies": {
+    "behavior3": "^1.3.0"
+  }
+}

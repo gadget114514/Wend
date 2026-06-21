@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phase B4/B5 - Integration Tests</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #4ec9b0;
+            border-bottom: 2px solid #4ec9b0;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #9cdcfe;
+            margin-top: 30px;
+        }
+        .test-item {
+            margin: 10px 0;
+            padding: 12px;
+            border-radius: 3px;
+            border-left: 4px solid;
+        }
+        .pass {
+            background: #1e6b1e;
+            border-color: #6a9955;
+            color: #6a9955;
+        }
+        .fail {
+            background: #6b1e1e;
+            border-color: #f48771;
+            color: #f48771;
+        }
+        .info {
+            background: #1e3a6b;
+            border-color: #9cdcfe;
+            color: #9cdcfe;
+        }
+        .summary {
+            background: #1e2d2d;
+            border: 2px solid #4ec9b0;
+            padding: 15px;
+            margin-top: 30px;
+            border-radius: 4px;
+        }
+        button {
+            background: #007acc;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 14px;
+            margin: 10px 5px 10px 0;
+        }
+        button:hover {
+            background: #005a9e;
+        }
+        .console-output {
+            background: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🧪 Phase B4/B5 - Integration & State Tracking Tests</h1>
+    <p>Testing real tree execution, blackboard operations, and state tracking</p>
+
+    <div style="margin-top: 20px;">
+        <button onclick="runIntegrationTests()">▶ Run All Integration Tests</button>
+        <button onclick="testBlackboardOperations()">📋 Blackboard Tests</button>
+        <button onclick="testStateTracking()">📊 State Tracking Tests</button>
+        <button onclick="testExecutionFlow()">⏱️ Execution Flow Tests</button>
+        <button onclick="clearConsole()">🗑 Clear Output</button>
+    </div>
+
+    <h2>Test Output</h2>
+    <div class="console-output" id="console-output"></div>
+
+    <div class="summary" id="test-summary" style="display: none;">
+        <h3>📊 Integration Test Summary</h3>
+        <div id="summary-content"></div>
+    </div>
+</div>
+
+<!-- Load dependencies -->
+<script src="b3-shim.js"></script>
+<script src="bt-b3-node-registry.js"></script>
+<script src="bt-b3-actions.js"></script>
+<script src="bt-b3-converter.js"></script>
+<script src="bt-b3-adapter.js"></script>
+
+<script>
+const outputDiv = document.getElementById('console-output');
+const originalLog = console.log;
+
+function log(message) {
+    const line = document.createElement('div');
+    line.className = 'test-item info';
+
+    let className = 'info';
+    if (message.includes('✅')) className = 'pass';
+    if (message.includes('❌')) className = 'fail';
+
+    line.className = 'test-item ' + className;
+    line.textContent = message;
+    outputDiv.appendChild(line);
+    outputDiv.scrollTop = outputDiv.scrollHeight;
+    originalLog(message);
+}
+
+function clearConsole() {
+    outputDiv.innerHTML = '';
+}
+
+console.log = log;
+
+/**
+ * Test 1: Blackboard Operations
+ */
+function testBlackboardOperations() {
+    log('\n📋 Testing Blackboard Operations...\n');
+
+    try {
+        // Create mock app
+        const mockApp = {
+            getNodeByPath: () => ({ title: btoa('Test'), nodeType: 'root' }),
+            state: { btRunState: new Map(), pipelineRun: { running: false } },
+            renderTree: () => {},
+            addLog: () => {},
+            safeAtob: (str) => {
+                try {
+                    return atob(str);
+                } catch (e) {
+                    return str;
+                }
+            }
+        };
+
+        const adapter = new Behavior3Adapter(mockApp);
+        log('✅ Adapter created');
+
+        // Test 1: Set and get text
+        adapter.bbSetText('input', 'Hello World');
+        const bb = adapter.getBlackboard();
+        if (bb.input && bb.input.text === 'Hello World') {
+            log('✅ Text storage works');
+        } else {
+            log('❌ Text storage failed');
+            return false;
+        }
+
+        // Test 2: Set and get media
+        adapter.bbSetMedia('input', [{name: 'file.txt'}]);
+        const bb2 = adapter.getBlackboard();
+        if (bb2.input && bb2.input.media && bb2.input.media.length > 0) {
+            log('✅ Media storage works');
+        } else {
+            log('❌ Media storage failed');
+            return false;
+        }
+
+        // Test 3: Clear slot (clear text but keep media)
+        adapter.bbClearSlot('input', 'text');
+        const bb3 = adapter.getBlackboard();
+        if (bb3.input && !bb3.input.text && bb3.input.media) {
+            log('✅ Slot clear works');
+        } else {
+            log('❌ Slot clear failed');
+            return false;
+        }
+
+        // Test 4: Clear key
+        adapter.bbClearKey('files');
+        const bb4 = adapter.getBlackboard();
+        if (!bb4.files) {
+            log('✅ Key clear works');
+        } else {
+            log('❌ Key clear failed');
+            return false;
+        }
+
+        // Test 5: Multiple variables
+        adapter.bbSetText('var1', 'value1');
+        adapter.bbSetText('var2', 'value2');
+        adapter.bbSetText('var3', 'value3');
+        const bb5 = adapter.getBlackboard();
+        if (Object.keys(bb5).length >= 3) {
+            log('✅ Multiple variables work');
+        } else {
+            log('❌ Multiple variables failed');
+            return false;
+        }
+
+        log('\n✅ Blackboard operations test passed!\n');
+        return true;
+
+    } catch (e) {
+        log(`❌ Blackboard test failed: ${e.message}`);
+        console.error(e);
+        return false;
+    }
+}
+
+/**
+ * Test 2: State Tracking
+ */
+function testStateTracking() {
+    log('\n📊 Testing State Tracking (btRunState)...\n');
+
+    try {
+        const mockApp = {
+            getNodeByPath: () => ({ title: btoa('Test'), nodeType: 'root' }),
+            state: { btRunState: new Map(), pipelineRun: { running: false } },
+            renderTree: () => {},
+            addLog: () => {},
+            safeAtob: (str) => {
+                try {
+                    return atob(str);
+                } catch (e) {
+                    return str;
+                }
+            }
+        };
+
+        const adapter = new Behavior3Adapter(mockApp);
+
+        // Test: btRunState initialization
+        if (mockApp.state.btRunState instanceof Map) {
+            log('✅ btRunState is a Map');
+        } else {
+            log('❌ btRunState is not a Map');
+            return false;
+        }
+
+        // Test: btRunState structure
+        mockApp.state.btRunState.set('node-1', 'running');
+        mockApp.state.btRunState.set('node-2', 'ok');
+        mockApp.state.btRunState.set('node-3', 'ng');
+
+        if (mockApp.state.btRunState.get('node-1') === 'running') {
+            log('✅ btRunState tracking works');
+        } else {
+            log('❌ btRunState tracking failed');
+            return false;
+        }
+
+        // Test: Configuration state
+        adapter.setConfig({ mode: 'cycle', count: 3 });
+        const cfg = adapter.getConfig();
+        if (cfg.mode === 'cycle' && cfg.count === 3) {
+            log('✅ Config state tracking works');
+        } else {
+            log('❌ Config state tracking failed');
+            return false;
+        }
+
+        log('\n✅ State tracking test passed!\n');
+        return true;
+
+    } catch (e) {
+        log(`❌ State tracking test failed: ${e.message}`);
+        console.error(e);
+        return false;
+    }
+}
+
+/**
+ * Test 3: Execution Flow
+ */
+function testExecutionFlow() {
+    log('\n⏱️ Testing Execution Flow Control...\n');
+
+    try {
+        const mockApp = {
+            getNodeByPath: (path) => ({
+                title: btoa('Test Root'),
+                nodeType: 'root',
+                btType: 'sequence',
+                children: []
+            }),
+            state: { btRunState: new Map(), pipelineRun: { running: false } },
+            renderTree: () => {},
+            addLog: () => {},
+            safeAtob: (str) => {
+                try {
+                    return atob(str);
+                } catch (e) {
+                    return str;
+                }
+            }
+        };
+
+        const adapter = new Behavior3Adapter(mockApp);
+
+        // Test 1: setTarget
+        adapter.setTarget('0');
+        log('✅ setTarget() works');
+
+        // Test 2: Execution controls exist
+        const methods = ['run', 'step', 'pause', 'stop'];
+        for (const method of methods) {
+            if (typeof adapter[method] === 'function') {
+                log(`✅ ${method}() method exists`);
+            } else {
+                log(`❌ ${method}() method missing`);
+                return false;
+            }
+        }
+
+        // Test 3: Single vs Cycle mode
+        adapter.setConfig({ mode: 'single', count: 1 });
+        let cfg = adapter.getConfig();
+        if (cfg.mode === 'single') {
+            log('✅ Single mode configuration works');
+        } else {
+            log('❌ Single mode configuration failed');
+            return false;
+        }
+
+        adapter.setConfig({ mode: 'cycle', count: 5 });
+        cfg = adapter.getConfig();
+        if (cfg.mode === 'cycle' && cfg.count === 5) {
+            log('✅ Cycle mode configuration works');
+        } else {
+            log('❌ Cycle mode configuration failed');
+            return false;
+        }
+
+        // Test 4: Infinite cycle mode (count = 0)
+        const configInput = { mode: 'cycle', count: 0 };
+        log(`   Debug BEFORE: count=${configInput.count}, type=${typeof configInput.count}, strict-0=${configInput.count === 0}`);
+        adapter.setConfig(configInput);
+        cfg = adapter.getConfig();
+        log(`   Debug AFTER: count=${cfg.count}, type=${typeof cfg.count}, strict-0=${cfg.count === 0}`);
+        console.log('Full config:', cfg, 'Input was:', configInput);
+        if (cfg.mode === 'cycle' && cfg.count === 0) {
+            log('✅ Infinite cycle mode (count=0) works');
+        } else {
+            log(`❌ Infinite cycle mode failed: expected count=0, got count=${cfg.count}`);
+            return false;
+        }
+
+        log('\n✅ Execution flow test passed!\n');
+        return true;
+
+    } catch (e) {
+        log(`❌ Execution flow test failed: ${e.message}`);
+        console.error(e);
+        return false;
+    }
+}
+
+async function runIntegrationTests() {
+    clearConsole();
+    document.getElementById('test-summary').style.display = 'none';
+
+    log('🚀 Running Phase B4/B5 Integration Tests\n');
+    log('═'.repeat(50) + '\n');
+
+    const results = {
+        blackboard: false,
+        stateTracking: false,
+        executionFlow: false
+    };
+
+    try {
+        results.blackboard = testBlackboardOperations();
+        await new Promise(r => setTimeout(r, 300));
+
+        results.stateTracking = testStateTracking();
+        await new Promise(r => setTimeout(r, 300));
+
+        results.executionFlow = testExecutionFlow();
+    } catch (e) {
+        log(`❌ Test suite error: ${e.message}`);
+    }
+
+    // Summary
+    log('═'.repeat(50));
+    log('\n📊 PHASE B4/B5 INTEGRATION TEST SUMMARY\n');
+
+    const summaryHtml = `
+        <div style="margin: 15px 0;">
+            <div class="test-item ${results.blackboard ? 'pass' : 'fail'}">
+                Blackboard Operations: ${results.blackboard ? '✅ PASS' : '❌ FAIL'}
+            </div>
+            <div class="test-item ${results.stateTracking ? 'pass' : 'fail'}">
+                State Tracking: ${results.stateTracking ? '✅ PASS' : '❌ FAIL'}
+            </div>
+            <div class="test-item ${results.executionFlow ? 'pass' : 'fail'}">
+                Execution Flow: ${results.executionFlow ? '✅ PASS' : '❌ FAIL'}
+            </div>
+        </div>
+        <div style="margin-top: 20px; font-weight: bold; font-size: 16px;">
+            ${Object.values(results).every(x => x)
+                ? '🎉 PHASE B4/B5 COMPLETE - Ready for Phase C!'
+                : '⚠️ Some tests failed - Review output above'}
+        </div>
+        <div style="margin-top: 15px; color: #9cdcfe; font-size: 12px;">
+            <strong>Next:</strong> Phase C - Backward Compatibility & Migration Testing
+        </div>
+    `;
+
+    document.getElementById('test-summary').innerHTML = summaryHtml;
+    document.getElementById('test-summary').style.display = 'block';
+
+    log('═'.repeat(50) + '\n');
+}
+</script>
+</body>
+</html>

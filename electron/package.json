@@ -1,0 +1,17 @@
+{
+  "name": "wend",
+  "version": "0.1.0",
+  "description": "Wend - AI Pipeline Editor",
+  "author": "Ecode",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-packager . Wend --platform=win32 --arch=x64 --out=../bin/Release --overwrite --asar --icon=../images/app.ico --extra-resource=../frontend --extra-resource=../images/app.png --extra-resource=../images/app.ico --ignore='\\.gitignore' --ignore='build\\.sh' --ignore='bin' --ignore='dist' --ignore='test\\.js' && (if exist ..\\bin\\Release\\Wend rmdir /s /q ..\\bin\\Release\\Wend) && move ..\\bin\\Release\\Wend-win32-x64 ..\\bin\\Release\\Wend",
+    "test": "node --test test.js",
+    "verify": "node --test test_build.js"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "@electron/packager": "^18.3.5"
+  }
+}
