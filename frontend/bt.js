@@ -2,8 +2,8 @@
  * BehaviorTreeEngine — BT execution engine
  *
  * Uses the following from app object:
- *   app.getNodeByPath(path)
- *   app.state.btRunState  (Map)
+ *   app.getNodeByPath(path, this.runId)
+ *   this._runState  (Map)
  *   app.state.pipelineRun.running
  *   app.renderTree()
  *   app.addLog(msg)
@@ -23,6 +23,9 @@ class BehaviorTreeEngine {
         // project scope lives on app (shared across tabs); accessed via _projScope()
         // Execution config: mode='single'|'cycle', count=repeat count (0=infinite)
         this._config = { mode: 'single', count: 1 };
+        this._runState = new Map();
+        this._promptTokens = 0;
+        this._completionTokens = 0;
         this._lastLeafError = null;   // set when a leaf fails with a real error (not semantic false)
         if (this._app && this._app.addLog) {
             this._app.addLog('[BT Engine] Using custom BehaviorTreeEngine (bt.js)');
@@ -181,11 +184,11 @@ class BehaviorTreeEngine {
 
     setTarget(path) {
         const app = this._app;
-        const node = app.getNodeByPath(path);
+        const node = app.getNodeByPath(path, this.runId);
         if (!node) return;
         this._ctrl = { targetPath: path, mode: 'idle' };
         this._stepResolve = null;
-        app.state.btRunState = new Map();
+        this._runState.clear();
         app.renderTree();
         this._updateToolbar();
         const label = node.title ? atob(node.title) : path;
@@ -318,6 +321,8 @@ class BehaviorTreeEngine {
     }
 
     async _execute(path) {
+        this._promptTokens = 0;
+        this._completionTokens = 0;
         const app = this._app;
         if (app.state.pipelineRun.running) {
             app.addLog('⚠ Pipeline is already running');
@@ -340,7 +345,7 @@ class BehaviorTreeEngine {
             while (iter < maxIter) {
                 iter++;
                 this._blackboard = {};  // Reset blackboard for each cycle
-                app.state.btRunState = new Map();
+                this._runState.clear();
                 app.renderTree();
                 if (isCycle && maxIter !== Infinity) {
                     app.addLog(`🔁 Cycle ${iter}/${cfg.count}`);
@@ -382,9 +387,9 @@ class BehaviorTreeEngine {
         }
 
         // If interrupted by error or stop, change any remaining 'running' nodes to 'ng'
-        if (app.state.btRunState) {
-            for (const [k, v] of app.state.btRunState) {
-                if (v === 'running') app.state.btRunState.set(k, 'ng');
+        if (this._runState) {
+            for (const [k, v] of this._runState) {
+                if (v === 'running') this._runState.set(k, 'ng');
             }
         }
 
@@ -395,23 +400,23 @@ class BehaviorTreeEngine {
 
     async _runNode(path) {
         const app = this._app;
-        const node = app.getNodeByPath(path);
+        const node = app.getNodeByPath(path, this.runId);
         if (!node) return false;
 
-        if (!app.state.btRunState) app.state.btRunState = new Map();
+        if (!this._runState) this._runState.clear();
 
         const ctrl = this._ctrl;
 
         const nt = node.nodeType;
         if (nt === 'data' || nt === 'placeholder') {
-            app.state.btRunState.set(path, 'ok');
+            this._runState.set(path, 'ok');
             app.renderTree();
             return true;
         }
 
         const isRoot = nt === 'root' || (!nt && path === '');
         const effectiveBtType = node.btType || (isRoot ? 'sequence' : 'leaf');
-        const _leafTypes = ['leaf', 'leaf_ai', 'leaf_math', 'leaf_file', 'leaf_web', 'leaf_misc', 'math', 'file', 'web', 'misc'];
+        const _leafTypes = ['leaf', 'leaf_ai', 'leaf_math', 'leaf_file', 'leaf_web', 'leaf_misc', 'leaf_next', 'math', 'file', 'web', 'misc'];
         const _decoratorTypes = ['invert', 'repeater', 'retry', 'alwaysSucceed', 'alwaysFail', 'guard', 'delay', 'maxTime'];
         const _compositeTypes = ['sequence', 'selector', 'parallel', 'memSequence', 'memSelector'];
         const _memCompositeTypes = ['memSequence', 'memSelector'];
@@ -429,7 +434,7 @@ class BehaviorTreeEngine {
                     if (signal === 'run') { ctrl.mode = 'running'; this._updateToolbar(); }
                 }
             }
-            app.state.btRunState.set(path, 'running');
+            this._runState.set(path, 'running');
             app.renderTree();
             this._lastLeafError = null;
             let ok = await this._runLeaf(path);
@@ -441,7 +446,7 @@ class BehaviorTreeEngine {
                 this._lastLeafError = null;
                 ctrl.mode = 'error_paused';
                 this._updateToolbar();
-                app.state.btRunState.set(path, 'error');
+                this._runState.set(path, 'error');
                 app.renderTree();
                 app.addLog(`⏸ Paused at error node [${path}]\n${errMsg}\n→ Fix the issue then click ↺ Retry Node, or ⏹ Stop`);
 
@@ -452,7 +457,7 @@ class BehaviorTreeEngine {
                     // Re-run this exact leaf in-place, blackboard state intact
                     ctrl.mode = 'running';
                     this._updateToolbar();
-                    app.state.btRunState.set(path, 'running');
+                    this._runState.set(path, 'running');
                     app.renderTree();
                     this._lastLeafError = null;
                     ok = await this._runLeaf(path);
@@ -465,17 +470,17 @@ class BehaviorTreeEngine {
                 }
             }
 
-            app.state.btRunState.set(path, ok ? 'ok' : 'ng');
+            this._runState.set(path, ok ? 'ok' : 'ng');
             app.renderTree();
             return ok;
         }
 
         if (isDecorator) {
-            app.state.btRunState.set(path, 'running');
+            this._runState.set(path, 'running');
             app.renderTree();
             const ok = await this._runDecorator(effectiveBtType, path, node);
             if (ctrl && ctrl.mode === 'stopped') throw new Error('BT_STOPPED');
-            app.state.btRunState.set(path, ok ? 'ok' : 'ng');
+            this._runState.set(path, ok ? 'ok' : 'ng');
             app.renderTree();
             return ok;
         }
@@ -487,11 +492,11 @@ class BehaviorTreeEngine {
             const compositePart = parts.pop();
             const decoratorParts = parts;
             if (decoratorParts.every(d => _decoratorTypes.includes(d)) && _compositeTypes.includes(compositePart)) {
-                app.state.btRunState.set(path, 'running');
+                this._runState.set(path, 'running');
                 app.renderTree();
                 const ok = await this._runDecoratedComposite(decoratorParts, compositePart, path, node);
                 if (ctrl && ctrl.mode === 'stopped') throw new Error('BT_STOPPED');
-                app.state.btRunState.set(path, ok ? 'ok' : 'ng');
+                this._runState.set(path, ok ? 'ok' : 'ng');
                 app.renderTree();
                 return ok;
             }
@@ -499,7 +504,7 @@ class BehaviorTreeEngine {
 
         if (ctrl && ctrl.mode === 'stopped') throw new Error('BT_STOPPED');
 
-        app.state.btRunState.set(path, 'running');
+        this._runState.set(path, 'running');
         app.renderTree();
 
         const childEntries = (node.children || []).map((c, i) => ({ c, i }));
@@ -510,14 +515,14 @@ class BehaviorTreeEngine {
                 const ok = await this._runNode(makePath(i));
                 if (!ok) {
                     for (const { i: j } of childEntries.filter(e => e.i > i)) {
-                        app.state.btRunState.set(makePath(j), 'skipped');
+                        this._runState.set(makePath(j), 'skipped');
                     }
-                    app.state.btRunState.set(path, 'ng');
+                    this._runState.set(path, 'ng');
                     app.renderTree();
                     return false;
                 }
             }
-            app.state.btRunState.set(path, 'ok');
+            this._runState.set(path, 'ok');
             app.renderTree();
             return true;
         }
@@ -527,14 +532,14 @@ class BehaviorTreeEngine {
                 const ok = await this._runNode(makePath(i));
                 if (ok) {
                     for (const { i: j } of childEntries.filter(e => e.i > i)) {
-                        app.state.btRunState.set(makePath(j), 'skipped');
+                        this._runState.set(makePath(j), 'skipped');
                     }
-                    app.state.btRunState.set(path, 'ok');
+                    this._runState.set(path, 'ok');
                     app.renderTree();
                     return true;
                 }
             }
-            app.state.btRunState.set(path, 'ng');
+            this._runState.set(path, 'ng');
             app.renderTree();
             return false;
         }
@@ -543,47 +548,47 @@ class BehaviorTreeEngine {
             const promises = childEntries.map(({ i }) => this._runNode(makePath(i)));
             const results = await Promise.all(promises);
             const success = results.every(r => r);
-            app.state.btRunState.set(path, success ? 'ok' : 'ng');
+            this._runState.set(path, success ? 'ok' : 'ng');
             app.renderTree();
             return success;
         }
 
         if (effectiveBtType === 'memSequence') {
-            const startIndex = app.state.btRunState.get(path + '/_index') || 0;
+            const startIndex = this._runState.get(path + '/_index') || 0;
             for (let i = startIndex; i < childEntries.length; i++) {
                 const ok = await this._runNode(makePath(i));
                 if (!ok) {
-                    app.state.btRunState.set(path + '/_index', i);
+                    this._runState.set(path + '/_index', i);
                     for (const { i: j } of childEntries.filter(e => e.i > i)) {
-                        app.state.btRunState.set(makePath(j), 'skipped');
+                        this._runState.set(makePath(j), 'skipped');
                     }
-                    app.state.btRunState.set(path, 'ng');
+                    this._runState.set(path, 'ng');
                     app.renderTree();
                     return false;
                 }
             }
-            app.state.btRunState.delete(path + '/_index');
-            app.state.btRunState.set(path, 'ok');
+            this._runState.delete(path + '/_index');
+            this._runState.set(path, 'ok');
             app.renderTree();
             return true;
         }
 
         if (effectiveBtType === 'memSelector') {
-            const startIndex = app.state.btRunState.get(path + '/_index') || 0;
+            const startIndex = this._runState.get(path + '/_index') || 0;
             for (let i = startIndex; i < childEntries.length; i++) {
                 const ok = await this._runNode(makePath(i));
                 if (ok) {
-                    app.state.btRunState.delete(path + '/_index');
+                    this._runState.delete(path + '/_index');
                     for (const { i: j } of childEntries.filter(e => e.i > i)) {
-                        app.state.btRunState.set(makePath(j), 'skipped');
+                        this._runState.set(makePath(j), 'skipped');
                     }
-                    app.state.btRunState.set(path, 'ok');
+                    this._runState.set(path, 'ok');
                     app.renderTree();
                     return true;
                 }
             }
-            app.state.btRunState.delete(path + '/_index');
-            app.state.btRunState.set(path, 'ng');
+            this._runState.delete(path + '/_index');
+            this._runState.set(path, 'ng');
             app.renderTree();
             return false;
         }
@@ -690,28 +695,28 @@ class BehaviorTreeEngine {
         const makePath = i => path + '/' + i;
 
         if (compositeType === 'sequence' || compositeType === 'memSequence') {
-            const startIndex = compositeType === 'memSequence' ? (this._app.state.btRunState.get(path + '/_index') || 0) : 0;
+            const startIndex = compositeType === 'memSequence' ? (this._runState.get(path + '/_index') || 0) : 0;
             for (let i = startIndex; i < childEntries.length; i++) {
                 const ok = await this._runNode(makePath(i));
                 if (!ok) {
-                    if (compositeType === 'memSequence') this._app.state.btRunState.set(path + '/_index', i);
+                    if (compositeType === 'memSequence') this._runState.set(path + '/_index', i);
                     return false;
                 }
             }
-            if (compositeType === 'memSequence') this._app.state.btRunState.delete(path + '/_index');
+            if (compositeType === 'memSequence') this._runState.delete(path + '/_index');
             return true;
         }
 
         if (compositeType === 'selector' || compositeType === 'memSelector') {
-            const startIndex = compositeType === 'memSelector' ? (this._app.state.btRunState.get(path + '/_index') || 0) : 0;
+            const startIndex = compositeType === 'memSelector' ? (this._runState.get(path + '/_index') || 0) : 0;
             for (let i = startIndex; i < childEntries.length; i++) {
                 const ok = await this._runNode(makePath(i));
                 if (ok) {
-                    if (compositeType === 'memSelector') this._app.state.btRunState.delete(path + '/_index');
+                    if (compositeType === 'memSelector') this._runState.delete(path + '/_index');
                     return true;
                 }
             }
-            if (compositeType === 'memSelector') this._app.state.btRunState.delete(path + '/_index');
+            if (compositeType === 'memSelector') this._runState.delete(path + '/_index');
             return false;
         }
 
@@ -819,7 +824,7 @@ class BehaviorTreeEngine {
 
     _runLeaf(path) {
         const app  = this._app;
-        const node = app.getNodeByPath(path);
+        const node = app.getNodeByPath(path, this.runId);
 
         const btType = node?.btType || 'leaf';
         if (btType === 'leaf_file' || btType === 'file' || node?.btAction === 'loadLocalFile') {
@@ -833,6 +838,9 @@ class BehaviorTreeEngine {
         }
         if (btType === 'leaf_misc' || btType === 'misc') {
             return this._runMisc(path, node);
+        }
+        if (btType === 'leaf_next') {
+            return this._runNext(path, node);
         }
         return this._runAI(path, node);
     }
@@ -881,6 +889,12 @@ class BehaviorTreeEngine {
             const callback = (meta) => {
                 app.state.btRunContext = null;
                 this._pendingCallbacks.delete(requestId);  // cleanup
+                if (meta.steps && Array.isArray(meta.steps)) {
+                    for (const step of meta.steps) {
+                        this._promptTokens += step.promptTokens || 0;
+                        this._completionTokens += step.completionTokens || 0;
+                    }
+                }
                 if (meta?._stopped) { resolve(false); return; }
                 if (!meta.error && outputKey) {
                     if (meta.outputContent != null) {
@@ -1064,7 +1078,8 @@ class BehaviorTreeEngine {
         }
 
         // Get the base file path from current tab
-        const tab = app.state.tabs[app.state.activeTab];
+        const tabIndex = this.runId && app._runIdToTabIndex ? app._runIdToTabIndex.get(this.runId) : undefined;
+        const tab = tabIndex !== undefined ? app.state.tabs[tabIndex] : app.state.tabs[app.state.activeTab];
         const basePath = tab?.file || '';
 
         return new Promise(resolve => {
@@ -1090,6 +1105,39 @@ class BehaviorTreeEngine {
             app._addMessageListener(handler);
             app.postMessage({ type: 'bt_load_local_file', payload: { filePath, basePath } });
         });
+    }
+
+    async _runNext(path, node) {
+        const app = this._app;
+        app.state.selectedOpPath = path;
+        app.state.currentNodePath = path;
+        app.renderTree();
+
+        const fsmName = node.btFsmName?.trim() || 'main';
+        const fsmState = node.btFsmState?.trim() || '';
+
+        if (!fsmState) {
+            app.addLog(`❌ leaf_next [${path}]: btFsmState is required`);
+            return false;
+        }
+
+        // Find tab whose name matches the target state
+        const tabIndex = app.state.tabs.findIndex(t => t.name === fsmState);
+        if (tabIndex < 0) {
+            app.addLog(`❌ leaf_next: no tab named "${fsmState}" found`);
+            return false;
+        }
+
+        // Write state register to project BB
+        const bbKey = `fsm.${fsmName}`;
+        this.bbWrite(bbKey, fsmState, 'project', 'text');
+        app.addLog(`🔀 FSM[${fsmName}] → "${fsmState}"`);
+
+        // Switch to the target tab and run its BT from root
+        app.switchTab(tabIndex);
+        app.btCtrlSetTarget('');
+        app.btCtrlRun();
+        return true;
     }
 
     async _runMisc(path, node) {

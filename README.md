@@ -25,6 +25,21 @@ Stop wrangling prompts in scattered text files. **Design prompt pipelines as vis
 
 ## ⭐ Why Wend?
 
+### Why define a Behavior Tree at all? Can't an AI just control other AIs?
+
+It's a fair question. Modern multi-agent systems — including Claude Code itself — already work by having one AI delegate tasks to other AIs. For high-level goal decomposition, that works well.
+
+The problem appears as you go deeper:
+
+- **Reliability** — "It probably did the right thing" is not acceptable for financial, medical, or safety-critical pipelines. A Behavior Tree is a verifiable state machine; an AI reasoning chain is not.
+- **Debuggability** — When an AI calls another AI and something fails, tracing what happened is hard. A BT execution graph shows exactly which node failed and why.
+- **Cost and latency** — Routing every micro-decision through an LLM is expensive and slow. Simple control flow (`sequence`, `retry`, `guard`) should be O(depth), not O(tokens).
+- **Out-of-distribution behavior** — LLMs are unpredictable outside their training distribution. A BT lets you define explicit fallbacks, priorities, and interrupt conditions that hold regardless of model behavior.
+
+The real question is not "BT or AI?" but **where to draw the boundary** — which decisions to delegate to the AI, and which to lock down in explicit structure. Wend's answer: let the AI plan and act freely *within* a BT skeleton that a human (or the AI itself) defines upfront. The BT is the contract; the AI fills in the content.
+
+---
+
 Most "prompt tools" are either a single chat box or a cloud SaaS that wants your API keys. **Wend is different** — it's a local-first desktop IDE that treats prompt engineering like real engineering:
 
 | | |
@@ -220,6 +235,64 @@ Everything stays on your machine, under `%APPDATA%\Wend\`:
 ```
 
 Every pane width, the message-pane height, and the window size are resizable and restored across sessions.
+
+---
+
+## 🌳 Behavior Tree Node Reference
+
+### Composite nodes
+
+| `btType` | Description |
+|---|---|
+| `sequence` | Execute children left-to-right. Stops and returns failure on the first child that fails. Returns success when all children succeed. |
+| `selector` | Execute children left-to-right. Stops and returns success on the first child that succeeds. Returns failure when all children fail. |
+| `parallel` | Execute all children simultaneously. Returns success when all complete successfully. |
+| `memSequence` | Like `sequence` but resumes from the last running child on the next tick. |
+| `memSelector` | Like `selector` but resumes from the last running child on the next tick. |
+
+### Decorator nodes
+
+| `btType` | Description |
+|---|---|
+| `invert` | Inverts the child's result (success ↔ failure). |
+| `repeater` | Repeats the child a fixed number of times. |
+| `retry` | Re-runs the child on failure, up to a maximum count. |
+| `alwaysSucceed` | Always returns success regardless of child result. |
+| `alwaysFail` | Always returns failure regardless of child result. |
+| `guard` | Evaluates a blackboard condition; executes child only if it passes. |
+| `delay` | Waits a fixed number of milliseconds before executing the child. |
+| `maxTime` | Fails if the child takes longer than the specified milliseconds. |
+
+Decorators can be chained with `+`: e.g. `btType: "invert+retry+sequence"` means `invert(retry(sequence(...)))`. All parts except the last must be decorators; the last must be a composite.
+
+### Leaf nodes
+
+| `btType` | Description |
+|---|---|
+| `leaf` / `leaf_ai` | LLM inference using the configured recipe. Sends `btPrompt` to the model and writes the result to `btOutputKey`. |
+| `leaf_math` | Evaluates a JavaScript expression. Result is written to `btOutputKey`. |
+| `leaf_file` | File I/O — load a local file into `btOutputKey`. |
+| `leaf_web` | HTTP / web operations. |
+| `leaf_misc` | Miscellaneous operations: write a value to the blackboard, copy/paste clipboard text. |
+| `leaf_next` | **FSM state transition.** Writes the target state to the project blackboard (`fsm.<name>`) and immediately starts the tab whose name matches `btFsmState`. Fire-and-forget — always returns success. |
+
+#### `leaf_next` properties
+
+| Property | Default | Description |
+|---|---|---|
+| `btFsmName` | `"main"` | Name of the FSM instance. Stored as `fsm.<btFsmName>` in the project blackboard. |
+| `btFsmState` | *(required)* | Target state. Must match the name of an existing tab exactly. |
+
+**FSM pattern with `leaf_next`:** tabs act as FSM states; tab name = state name. Use `guard` + `selector` in the BT to express conditional transitions:
+
+```
+selector
+├── guard (bb.score > 80) → leaf_next  fsm=main  state="done"
+├── guard (bb.retries < 3) → leaf_next  fsm=main  state="retry"
+└── leaf_next  fsm=main  state="failed"
+```
+
+Multiple independent FSM instances can coexist by using different `btFsmName` values. Current state of each instance is readable via `get_blackboard(scope: "project")` as the key `fsm.<name>`.
 
 ---
 

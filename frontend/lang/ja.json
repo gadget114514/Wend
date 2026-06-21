@@ -162,6 +162,7 @@
   "LeafFile": "リーフ (File)",
   "LeafWeb": "リーフ (Web)",
   "LeafMisc": "リーフ (Misc)",
+  "LeafNext": "リーフ (Next)",
   "BTRunSubtree": "BT実行 (サブツリー)",
   "RunIndividual": "個別実行",
   "AddOutputToInput": "出力を入力に追加",

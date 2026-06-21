@@ -162,6 +162,7 @@
   "LeafFile": "Leaf (File)",
   "LeafWeb": "Leaf (Web)",
   "LeafMisc": "Leaf (Misc)",
+  "LeafNext": "Leaf (Next)",
   "BTRunSubtree": "BT Run (Subtree)",
   "RunIndividual": "Run Individual",
   "AddOutputToInput": "Add Output to Input",

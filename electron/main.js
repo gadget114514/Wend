@@ -1178,6 +1178,7 @@ class PipelineRunner {
         // Phase A: Include requestContext for concurrent request routing
         if (this.requestContext?.requestId) meta.requestId = this.requestContext.requestId;
         if (this.requestContext?.targetNodePath) meta.targetNodePath = this.requestContext.targetNodePath;
+        if (this.requestContext?.runId) meta.runId = this.requestContext.runId;
         return JSON.stringify(meta);
     }
 }
@@ -2090,13 +2091,28 @@ function handleBtCapabilities(method, payload, res) {
                 maxTime: 'Timeout limit for child execution (milliseconds)',
             },
             leaf: {
-                types: ['leaf_ai', 'leaf_math', 'leaf_file', 'leaf_web', 'leaf_misc'],
+                types: ['leaf_ai', 'leaf_math', 'leaf_file', 'leaf_web', 'leaf_misc', 'leaf_next'],
                 description: 'Executable action nodes (no children)',
                 leaf_ai: 'LLM inference via configured recipe',
                 leaf_math: 'JavaScript expression evaluation',
                 leaf_file: 'File I/O operations',
                 leaf_web: 'HTTP/Web operations',
                 leaf_misc: 'Other built-in operations',
+                leaf_next: 'FSM state transition — writes fsm.<name> to project blackboard',
+            },
+            fsm: {
+                description: 'Named FSM instances stored in project blackboard as fsm.<name> keys',
+                stateRegister: 'proj BB key "fsm.<name>" holds current state string',
+                multipleInstances: 'Any number of FSMs can coexist with different names',
+                leaf_next: {
+                    description: 'Fires a state transition by writing the target state to project BB. Fire-and-forget — does not wait for the target state to complete.',
+                    properties: {
+                        btFsmName: 'FSM instance name (default: "main")',
+                        btFsmState: 'Target state to transition to (required)',
+                    },
+                    example: { btType: 'leaf_next', btFsmName: 'main', btFsmState: 'analyzing' },
+                    conditionalTransition: 'Use guard + selector in the BT to choose which leaf_next fires',
+                },
             },
             condition: {
                 description: 'Condition evaluation nodes (return pass/fail)',
@@ -2935,9 +2951,150 @@ async function handleBridgeMessage(type, payload) {
                 const requestContext = {
                     requestId: payload.requestId || null,
                     targetNodePath: payload.targetNodePath || null,
+                    runId: payload.runId || null,
                 };
                 runner.run(new Date().toISOString(), [step], payload.content, allAttachments, 'child', requestContext);
                 postToJS('log', JSON.stringify({ message: `[Backend] runner.run() called — provider should now make HTTP request` }));
+            }
+            break;
+        }
+        case 'run_command_recipe': {
+            const cmd = payload?.command || '';
+            const optionsStr = payload?.options || '';
+            const inExt = payload?.inExt || '';
+            const outExt = payload?.outExt || '';
+            const inputAttachments = payload?.inputAttachments || [];
+            const requestContext = {
+                requestId: payload?.requestId || null,
+                targetNodePath: payload?.targetNodePath || null,
+                runId: payload?.runId || null,
+            };
+
+            if (!cmd) {
+                postToJS('pipeline_completed', JSON.stringify({
+                    pipelineName: 'command/(no command)',
+                    outputContent: 'Error: No command specified in recipe',
+                    steps: [],
+                    targetNodePath: requestContext.targetNodePath,
+                    requestId: requestContext.requestId,
+                    runId: requestContext.runId,
+                }));
+                break;
+            }
+
+            const ts = Date.now();
+            let inFile = '';
+            let outFile = '';
+
+            try {
+                if (inputAttachments.length > 0) {
+                    const att = inputAttachments[0];
+                    if (att.content) {
+                        const ext = inExt || ('.' + (att.file || 'tmp').split('.').pop() || 'tmp');
+                        inFile = path.join(os.tmpdir(), 'cmd_recipe_in_' + ts + ext);
+                        fs.writeFileSync(inFile, Buffer.from(att.content, 'base64'));
+                    }
+                }
+
+                outFile = path.join(os.tmpdir(), 'cmd_recipe_out_' + ts + (outExt || '.tmp'));
+
+                const cmdExt = path.extname(cmd).toLowerCase();
+                let spawnCmd, spawnArgs;
+
+                if (cmdExt === '.bat' || cmdExt === '.cmd') {
+                    spawnCmd = 'cmd.exe';
+                    spawnArgs = ['/c', cmd, ...optionsStr.split(/\s+/).filter(Boolean), inFile, outFile];
+                } else if (cmdExt === '.sh') {
+                    spawnCmd = process.platform === 'win32' ? 'bash' : '/bin/bash';
+                    spawnArgs = [cmd, ...optionsStr.split(/\s+/).filter(Boolean), inFile, outFile];
+                } else {
+                    spawnCmd = cmd;
+                    spawnArgs = [...optionsStr.split(/\s+/).filter(Boolean), inFile, outFile];
+                }
+
+                let output = '';
+                const proc = spawn(spawnCmd, spawnArgs, {
+                    shell: false,
+                    windowsHide: true,
+                    timeout: 300000,
+                });
+
+                proc.stdout.on('data', chunk => {
+                    const text = chunk.toString('utf8');
+                    output += text;
+                    postToJS('stream_chunk', JSON.stringify({ stepIndex: 0, text }));
+                });
+                proc.stderr.on('data', chunk => {
+                    const text = chunk.toString('utf8');
+                    output += text;
+                    postToJS('stream_chunk', JSON.stringify({ stepIndex: 0, text }));
+                });
+
+                await new Promise((resolve) => {
+                    proc.on('close', () => resolve());
+                    proc.on('error', e => {
+                        output += '\nCommand Error: ' + e.message;
+                        resolve();
+                    });
+                });
+
+                let resultContent = output;
+                let outputAttachments = [];
+
+                if (fs.existsSync(outFile)) {
+                    const stat = fs.statSync(outFile);
+                    if (stat.size > 0) {
+                        const outExtLower = outExt.toLowerCase();
+                        const textExts = ['.txt', '.json', '.csv', '.xml', '.html', '.md', '.log', '.js', '.ts', '.py', '.sh', '.bat', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf'];
+                        if (textExts.includes(outExtLower) || !outExt) {
+                            try {
+                                resultContent = fs.readFileSync(outFile, 'utf8');
+                            } catch (e) {
+                                resultContent = output + '\n(Output file read error: ' + e.message + ')';
+                            }
+                        } else {
+                            const data = fs.readFileSync(outFile).toString('base64');
+                            const mimeMap = {
+                                '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+                                '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
+                                '.pdf': 'application/pdf', '.wav': 'audio/wav', '.mp3': 'audio/mpeg',
+                            };
+                            outputAttachments.push({
+                                file: path.basename(outFile),
+                                mimetype: mimeMap[outExtLower] || 'application/octet-stream',
+                                content: data,
+                                size: stat.size,
+                            });
+                            resultContent = '[Output file: ' + path.basename(outFile) + ']';
+                        }
+                    }
+                }
+
+                try { if (inFile) fs.unlinkSync(inFile); } catch {}
+                try { fs.unlinkSync(outFile); } catch {}
+
+                const meta = {
+                    pipelineName: 'command/' + path.basename(cmd),
+                    outputContent: resultContent,
+                    outputAttachments: outputAttachments,
+                    steps: [{ type: 'command', command: cmd, options: optionsStr, input: inFile, output: outFile }],
+                    targetNodePath: requestContext.targetNodePath,
+                };
+                if (requestContext.requestId) meta.requestId = requestContext.requestId;
+                if (requestContext.runId) meta.runId = requestContext.runId;
+                postToJS('pipeline_completed', JSON.stringify(meta));
+
+            } catch (e) {
+                try { if (inFile) fs.unlinkSync(inFile); } catch {}
+                try { if (outFile) fs.unlinkSync(outFile); } catch {}
+                postToJS('pipeline_completed', JSON.stringify({
+                    pipelineName: 'command/' + path.basename(cmd),
+                    outputContent: 'Command Recipe Error: ' + e.message,
+                    steps: [],
+                    targetNodePath: requestContext.targetNodePath,
+                    requestId: requestContext.requestId,
+                    runId: requestContext.runId,
+                }));
             }
             break;
         }
@@ -4181,7 +4338,7 @@ function buildMenu() {
                 { label: 'Reset Welcome Wizard', click: send('reset_wizard') },
                 { label: 'Setup Wizard', click: send('setup_wizard') },
                 { label: 'Folder Structure...', click: send('folder_help') },
-                { label: 'Documentation', click: () => shell.openExternal('https://github.com/gadget114514/Ecode') },
+                { label: 'Documentation', click: () => shell.openExternal('https://github.com/gadget114514/Wend') },
                 { label: 'About', click: send('about') },
             ],
         },

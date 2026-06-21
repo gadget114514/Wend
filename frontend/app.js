@@ -54,6 +54,7 @@ const app = {
         this.addLog('[BT Engine] Active engine: custom BehaviorTreeEngine');
         this._engines = new Map();      // Phase B: runId → BehaviorTreeEngine (multi-instance)
         this._engines.set('__default__', this._bt);  // default engine for single-run mode
+        this.state.btRunState = this._bt._runState;
         this._messageListeners = [];
         this._projectBlackboard = {};   // project-scope BB (shared across tabs, persisted)
         this._chestCache = {};          // name → text cache for {chest:} placeholder reads
@@ -212,6 +213,7 @@ const app = {
                 break;
             case 'pipeline_error':
                 this.showError(msg.payload.message);
+                this._bindErrorToDataNode(msg.payload.message);
                 // Check if this is a recipe-related error and offer AI fix
                 if (this.state.maintainRecipe && this._isRecipeError(msg.payload.message)) {
                     // Try to parse the recipe name from the error message
@@ -542,6 +544,59 @@ const app = {
                     if (data !== undefined)  this._bt.bbWrite(key, data, sc, 'data');
                 }
                 break;
+            case 'bt_run_async_request': {
+                const { runId, btTree, inputs } = msg.payload;
+                let engine = this._engines.get(runId);
+                if (!engine) {
+                    engine = this.createEngine(runId);
+                }
+                engine.runId = runId;
+
+                if (!this._runIdToTree) this._runIdToTree = new Map();
+                this._runIdToTree.set(runId, btTree);
+
+                const tabIndex = this._runIdToTabIndex ? this._runIdToTabIndex.get(runId) : undefined;
+                if (tabIndex !== undefined && this.state.tabs[tabIndex]) {
+                    this.state.tabs[tabIndex].root = btTree;
+                    this.patchNodeTypes(btTree, true);
+                }
+
+                if (inputs && typeof inputs === 'object') {
+                    for (const [key, val] of Object.entries(inputs)) {
+                        const type = typeof val === 'object' ? 'data' : 'text';
+                        engine.bbWrite(key, val, 'run', type);
+                    }
+                }
+
+                engine.setTarget('');
+                engine._ctrl.mode = 'running';
+                engine._execute('').then((success) => {
+                    this.postMessage({
+                        type: 'bt_run_complete',
+                        payload: {
+                            runId: runId,
+                            result: {
+                                success,
+                                tokens: {
+                                    prompt: engine._promptTokens || 0,
+                                    completion: engine._completionTokens || 0
+                                }
+                            },
+                            error: null
+                        }
+                    });
+                }).catch((err) => {
+                    this.postMessage({
+                        type: 'bt_run_complete',
+                        payload: {
+                            runId: runId,
+                            result: null,
+                            error: err.message || String(err)
+                        }
+                    });
+                });
+                break;
+            }
         }
 
         // Notify message listeners
@@ -606,6 +661,7 @@ const app = {
         const engine = this.getEngine(runId);
         if (engine) {
             this._bt = engine;  // update active reference
+            this.state.btRunState = engine._runState;
             this.renderTree();
         }
     },
@@ -979,7 +1035,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             title: this.safeB64(autoTitle || meta.pipelineName),
             content: this.safeB64(outputContent),
             mimetype: 'text/plain',
-            attachments: [],
+            attachments: meta.outputAttachments || [],
             children: [],
             pipelineMeta: JSON.stringify(meta),
             nodeType: 'data',
@@ -1012,7 +1068,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 pending.title = this.safeB64(autoTitle || meta.pipelineName);
                 pending.content = this.safeB64(outputContent);
                 pending.pipelineMeta = JSON.stringify(meta);
-                pending.attachments = [];
+                pending.attachments = meta.outputAttachments || [];
                 pending.originalOpNode = opNodeCopy;
                 pending.selectedRecipe = recipeUsed;
                 pending.input = inputAttachmentsCopy.text || '';
@@ -2351,7 +2407,15 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const isCommand = r.type === 'command';
         let fields = '';
         if (isCommand) {
-            fields = `<input type="text" id="edit-command" value="${this.escapeHtml(r.command || '')}" placeholder="Command (e.g. echo hello)" class="recipe-input" style="flex:3">`;
+            fields = `
+                <input type="text" id="edit-command" value="${this.escapeHtml(r.command || '')}" placeholder="Command (e.g. C:\\tools\\convert.exe)" class="recipe-input" style="flex:3">
+            </div>
+            <div class="recipe-edit-row">
+                <input type="text" id="edit-cmd-options" value="${this.escapeHtml(r.options || '')}" placeholder="Options (e.g. -quality 85 -resize 50%)" class="recipe-input" style="flex:3">
+            </div>
+            <div class="recipe-edit-row">
+                <input type="text" id="edit-cmd-inext" value="${this.escapeHtml(r.inExt || '')}" placeholder="In ext (e.g. .txt)" class="recipe-input" style="flex:1">
+                <input type="text" id="edit-cmd-outext" value="${this.escapeHtml(r.outExt || '')}" placeholder="Out ext (e.g. .png)" class="recipe-input" style="flex:1">`;
         } else {
             const capBadge = this._renderCapabilityBadge(r.provider);
             fields = `
@@ -2492,7 +2556,14 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 </div>
                 <div id="rm-cmd-fields" style="${isCommand ? '' : 'display:none'}">
                     <div class="recipe-edit-row">
-                        <input type="text" id="rm-command" placeholder="Command (e.g. echo Hello World)" class="recipe-input" style="flex:1">
+                        <input type="text" id="rm-command" placeholder="Command (e.g. C:\\tools\\convert.exe)" class="recipe-input" style="flex:1">
+                    </div>
+                    <div class="recipe-edit-row">
+                        <input type="text" id="rm-cmd-options" placeholder="Options (e.g. -quality 85 -resize 50%)" class="recipe-input" style="flex:1">
+                    </div>
+                    <div class="recipe-edit-row">
+                        <input type="text" id="rm-cmd-inext" placeholder="In ext (e.g. .txt)" class="recipe-input" style="flex:1">
+                        <input type="text" id="rm-cmd-outext" placeholder="Out ext (e.g. .png)" class="recipe-input" style="flex:1">
                     </div>
                 </div>
                 <div class="recipe-edit-actions">
@@ -2541,7 +2612,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         if (!this.state.projectRecipes) this.state.projectRecipes = [];
         if (type === 'command') {
             const command = document.getElementById('rm-command')?.value?.trim() || '';
-            this.state.projectRecipes.push({ type, name, command, provider: '', model: '', temperature: 0.7, systemPrompt: '', baseUrl: '', useCustomApiPath: false, apiPath: '', customParams: {} });
+            const options = document.getElementById('rm-cmd-options')?.value?.trim() || '';
+            const inExt = document.getElementById('rm-cmd-inext')?.value?.trim() || '';
+            const outExt = document.getElementById('rm-cmd-outext')?.value?.trim() || '';
+            this.state.projectRecipes.push({ type, name, command, options, inExt, outExt, provider: '', model: '', temperature: 0.7, systemPrompt: '', baseUrl: '', useCustomApiPath: false, apiPath: '', customParams: {} });
         } else {
             const provider = document.getElementById('rm-provider')?.value || 'openai';
             const model = document.getElementById('rm-model')?.value?.trim() || '';
@@ -2622,6 +2696,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         }
         if (recipe.type === 'command') {
             recipe.command = document.getElementById('edit-command')?.value?.trim() || '';
+            recipe.options = document.getElementById('edit-cmd-options')?.value?.trim() || '';
+            recipe.inExt = document.getElementById('edit-cmd-inext')?.value?.trim() || '';
+            recipe.outExt = document.getElementById('edit-cmd-outext')?.value?.trim() || '';
         } else {
             recipe.provider = document.getElementById('edit-provider')?.value || 'openai';
             recipe.model = document.getElementById('edit-model')?.value?.trim() || '';
@@ -3892,7 +3969,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             }
             const _decoratorsList = ['invert', 'repeater', 'retry', 'alwaysSucceed', 'alwaysFail', 'guard', 'delay', 'maxTime'];
             const _compositesList = ['sequence', 'selector', 'parallel', 'memSequence', 'memSelector'];
-            const _baseTypes = ['sequence', 'selector', 'parallel', 'memSequence', 'memSelector', ..._decoratorsList, 'leaf', 'leaf_ai', 'leaf_math', 'math', 'leaf_file', 'file', 'leaf_web', 'web', 'leaf_misc', 'misc'];
+            const _baseTypes = ['sequence', 'selector', 'parallel', 'memSequence', 'memSelector', ..._decoratorsList, 'leaf', 'leaf_ai', 'leaf_math', 'math', 'leaf_file', 'file', 'leaf_web', 'web', 'leaf_misc', 'misc', 'leaf_next'];
             const validBtTypes = _baseTypes.slice();
             if (node.btType !== undefined) {
                 const isValid = validBtTypes.includes(node.btType)
@@ -4128,6 +4205,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 'leaf_file': '📁 Leaf (File)', 'file': '📁 Leaf (File)',
                 'leaf_web': '🌐 Leaf (Web)', 'web': '🌐 Leaf (Web)',
                 'leaf_misc': '⚙️ Leaf (Misc)', 'misc': '⚙️ Leaf (Misc)',
+                'leaf_next': '🔀 Leaf (Next)',
             };
             let btLabel = curBt.includes('+')
                 ? curBt.split('+').map(p => _labelMap[p] || p).join(' + ')
@@ -4164,6 +4242,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                     _mkItem('leaf_file', '📁 ' + this.t('LeafFile')) +
                     _mkItem('leaf_web', '🌐 ' + this.t('LeafWeb')) +
                     _mkItem('leaf_misc', '⚙️ ' + this.t('LeafMisc')) +
+                    _mkItem('leaf_next', '🔀 ' + this.t('LeafNext')) +
                 `</div>` +
             `</div>`;
             const isComposite = _comps.includes(node.btType) || (node.btType && node.btType.includes('+'));
@@ -5228,12 +5307,26 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         }).join('');
     },
 
-    getNodeByPath(path) {
-        const tab = this.state.tabs[this.state.activeTab];
-        if (!tab || !tab.root) return null;
-        if (!path) return tab.root;
+    getNodeByPath(path, runId) {
+        let root = null;
+        if (runId) {
+            if (this._runIdToTree && this._runIdToTree.has(runId)) {
+                root = this._runIdToTree.get(runId);
+            } else if (this._runIdToTabIndex) {
+                const idx = this._runIdToTabIndex.get(runId);
+                if (idx !== undefined && this.state.tabs[idx]) {
+                    root = this.state.tabs[idx].root;
+                }
+            }
+        }
+        if (!root) {
+            const tab = this.state.tabs[this.state.activeTab];
+            if (tab) root = tab.root;
+        }
+        if (!root) return null;
+        if (!path) return root;
         const parts = path.split('/').filter(p => p !== '');
-        let node = tab.root;
+        let node = root;
         for (const p of parts) {
             const idx = parseInt(p);
             if (isNaN(idx) || !node.children || idx >= node.children.length) return null;
@@ -5393,6 +5486,71 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
             const nodeTitle = node ? (node.title ? this.safeAtob(node.title) : this.getTitleFallback(node)) : 'Unknown Node';
 
+            const allInputAttachments = [
+                ...(ctx ? [] : (node.tempInputAttachments ? node.tempInputAttachments.files : (node.inputAttachments || []))),
+                ...bbMediaFiles,
+            ];
+
+            if (recipe.type === 'command') {
+                const cmdPayload = {
+                    nodeId: this.state.currentNodePath || '',
+                    nodeTitle: nodeTitle,
+                    tabFile: tab ? tab.file : '',
+                    content: input,
+                    recipeName: recipeName || recipe.name || '',
+                    command: recipe.command || '',
+                    options: recipe.options || '',
+                    inExt: recipe.inExt || '',
+                    outExt: recipe.outExt || '',
+                    inputAttachments: allInputAttachments,
+                    attachments: targetNode.attachments || [],
+                };
+                if (ctx?.requestId) cmdPayload.requestId = ctx.requestId;
+                if (ctx?.targetNodePath) cmdPayload.targetNodePath = ctx.targetNodePath;
+                if (ctx?.runId) cmdPayload.runId = ctx.runId;
+
+                this.postMessage({ type: 'run_command_recipe', payload: cmdPayload });
+                this.state.pipelineRun.running = true;
+                this.addLog(`▶ ${recipe.name || 'Command'}: ${recipe.command} ${recipe.options || ''}`.trim());
+
+                const opPath = this.getLogicalOpPath(this.state.currentNodePath);
+                const opNode = this.getNodeByPath(opPath);
+                if (opNode) {
+                    if (!opNode.children) opNode.children = [];
+                    let target = opNode;
+                    if (opNode.placeholderName) {
+                        let ph = opNode.children.find(c => c.nodeType === 'placeholder' || (!c.nodeType && c.title && this.safeAtob(c.title) === opNode.placeholderName));
+                        if (!ph) {
+                            ph = { title: this.safeB64(opNode.placeholderName), nodeType: 'placeholder', children: [] };
+                            opNode.children.push(ph);
+                        }
+                        target = ph;
+                    } else {
+                        const legacy = opNode.children.find(c => c.nodeType === 'placeholder' || (!c.nodeType && c.title && this.safeAtob(c.title) === 'Processed'));
+                        if (legacy) target = legacy;
+                    }
+                    target.children.unshift({
+                        title: this.safeB64(new Date().toISOString()),
+                        content: this.safeB64(''),
+                        attachments: [],
+                        children: [],
+                        pipelineMeta: JSON.stringify({
+                            pipelineName: 'command/' + (recipe.command || ''),
+                            steps: [{ input: input, output: '' }]
+                        }),
+                        nodeType: 'data',
+                        inputAttachments: allInputAttachments,
+                        _pending: true
+                    });
+                    this.saveCurrentTab();
+                    this.renderTree();
+                    this.renderList();
+                    this.state.selectedOutputRunIndex = 0;
+                    this.renderOutput();
+                }
+                return;
+            }
+
             // Phase A: Pass requestId and targetNodePath for concurrent request routing
             const payload = {
                 nodeId: this.state.currentNodePath || '',
@@ -5408,15 +5566,13 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 apiPath: recipe.apiPath || '',
                 recipeName: recipeName || recipe.name || 'Default (Ad-hoc)',
                 attachments: targetNode.attachments || [],        // machine-level (op pane)
-                inputAttachments: [                               // belt-level (input pane) + BB media
-                    ...(ctx ? [] : (node.tempInputAttachments ? node.tempInputAttachments.files : (node.inputAttachments || []))),
-                    ...bbMediaFiles,
-                ],
+                inputAttachments: allInputAttachments,
                 customParams: recipe.customParams || {},
             };
             // Phase A: Include requestId and targetNodePath for concurrent routing
             if (ctx?.requestId) payload.requestId = ctx.requestId;
             if (ctx?.targetNodePath) payload.targetNodePath = ctx.targetNodePath;
+            if (ctx?.runId) payload.runId = ctx.runId;
 
             this.postMessage({
                 type: 'run_prompt_process',
@@ -5754,6 +5910,73 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         if (this.state.viewMode === 'pipeline') {
             this.renderPipelineSteps();
         }
+    },
+
+    _bindErrorToDataNode(errorMessage) {
+        const errorContent = `❌ Error\n${errorMessage}`;
+        const autoTitle = errorMessage.replace(/\s+/g, ' ').trim().substring(0, 50) + (errorMessage.length > 50 ? '...' : '');
+        const tab = this.state.tabs[this.state.activeTab];
+        let opNodePath = this.state.selectedOpPath || this.state.currentNodePath;
+        opNodePath = this.getLogicalOpPath(opNodePath);
+        let opNode = this.getNodeByPath(opNodePath);
+        const opNodeCopy = opNode ? JSON.parse(JSON.stringify(opNode)) : null;
+        if (opNodeCopy && opNodeCopy.children) {
+            opNodeCopy.children = [];
+        }
+        const inputAttachmentsCopy = opNode && opNode.tempInputAttachments ? JSON.parse(JSON.stringify(opNode.tempInputAttachments)) : { text: '', files: [] };
+        const recipeUsed = (opNode && opNode.selectedRecipe) || this.state.selectedRecipe || '';
+        const errorNode = {
+            title: this.safeB64(autoTitle || 'Error'),
+            content: this.safeB64(errorContent),
+            mimetype: 'text/plain',
+            attachments: [],
+            children: [],
+            pipelineMeta: JSON.stringify({ status: 'error', error: errorMessage }),
+            nodeType: 'data',
+            isError: true,
+            originalOpNode: opNodeCopy,
+            selectedRecipe: recipeUsed,
+            input: inputAttachmentsCopy.text || '',
+            inputAttachments: inputAttachmentsCopy.files || []
+        };
+        if (tab && opNode) {
+            if (!opNode.children) opNode.children = [];
+            let target = opNode;
+            if (opNode.placeholderName) {
+                let ph = opNode.children.find(c => c.nodeType === 'placeholder' || (!c.nodeType && c.title && this.safeAtob(c.title) === opNode.placeholderName));
+                if (!ph) {
+                    ph = { title: this.safeB64(opNode.placeholderName), nodeType: 'placeholder', children: [] };
+                    opNode.children.push(ph);
+                }
+                target = ph;
+            } else {
+                const legacy = opNode.children.find(c => c.nodeType === 'placeholder' || (!c.nodeType && c.title && this.safeAtob(c.title) === 'Processed'));
+                if (legacy) target = legacy;
+            }
+            if (!target.children) target.children = [];
+            const pendingIdx = target.children.findIndex(c => c._pending);
+            if (pendingIdx !== -1) {
+                const pending = target.children[pendingIdx];
+                pending.title = errorNode.title;
+                pending.content = errorNode.content;
+                pending.pipelineMeta = errorNode.pipelineMeta;
+                pending.isError = true;
+                pending.originalOpNode = opNodeCopy;
+                pending.selectedRecipe = recipeUsed;
+                pending.input = inputAttachmentsCopy.text || '';
+                delete pending._pending;
+            } else {
+                target.children.unshift(errorNode);
+            }
+            this.addLog(`⚠️ Error node saved: "${autoTitle || 'Error'}"`);
+            this.renderTree();
+            this.renderList();
+            if (tab.file && tab.root) {
+                this.postMessage({ type: 'save_node', payload: { tabFile: tab.file, root: tab.root } });
+            }
+        }
+        this.state.selectedOutputRunIndex = 0;
+        this.renderOutput();
     },
 
     switchMsgTab(tab) {
@@ -10246,12 +10469,12 @@ Object.assign(app, {
             const fullPath = file === '__unknown__' ? null : file;
 
             const sorted = [...fileRuns].reverse();
-            const activeRun = sorted.find(r => r.status === 'running' || r.status === 'queued');
+            const activeRun = sorted.find(r => r.status === 'running' || r.status === 'queued' || r.status === 'initializing');
             const isCollapsed = !activeRun && collapsed.has(file) ? ' collapsed' : '';
 
             const panelStatus = activeRun ? activeRun.status
                 : sorted[0]?.status || 'idle';
-            const dotColor = panelStatus === 'running' ? '#64b5f6'
+            const dotColor = panelStatus === 'running' || panelStatus === 'initializing' ? '#64b5f6'
                 : panelStatus === 'queued' ? '#bdbdbd'
                 : panelStatus === 'failed' ? '#ef5350'
                 : panelStatus === 'cancelled' ? '#ffb74d'
@@ -10322,9 +10545,10 @@ Object.assign(app, {
                 <div class="bt-panel-header" onclick="if(event.target===this||event.target.classList.contains('bt-panel-title')||event.target.classList.contains('bt-panel-fname')||event.target.classList.contains('bt-panel-group'))${headerClick}">
                     <span class="bt-panel-toggle" onclick="event.stopPropagation();this.closest('.bt-panel').classList.toggle('collapsed')">▼</span>
                     <div class="bt-panel-title">
-                        <span class="bt-panel-dot" style="background:${dotColor}${panelStatus==='running'?';animation:taskPulse 1.5s ease-in-out infinite':''}"></span>
+                        <span class="bt-panel-dot" style="background:${dotColor}${(panelStatus==='running'||panelStatus==='initializing')?';animation:taskPulse 1.5s ease-in-out infinite':''}"></span>
                         <span class="bt-panel-fname">${this.escapeHtml(fname)}</span>
                         ${tab && tab.name !== fname ? `<span class="bt-panel-group">[${this.escapeHtml(tab.name)}]</span>` : ''}
+                        <span class="bt-panel-status-text" style="color:${dotColor};font-size:10px;font-weight:bold;margin-left:8px;opacity:0.85;text-transform:uppercase">${panelStatus}</span>
                     </div>
                     <div class="bt-panel-controls">
                         <button class="bt-ctrl-btn play-btn" onclick="event.stopPropagation();app.startBTRun(${JSON.stringify(fullPath||'')})" title="Start new run">▶</button>
