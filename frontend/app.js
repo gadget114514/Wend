@@ -4793,6 +4793,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     btCtrlStep()          { if (this.state.btLocked) { this.addLog('🔒 ' + this.t('ExecutionLocked')); return; } this._bt.step(); },
     btCtrlPause()         { this._bt.pause(); },
     btCtrlStop()          { this._bt.stop(); },
+    btCtrlRetryNode()     { this._bt.retryNode(); },
     btCtrlToggleLock() {
         this.state.btLocked = !this.state.btLocked;
         const btn = document.getElementById('btn-bt-lock');
