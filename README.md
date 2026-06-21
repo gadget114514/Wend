@@ -25,18 +25,38 @@ Stop wrangling prompts in scattered text files. **Design prompt pipelines as vis
 
 ## ⭐ Why Wend?
 
-### Why define a Behavior Tree at all? Can't an AI just control other AIs?
+### Do you really need AI for repetitive work?
 
-It's a fair question. Modern multi-agent systems — including Claude Code itself — already work by having one AI delegate tasks to other AIs. For high-level goal decomposition, that works well.
+A lot of practical AI use cases are not creative — they're repetitive. Summarize 200 documents. Translate a product catalog. Screen 500 resumes. Extract structured data from a pile of PDFs. For this kind of work, **the AI is the worker, not the manager.** What you actually need is a way to define the job and run it reliably.
 
-The problem appears as you go deeper:
+You could write a script. But then you're back to writing code every time the task changes. You could just prompt an AI to "figure it out" — but then you lose control over what it actually does, and debugging a failure means reading through walls of chat history.
 
-- **Reliability** — "It probably did the right thing" is not acceptable for financial, medical, or safety-critical pipelines. A Behavior Tree is a verifiable state machine; an AI reasoning chain is not.
-- **Debuggability** — When an AI calls another AI and something fails, tracing what happened is hard. A BT execution graph shows exactly which node failed and why.
-- **Cost and latency** — Routing every micro-decision through an LLM is expensive and slow. Simple control flow (`sequence`, `retry`, `guard`) should be O(depth), not O(tokens).
-- **Out-of-distribution behavior** — LLMs are unpredictable outside their training distribution. A BT lets you define explicit fallbacks, priorities, and interrupt conditions that hold regardless of model behavior.
+**There's a better middle ground: give the AI a clear structure to work within, and let it fill in the content.**
 
-The real question is not "BT or AI?" but **where to draw the boundary** — which decisions to delegate to the AI, and which to lock down in explicit structure. Wend's answer: let the AI plan and act freely *within* a BT skeleton that a human (or the AI itself) defines upfront. The BT is the contract; the AI fills in the content.
+### Why not just have an AI control other AIs?
+
+This works for open-ended exploration. But for production workflows — things you run every day, on real data, where failures cost time or money — you need more:
+
+- **Predictability** — the same input should produce the same execution path, not a different interpretation each time
+- **Debuggability** — when something fails, you need to know exactly which step failed and why, not reconstruct it from LLM logs
+- **Cost control** — routing every decision through an LLM when simple logic would do wastes money
+- **Fallbacks you can trust** — retry on failure, skip bad inputs, fall back to a cheaper model: these should be defined by you, not improvised by the AI
+
+### Why a control structure — and why Behavior Trees?
+
+Once you accept that a control structure helps, the question is which one. A few options:
+
+| Approach | Problem |
+|---|---|
+| **Hardcoded script** | Rigid. Every change requires a developer. |
+| **State machine (FSM)** | Good for fixed flows, but can't express branching and retry cleanly at scale. |
+| **Workflow DAG** (Airflow-style) | Great for data pipelines, but awkward for conditional logic and nested loops. |
+| **Pure LLM agent** | Flexible, but unpredictable, expensive, and hard to debug. |
+| **Behavior Tree** | ✅ Composable, visual, handles branching and retry naturally, runs deterministically. |
+
+Behavior Trees were developed in game AI to control characters with hundreds of possible actions — exactly the kind of complex-but-structured decision-making that AI pipelines need. They compose well, fail gracefully, and can be read and edited without writing code.
+
+**Wend brings Behavior Trees to AI pipelines** — a local-first visual IDE where you design the structure and the AI does the work.
 
 ---
 
