@@ -10254,7 +10254,10 @@ Object.assign(app, {
                 </div>
                 <div class="task-run-buttons">
                     ${status === 'running' || status === 'queued' ? `
-                        <button class="task-run-btn cancel-btn" onclick="app.cancelRun('${run.runId}')">✕</button>
+                        <button class="task-run-btn cancel-btn" onclick="app.cancelRun('${run.runId}')" title="Cancel">✕</button>
+                    ` : ''}
+                    ${(status === 'failed' || status === 'cancelled') && run.file ? `
+                        <button class="task-run-btn retry-btn" onclick="app.retryRun(${JSON.stringify(run.file)},${JSON.stringify(run.group||null)})" title="Retry">↺</button>
                     ` : ''}
                 </div>
             </div>`;
@@ -10265,13 +10268,34 @@ Object.assign(app, {
         try {
             const response = await fetch(`http://127.0.0.1:18765/runs/${runId}/stop`, { method: 'POST' });
             if (response.ok) {
-                this.addLog(`[Task Manager] Cancelled run: ${runId}`);
+                this.addLog(`[Tasks] Cancelled run: ${runId}`);
                 this.updateTaskMetrics();
             } else {
-                console.error('[Task Manager] Failed to cancel run:', runId);
+                this.addLog(`[Tasks] Failed to cancel run: ${runId}`);
             }
         } catch (e) {
-            console.error('[Task Manager] Error cancelling run:', e);
+            this.addLog(`[Tasks] Error cancelling run: ${e.message}`);
+        }
+    },
+
+    async retryRun(file, group) {
+        try {
+            const body = { file };
+            if (group) body.group = group;
+            const response = await fetch('http://127.0.0.1:18765/bt/run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                this.addLog(`[Tasks] Retried: ${file.split('/').pop()} → ${data.runId || 'queued'}`);
+                this.updateTaskMetrics();
+            } else {
+                this.addLog(`[Tasks] Retry failed for: ${file}`);
+            }
+        } catch (e) {
+            this.addLog(`[Tasks] Retry error: ${e.message}`);
         }
     },
 
