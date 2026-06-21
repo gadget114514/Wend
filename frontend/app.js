@@ -10303,9 +10303,7 @@ Object.assign(app, {
                     </div>
                 </div>
                 <div class="bt-panel-body">
-                    <div class="bt-state-panel">
-                        ${stateRows || '<div class="bt-state-empty">No runs — click ▶ to start</div>'}
-                    </div>
+                    ${stateRows ? `<div class="bt-state-panel">${stateRows}</div>` : ''}
                     ${sorted.length > 0 ? `<div class="bt-panel-history">
                         <div class="bt-panel-history-label">History</div>
                         ${historyRows}
