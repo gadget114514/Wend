@@ -10156,109 +10156,99 @@ Object.assign(app, {
             // Update donut SVG
             this._updateDonutChart(activeCount, queuedCount, completedCount, failedCount, totalRuns);
 
-            // Render groups
-            this.renderTaskGroups(groups);
-
-            // Render all runs
-            this.renderTaskRuns(runs);
+            // Render BT panels
+            this.renderBTPanels(runs);
         } catch (e) {
             console.error('[Task Manager] Error updating metrics:', e);
         }
     },
 
-    renderTaskGroups(groups) {
-        const container = document.getElementById('task-groups-container');
-        if (!container) return;
-
-        const groupIds = Object.keys(groups);
-        if (groupIds.length === 0) {
-            container.innerHTML = '<div style="color:var(--theme-text2);font-size:11px;padding:8px">No active groups</div>';
-            return;
-        }
-
-        // Preserve collapsed state
-        const collapsed = new Set();
-        container.querySelectorAll('.task-group.collapsed').forEach(el => collapsed.add(el.dataset.groupId));
-
-        container.innerHTML = groupIds.map(groupId => {
-            const group = groups[groupId];
-            const total = group.runIds.length;
-            const completed = group.completed;
-            const failed = group.failed;
-            const active = total - completed - failed;
-            const progress = total > 0 ? ((completed + failed) / total * 100) : 0;
-            const isCollapsed = collapsed.has(groupId) ? ' collapsed' : '';
-            const activeLabel = active > 0 ? `<span style="color:#64b5f6">${active} running</span>` : '';
-
-            return `<div class="task-group${isCollapsed}" data-group-id="${this.escapeHtml(groupId)}">
-                <div class="task-group-header" onclick="this.closest('.task-group').classList.toggle('collapsed')">
-                    <span class="group-id"><span class="task-group-toggle">▼</span>📦 ${this.escapeHtml(groupId)}</span>
-                    <div class="group-stats">
-                        ${activeLabel}
-                        <span>${completed}/${total}</span>
-                        <span>${this.formatTokens(group.totalTokens)} tok</span>
-                    </div>
-                </div>
-                <div class="task-group-body">
-                    <div class="task-run-progress">
-                        <div class="task-run-progress-bar" style="width:${progress}%"></div>
-                    </div>
-                    ${failed > 0 ? `<div style="font-size:10px;color:#ef5350;margin-top:4px">⚠ ${failed} failed</div>` : ''}
-                </div>
-            </div>`;
-        }).join('');
-    },
-
-    renderTaskRuns(runs) {
-        const container = document.getElementById('task-runs-container');
+    renderBTPanels(runs) {
+        const container = document.getElementById('bt-panels-container');
         if (!container) return;
 
         if (runs.length === 0) {
-            container.innerHTML = '<div style="color:var(--theme-text2);font-size:11px;padding:8px">No runs</div>';
+            container.innerHTML = '<div style="color:var(--theme-text2);font-size:11px;padding:12px 0">No runs yet</div>';
             return;
         }
 
-        container.innerHTML = runs.slice(0, 20).map(run => {
-            const status = run.status || 'queued';
-            const statusClass = `status-${status}`;
-            const duration = run.metrics?.duration || 0;
-            const promptTokens = run.metrics?.promptTokens || 0;
-            const completionTokens = run.metrics?.completionTokens || 0;
-            const totalTokens = run.metrics?.totalTokens || 0;
+        // Preserve collapsed panels
+        const collapsed = new Set();
+        container.querySelectorAll('.bt-panel.collapsed').forEach(el => collapsed.add(el.dataset.file));
 
-            const btFile = run.file ? run.file.split('/').pop() : 'unknown';
-            const groupLabel = run.group ? `<span style="color:var(--theme-accent);font-size:10px"> [${this.escapeHtml(run.group)}]</span>` : '';
+        // Group by file
+        const byFile = new Map();
+        for (const run of runs) {
+            const key = run.file || '__unknown__';
+            if (!byFile.has(key)) byFile.set(key, []);
+            byFile.get(key).push(run);
+        }
 
-            // Mini token bar: prompt=teal, completion=yellow
-            const tokenBarHtml = totalTokens > 0 ? (() => {
-                const promptPct = Math.round(promptTokens / totalTokens * 100);
-                const compPct = Math.round(completionTokens / totalTokens * 100);
-                return `<div class="task-token-bar">
-                    <div class="task-token-bar-prompt" style="width:${promptPct}%"></div>
-                    <div class="task-token-bar-completion" style="width:${compPct}%"></div>
+        container.innerHTML = [...byFile.entries()].map(([file, fileRuns]) => {
+            const fname = file === '__unknown__' ? '(inline)' : file.split(/[\\/]/).pop();
+            const fullPath = file === '__unknown__' ? null : file;
+
+            // Sort newest-first
+            const sorted = [...fileRuns].reverse();
+            const activeRun = sorted.find(r => r.status === 'running' || r.status === 'queued');
+            const isCollapsed = !activeRun && collapsed.has(file) ? ' collapsed' : '';
+
+            // Overall status dot for panel header
+            const panelStatus = activeRun ? activeRun.status
+                : sorted[0]?.status || 'completed';
+            const dotColor = panelStatus === 'running' ? '#64b5f6'
+                : panelStatus === 'queued' ? '#bdbdbd'
+                : panelStatus === 'failed' ? '#ef5350' : '#81c784';
+
+            // ▶ always available; ⏹ only when something is active
+            const stopDisabled = activeRun ? '' : ' disabled';
+            const stopOnclick = activeRun ? `app.cancelRun('${activeRun.runId}')` : '';
+
+            // Run history rows (max 5)
+            const historyRows = sorted.slice(0, 5).map(run => {
+                const st = run.status || 'queued';
+                const icon = st === 'running' ? '⚡' : st === 'completed' ? '✓' : st === 'failed' ? '✗' : st === 'cancelled' ? '⊘' : '·';
+                const iconColor = st === 'running' ? '#64b5f6' : st === 'completed' ? '#81c784' : st === 'failed' ? '#ef5350' : st === 'cancelled' ? '#ffb74d' : '#bdbdbd';
+                const dur = this.formatDuration(run.metrics?.duration || 0);
+                const tok = this.formatTokens(run.metrics?.totalTokens || 0);
+                const promptPct = run.metrics?.totalTokens > 0 ? Math.round((run.metrics.promptTokens||0) / run.metrics.totalTokens * 100) : 0;
+                const compPct  = run.metrics?.totalTokens > 0 ? Math.round((run.metrics.completionTokens||0) / run.metrics.totalTokens * 100) : 0;
+                const tokenBar = run.metrics?.totalTokens > 0
+                    ? `<div class="task-token-bar" style="width:60px;display:inline-flex;vertical-align:middle;margin-left:4px"><div class="task-token-bar-prompt" style="width:${promptPct}%"></div><div class="task-token-bar-completion" style="width:${compPct}%"></div></div>`
+                    : '';
+                const errSnippet = run.error ? `<span class="bt-run-error" title="${this.escapeHtml(run.error)}">${this.escapeHtml(run.error.slice(0, 60))}${run.error.length > 60 ? '…' : ''}</span>` : '';
+                const cancelBtn = (st === 'running' || st === 'queued')
+                    ? `<button class="bt-hist-btn cancel-btn" onclick="app.cancelRun('${run.runId}')" title="Cancel">⏹</button>` : '';
+                const retryBtn = (st === 'failed' || st === 'cancelled') && fullPath
+                    ? `<button class="bt-hist-btn retry-btn" onclick="app.retryRun(${JSON.stringify(fullPath)},${JSON.stringify(run.group||null)})" title="Retry">↺</button>` : '';
+                const aiBtn = st === 'failed'
+                    ? `<button class="bt-hist-btn ai-btn" onclick="app.showAIFix('${run.runId}',${JSON.stringify(fullPath||'')},${JSON.stringify(run.error||'')})" title="AI Fix suggestion">🤖</button>` : '';
+                const editBtn = (st === 'failed' || st === 'cancelled') && fullPath
+                    ? `<button class="bt-hist-btn edit-btn" onclick="app.editBT(${JSON.stringify(fullPath)})" title="Edit BT">✏</button>` : '';
+
+                return `<div class="bt-history-row ${st === 'running' ? 'is-running' : ''}">
+                    <span class="bt-hist-icon" style="color:${iconColor}">${icon}</span>
+                    <span class="bt-hist-dur">${dur}</span>
+                    <span class="bt-hist-tok">${tok} tok${tokenBar}</span>
+                    ${errSnippet}
+                    <span class="bt-hist-actions">${cancelBtn}${retryBtn}${aiBtn}${editBtn}</span>
                 </div>`;
-            })() : '';
+            }).join('');
 
-            const statusIcon = status === 'running' ? '⚡' : status === 'completed' ? '✓' : status === 'failed' ? '✗' : '·';
-
-            return `<div class="task-run">
-                <div class="task-run-status ${statusClass}" title="${status}">${statusIcon}</div>
-                <div class="task-run-info">
-                    <div class="task-run-name">${this.escapeHtml(btFile)}${groupLabel}</div>
-                    <div class="task-run-meta">
-                        <span style="font-family:monospace;font-size:10px;color:#666">${run.runId.substring(0, 8)}</span>
-                        <span>${this.formatDuration(duration)}</span>
-                        <span style="color:var(--theme-text2)">${this.formatTokens(totalTokens)} tok</span>
+            return `<div class="bt-panel${isCollapsed}" data-file="${this.escapeHtml(file)}">
+                <div class="bt-panel-header" onclick="if(event.target===this||event.target.classList.contains('bt-panel-title')||event.target.classList.contains('bt-panel-fname'))this.closest('.bt-panel').classList.toggle('collapsed')">
+                    <div class="bt-panel-title">
+                        <span class="bt-panel-dot" style="background:${dotColor}${panelStatus==='running'?';animation:taskPulse 1.5s ease-in-out infinite':''}"></span>
+                        <span class="bt-panel-fname">${this.escapeHtml(fname)}</span>
+                        ${run.group ? `<span class="bt-panel-group">[${this.escapeHtml(fileRuns[0].group)}]</span>` : ''}
                     </div>
-                    ${tokenBarHtml}
+                    <div class="bt-panel-controls">
+                        <button class="bt-ctrl-btn play-btn" onclick="event.stopPropagation();app.startBTRun(${JSON.stringify(fullPath||'')})" title="Start new run">▶</button>
+                        <button class="bt-ctrl-btn stop-btn" onclick="event.stopPropagation();${stopOnclick}"${stopDisabled} title="Stop active run">⏹</button>
+                    </div>
                 </div>
-                <div class="task-run-buttons">
-                    ${status === 'running' || status === 'queued' ? `
-                        <button class="task-run-btn cancel-btn" onclick="app.cancelRun('${run.runId}')" title="Cancel">✕</button>
-                    ` : ''}
-                    ${(status === 'failed' || status === 'cancelled') && run.file ? `
-                        <button class="task-run-btn retry-btn" onclick="app.retryRun(${JSON.stringify(run.file)},${JSON.stringify(run.group||null)})" title="Retry">↺</button>
-                    ` : ''}
+                <div class="bt-panel-body">
+                    ${historyRows}
                 </div>
             </div>`;
         }).join('');
@@ -10296,6 +10286,51 @@ Object.assign(app, {
             }
         } catch (e) {
             this.addLog(`[Tasks] Retry error: ${e.message}`);
+        }
+    },
+
+    async startBTRun(file) {
+        try {
+            const body = file ? { file } : {};
+            const response = await fetch('http://127.0.0.1:18765/bt/run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                this.addLog(`[Tasks] Started: ${file ? file.split('/').pop() : 'BT'} → ${data.runId || 'ok'}`);
+                this.updateTaskMetrics();
+            } else {
+                this.addLog(`[Tasks] Start failed: ${file}`);
+            }
+        } catch (e) {
+            this.addLog(`[Tasks] Start error: ${e.message}`);
+        }
+    },
+
+    showAIFix(runId, file, error) {
+        const fname = file ? file.split('/').pop() : '(inline)';
+        const msg = `🤖 AI Fix Request\nFile: ${fname}\nRun: ${runId}\nError: ${error || '(no error message)'}\n\nAsk your AI assistant: "Why did this BT fail and how can I fix it?"`;
+        this.addLog(msg);
+        this.switchMsgTab('log');
+    },
+
+    async editBT(file) {
+        try {
+            const response = await fetch('http://127.0.0.1:18765/bt/load', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filePath: file }),
+            });
+            if (response.ok) {
+                this.addLog(`[Tasks] Loaded in editor: ${file.split('/').pop()}`);
+                this.switchTreeTab('pipeline');
+            } else {
+                this.addLog(`[Tasks] Could not load: ${file}`);
+            }
+        } catch (e) {
+            this.addLog(`[Tasks] Load error: ${e.message}`);
         }
     },
 
