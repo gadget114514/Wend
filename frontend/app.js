@@ -1989,6 +1989,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         // Group & Filter recipes
         const providersList = [
             { key: 'all', label: 'All Providers', icon: '🌐' },
+            { key: 'verified', label: 'Verified', icon: '✅' },
             { key: 'gemini', label: 'Gemini', icon: '♊' },
             { key: 'openai', label: 'OpenAI', icon: '🧠' },
             { key: 'anthropic', label: 'Anthropic', icon: '✉️' },
@@ -2015,6 +2016,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 const pKey = this._classifyRecipeProvider(r);
                 providerCounts[pKey] = (providerCounts[pKey] || 0) + 1;
                 providerCounts['all']++;
+                if (r.verified) providerCounts['verified']++;
                 return true;
             }
             return false;
@@ -2049,6 +2051,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         // 2. Filter recipes by current provider selection
         const displayedRecipes = filteredRecipes.filter(r => {
             if (this._selectedSelectProvider === 'all') return true;
+            if (this._selectedSelectProvider === 'verified') return r.verified === true;
             return this._classifyRecipeProvider(r) === this._selectedSelectProvider;
         });
 
@@ -2268,6 +2271,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
         const providersList = [
             { key: 'all', label: 'All Providers', icon: '🌐' },
+            { key: 'verified', label: 'Verified', icon: '✅' },
             { key: 'gemini', label: 'Gemini', icon: '♊' },
             { key: 'openai', label: 'OpenAI', icon: '🧠' },
             { key: 'anthropic', label: 'Anthropic', icon: '✉️' },
@@ -2284,6 +2288,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             const pKey = this._classifyRecipeProvider(r);
             providerCounts[pKey] = (providerCounts[pKey] || 0) + 1;
             providerCounts['all']++;
+            if (r.verified) providerCounts['verified']++;
         });
 
         // Render Sidebar
@@ -2312,6 +2317,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         // Filter recipes by current manager provider selection
         const displayedRecipes = recipes.filter(r => {
             if (this._selectedManagerProvider === 'all') return true;
+            if (this._selectedManagerProvider === 'verified') return r.verified === true;
             return this._classifyRecipeProvider(r) === this._selectedManagerProvider;
         });
 
@@ -2389,6 +2395,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     _renderRecipeCard(r, i, isFirstInFilter, isLastInFilter) {
         const typeIcon = r.type === 'command' ? '⚙️' : '🤖';
+        const verifiedBadge = r.verified ? `<span style="color:#4caf50;font-size:10px;margin-left:6px" title="Verified">✅</span>` : '';
         let detail = '';
         if (r.type === 'command') {
             detail = `<span class="recipe-mgr-item-detail-text">⚙️ ${this.escapeHtml(r.command || '')}</span>`;
@@ -2401,12 +2408,13 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         return `
             <div class="recipe-mgr-item">
                 <div class="recipe-mgr-item-header">
-                    <span class="recipe-mgr-item-name">${typeIcon} ${this.escapeHtml(r.name)}</span>
+                    <span class="recipe-mgr-item-name">${typeIcon} ${this.escapeHtml(r.name)}${verifiedBadge}</span>
                     <span class="recipe-mgr-item-type-badge ${r.type === 'command' ? 'type-command' : 'type-ai'}">${r.type === 'command' ? '⚙️ CMD' : '🤖 AI'}</span>
                 </div>
                 <div class="recipe-mgr-item-detail">${detail}</div>
                 <div class="recipe-mgr-item-actions">
                     <button class="recipe-btn" onclick="app.editRecipe(${i})">✏️ Edit</button>
+                    <button class="recipe-btn" onclick="app.testRecipeFromManager('${this.escapeHtml(r.name)}')">✅ Test</button>
                     <button class="recipe-btn recipe-btn-danger" onclick="app.deleteRecipe(${i});app.renderRecipeManager()">🗑 Delete</button>
                     <span class="recipe-mgr-item-reorder">
                         <button class="recipe-btn recipe-btn-sm" onclick="app.moveRecipeUp(${i});app.renderRecipeManager()" ${isFirstInFilter ? 'disabled' : ''}>▲</button>
@@ -9160,10 +9168,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     rt_: { requests: {} },
 
-    showRecipeTest() {
+    showRecipeTest(preselectRecipeName) {
         const modal = document.getElementById('recipe-test-modal');
         if (!modal) { this.addLog('⚠ recipe-test-modal not found in DOM'); return; }
-        this.rt_ = { requests: {} };
+        this.rt_ = { requests: {}, preselect: preselectRecipeName || null };
         modal.classList.add('visible');
         this.rtRender();
     },
@@ -9172,6 +9180,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const modal = document.getElementById('recipe-test-modal');
         if (modal) modal.classList.remove('visible');
         if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    },
+
+    testRecipeFromManager(recipeName) {
+        this.showRecipeTest(recipeName);
     },
 
     // Recipes (excluding command/CLI recipes) matching the given modality target.
@@ -9187,8 +9199,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             const recipes = this.rtRecipesFor(m.target);
             const has = recipes.length > 0;
             const sample = this.t(m.sampleKey);
-            const options = recipes.map(r =>
-                `<option value="${this.escapeHtml(r.name)}">${this.escapeHtml(r.name)} — ${this.escapeHtml(r.provider || '')} / ${this.escapeHtml(r.model || '')}</option>`).join('');
+            const options = recipes.map(r => {
+                const optSel = r.name === this.rt_.preselect ? 'selected' : '';
+                return `<option value="${this.escapeHtml(r.name)}" ${optSel}>${this.escapeHtml(r.name)} — ${this.escapeHtml(r.provider || '')} / ${this.escapeHtml(r.model || '')}</option>`;
+            }).join('');
             return `
             <div class="rt-section" data-usecase="${m.usecase}">
                 <div class="rt-section-head">${m.icon} ${this.t(m.labelKey)}</div>
@@ -9249,6 +9263,19 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         if (!payload.success) {
             resultEl.innerHTML = `<div class="rt-error">❌ ${this.escapeHtml(payload.error || 'Unknown error')}</div>`;
             return;
+        }
+
+        // Mark recipe as verified on success
+        const selEl = document.getElementById('rt-recipe-' + usecase);
+        if (selEl) {
+            const recipeName = selEl.value;
+            let recipe = this.state.projectRecipes.find(r => r.name === recipeName);
+            if (recipe) {
+                if (!recipe.verified) { recipe.verified = true; this.saveProjectRecipes(); }
+            } else {
+                recipe = this.state.defaultRecipes.find(r => r.name === recipeName);
+                if (recipe && !recipe.verified) { recipe.verified = true; this.saveDefaultRecipes(); }
+            }
         }
 
         let html = '';
