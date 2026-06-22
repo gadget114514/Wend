@@ -72,6 +72,71 @@ const recipes = [
     {
         name: 'Radio Music Fetcher',
         type: 'ai',
+        provider: 'mock',
+        model: 'echo',
+        temperature: 0.3,
+        systemPrompt: 'You are a music metadata assistant. Provide concise, accurate information about songs, artists, and genres.',
+        command: '',
+        useCustomApiPath: false,
+        apiPath: '',
+        apiType: 'simple',
+        customParams: {}
+    },
+    {
+        name: 'Radio Article Writer',
+        type: 'ai',
+        provider: 'mock',
+        model: 'echo',
+        temperature: 0.8,
+        systemPrompt: 'You are a radio DJ and music journalist. Write engaging, informative articles about music.',
+        command: '',
+        useCustomApiPath: false,
+        apiPath: '',
+        apiType: 'simple',
+        customParams: {}
+    },
+    {
+        name: 'Radio Theme Generator',
+        type: 'ai',
+        provider: 'mock',
+        model: 'echo',
+        temperature: 0.8,
+        systemPrompt: 'You are a creative radio show producer. Generate engaging themes and concepts for radio segments.',
+        command: '',
+        useCustomApiPath: false,
+        apiPath: '',
+        apiType: 'simple',
+        customParams: {}
+    },
+    {
+        name: 'Radio Log Writer',
+        type: 'ai',
+        provider: 'mock',
+        model: 'echo',
+        temperature: 0.3,
+        systemPrompt: 'You are a broadcast logging assistant. Summarize radio segments concisely.',
+        command: '',
+        useCustomApiPath: false,
+        apiPath: '',
+        apiType: 'simple',
+        customParams: {}
+    },
+    {
+        name: 'Radio TTS',
+        type: 'ai',
+        provider: 'mock',
+        model: 'echo',
+        temperature: 0.7,
+        systemPrompt: '',
+        command: '',
+        useCustomApiPath: false,
+        apiPath: '',
+        apiType: 'simple',
+        customParams: {}
+    },
+    {
+        name: 'Radio Music Fetcher',
+        type: 'ai',
         provider: 'gemini',
         model: 'gemini-3.5-flash',
         temperature: 0.3,
@@ -236,7 +301,7 @@ const baseDir = __dirname;
 // Write projectrecipes.json at project root
 const general = [];
 const grouped = {};
-const knownProviders = ['openai', 'gemini', 'anthropic', 'replicate', 'opencode'];
+const knownProviders = ['openai', 'gemini', 'anthropic', 'replicate', 'opencode', 'mock'];
 
 for (const r of recipes) {
     const prov = (r.provider || '').toLowerCase().trim();

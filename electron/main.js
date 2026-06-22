@@ -713,7 +713,7 @@ class Storage {
         const general = [];
         const grouped = {};
         
-        const knownProviders = ['openai', 'gemini', 'anthropic', 'replicate', 'opencode'];
+        const knownProviders = ['openai', 'gemini', 'anthropic', 'replicate', 'opencode', 'mock'];
         for (const r of recipes) {
             const prov = (r.provider || '').toLowerCase().trim();
             if (r.type === 'ai' && prov && knownProviders.includes(prov)) {
