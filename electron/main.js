@@ -1945,6 +1945,7 @@ function handleBtApi(rawUrl, method, payload, res) {
         '/tabs':         handleTabs,
         '/recipes':      handleRecipes,
         '/providers':    handleProviders,
+        '/screenshot':   handleScreenshot,
     };
 
     // Phase B: Check exact route first, then pattern routes
@@ -2648,6 +2649,28 @@ function handleProviders(method, payload, res) {
         res.writeHead(405, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Method not allowed' }));
     }
+}
+
+function handleScreenshot(method, payload, res) {
+    if (method !== 'POST') {
+        res.writeHead(405, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Method not allowed' }));
+        return;
+    }
+    if (!mainWindow || mainWindow.isDestroyed()) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Window not available' }));
+        return;
+    }
+    mainWindow.capturePage().then(image => {
+        const pngBuffer = image.toPNG();
+        const base64 = pngBuffer.toString('base64');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ screenshot: base64 }));
+    }).catch(err => {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+    });
 }
 
 // ============================================================

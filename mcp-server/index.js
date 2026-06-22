@@ -390,6 +390,25 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 description: 'Retrieve Behavior Tree runtime specifications: supported node types (Composite, Decorator, Leaf, Condition, Action), available AI recipe models, blackboard variable schemas, and execution constraints. Call this first before creating or editing trees to understand the environment capabilities.',
                 inputSchema: { type: 'object', properties: {} },
             },
+            // ── Screenshot ──────────────────────────────────────
+            {
+                name: 'screenshot',
+                description: 'Capture the current Wend application window as an image',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        format: {
+                            type: 'string',
+                            enum: ['png', 'jpeg'],
+                            description: 'Image format (default: png)',
+                        },
+                        quality: {
+                            type: 'number',
+                            description: 'JPEG quality 0-100 (default: 80, only used for jpeg)',
+                        },
+                    },
+                },
+            },
         ],
     };
 });
@@ -443,7 +462,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
                                 'Advanced Control': 'Cooperative cancellation, retry policies, performance metrics',
                                 'Blackboard Scoping': '4-tier hierarchy (run/tab/project/chest) with read-side fallback',
                             },
-                            toolCount: 29,
+                            toolCount: 30,
                             phases: 'Part 1-3 + Phase A-G',
                             httpApi: 'http://127.0.0.1:18765',
                             documentation: 'See mcp-server/README.md for detailed tool reference',
@@ -466,6 +485,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
                                 'Multi-Run Execution': ['spawn_run', 'list_runs', 'stop_run'],
                                 'Configuration': ['get_config', 'set_config', 'get_metrics', 'cancel_run', 'set_retry_policy'],
                                 'Parallel Primitives': ['run_parallel', 'map_bt', 'join_runs', 'race_runs', 'reduce_results'],
+                                'Screenshot': ['screenshot'],
                             },
                             blackboardScopes: {
                                 'run': 'Current execution scope (session-only)',
@@ -480,7 +500,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
                                 'Racing': 'race_runs(group) → first success',
                                 'Aggregation': 'reduce_results(group, mode: fold|ai)',
                             },
-                            totalTools: 29,
+                            totalTools: 30,
                         }, null, 2),
                     },
                 ],
@@ -784,6 +804,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             case 'get_behavior_tree_capabilities':
                 result = await btApiCall('/bt/capabilities', 'GET');
                 break;
+
+            // ── Screenshot ──────────────────────────────────────
+            case 'screenshot':
+                result = await btApiCall('/screenshot', 'POST', {
+                    format: args.format || 'png',
+                    quality: args.quality,
+                });
+                if (result.screenshot) {
+                    const mimeType = args.format === 'jpeg' ? 'image/jpeg' : 'image/png';
+                    return {
+                        content: [
+                            {
+                                type: 'image',
+                                data: result.screenshot,
+                                mimeType,
+                            },
+                        ],
+                    };
+                }
+                return {
+                    content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+                };
 
             default:
                 throw new Error(`Unknown tool: ${name}`);

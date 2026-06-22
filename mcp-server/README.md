@@ -31,7 +31,10 @@ The Wend BT MCP Server exposes the complete Behavior Tree execution engine as MC
 **Parallel Primitives** (5 tools)
 - run_parallel, map_bt, join_runs, race_runs, reduce_results
 
-**Total: 29 MCP tools**
+**Screenshot** (1 tool)
+- screenshot
+
+**Total: 30 MCP tools**
 
 ## Key Features
 
@@ -60,13 +63,15 @@ Read fallback chain: run → tab → project
 
 ✅ All Phase A-G features now MCP-exposed
 ✅ Added get_run_details for individual run metrics (Phase H)
+✅ Added screenshot tool for window capture
 ✅ Complete documentation
-✅ 29 comprehensive tools covering:
+✅ 30 comprehensive tools covering:
   - Single BT execution
   - Multi-run job management
   - Parallel execution primitives
   - Blackboard scoping and persistence
   - Project/recipe management
   - Configuration and monitoring
+  - Window screenshot capture
 
 See mcp-server/index.js for complete tool definitions and examples.
