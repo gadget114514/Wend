@@ -357,6 +357,9 @@ const app = {
             case 'test_connection_result':
                 this.onTestConnectionResult(msg.payload);
                 break;
+            case 'test_recipe_result':
+                this.onTestRecipeResult(msg.payload);
+                break;
             case 'log':
                 this.addLog('📋 ' + (msg.payload.message || ''));
                 break;
@@ -1903,6 +1906,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const usecaseMap = {
             't2t': 'Text-to-Text (T2T)',
             't2i': 'Text-to-Image (T2I)',
+            't2v': 'Text-to-Video (T2V)',
             'i2i': 'Image-to-Image (I2I)',
             'i2i-multiref': 'Image-to-Image (Multi-Ref)',
             'grounding': 'Grounding / Search',
@@ -1927,6 +1931,12 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         // V2I
         if (name.includes('v2i') || name.includes('video-to-image') || recipe.customParams?.file_data?.file_uri?.includes('youtube.com')) {
             return 'Video understanding to Image (V2I)';
+        }
+
+        // T2V (text-to-video generation) — match before generic image/video checks
+        if (name.includes('t2v') || name.includes('text-to-video') || name.includes('video gen') || name.includes('video-gen') ||
+            ['veo', 'sora', 'animatediff', 'kling', 'runway', 'mochi', 'ltx', 'wan-video', 'hunyuan-video'].some(m => model.includes(m))) {
+            return 'Text-to-Video (T2V)';
         }
 
         // I2I
@@ -2443,6 +2453,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                         <select id="edit-usecase" class="recipe-select" style="flex:1">
                             <option value="t2t" ${r.usecase === 't2t' ? 'selected' : ''}>📝 Text-to-Text (T2T)</option>
                             <option value="t2i" ${r.usecase === 't2i' ? 'selected' : ''}>🖼️ Text-to-Image (T2I)</option>
+                            <option value="t2v" ${r.usecase === 't2v' ? 'selected' : ''}>🎬 Text-to-Video (T2V)</option>
                             <option value="i2i" ${r.usecase === 'i2i' ? 'selected' : ''}>🎨 Image-to-Image (I2I)</option>
                             <option value="i2i-multiref" ${r.usecase === 'i2i-multiref' ? 'selected' : ''}>🖼️🎨 Multi-Ref Image-to-Image</option>
                             <option value="grounding" ${r.usecase === 'grounding' ? 'selected' : ''}>🔍 Grounding / Search</option>
@@ -2526,6 +2537,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                             <select id="rm-usecase" class="recipe-select" style="flex:1">
                                 <option value="t2t">📝 Text-to-Text (T2T)</option>
                                 <option value="t2i">🖼️ Text-to-Image (T2I)</option>
+                                <option value="t2v">🎬 Text-to-Video (T2V)</option>
                                 <option value="i2i">🎨 Image-to-Image (I2I)</option>
                                 <option value="i2i-multiref">🖼️🎨 Multi-Ref Image-to-Image</option>
                                 <option value="grounding">🔍 Grounding / Search</option>
@@ -3707,6 +3719,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             case 'welcome_wizard':  this.showWizard(); break;
             case 'reset_wizard':    this.resetWizard(); break;
             case 'setup_wizard':    this.showSetupWizard(); break;
+            case 'recipe_test':     this.showRecipeTest(); break;
             default: this.addLog('⚠ ' + this.t('UnknownMenuCommand').replace('{action}', cmd.action));
         }
     },
@@ -4028,6 +4041,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     buildTreeHTML(node, path) {
         let html = '';
         let displayStr = node.title ? this.safeAtob(node.title) : this.getTitleFallback(node);
+        if (node.isError) {
+            displayStr = '❌ ' + displayStr;
+        }
         if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(displayStr)) {
             displayStr = this.formatRunDate(displayStr);
         }
@@ -4091,8 +4107,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const isMultiSelected = this.state.selectedDataPaths && this.state.selectedDataPaths.includes(path);
         const multiCls = isMultiSelected ? ' selected-multi' : '';
         const nodeTypeCls = node && node.nodeType ? ' nt-' + node.nodeType : '';
+        const errorCls = node.isError ? ' is-error' : '';
         const cls = 'tree-node' + (hasChildren ? ' branch' : ' leaf') + colorCls + extraCls + typeCls + btCls + btRunCls +
-                    (collapsed ? ' collapsed' : '') + multiCls + nodeTypeCls;
+                    (collapsed ? ' collapsed' : '') + multiCls + nodeTypeCls + errorCls;
         const collapseBtn = hasChildren
             ? `<span class="tree-collapse-btn" onclick="event.stopPropagation();app.treeToggleCollapse('${safePath}')">${collapsed ? '▶' : '▼'}</span>`
             : '<span class="tree-collapse-btn-spacer"></span>';
@@ -5296,11 +5313,16 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const tab = this.state.tabs[this.state.activeTab];
         const tabFile = tab ? tab.file : '';
         el.innerHTML = node.children.map((child, i) => {
-            const display = this.escapeHtml(child.title ? this.safeAtob(child.title) : this.getTitleFallback(child));
+            let display = child.title ? this.safeAtob(child.title) : this.getTitleFallback(child);
+            if (child.isError) {
+                display = '❌ ' + display;
+            }
+            display = this.escapeHtml(display);
             const childPath = (this.state.currentNodePath ? this.state.currentNodePath + '/' : '/') + i;
             const evalBadge = this.evalBadgeHtml(child.evaluation);
             const evalBtns = this.evalButtonsHtml(`${tabFile}|${childPath}`, 'node', child.evaluation || '');
-            return `<div class="list-item ${child.evaluation ? 'has-eval eval-' + child.evaluation : ''}" ondblclick="app.copyItemText(${i})">
+            const errorCls = child.isError ? ' is-error' : '';
+            return `<div class="list-item${errorCls} ${child.evaluation ? 'has-eval eval-' + child.evaluation : ''}" ondblclick="app.copyItemText(${i})">
                 <span class="list-item-title">${evalBadge}${display}</span>
                 <span class="list-item-actions">
                     ${evalBtns}
@@ -6909,6 +6931,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             welcome_wizard:   () => this.showWizard(),
             reset_wizard:     () => this.resetWizard(),
             setup_wizard:     () => this.showSetupWizard(),
+            recipe_test:      () => this.showRecipeTest(),
             add_child:        () => this.addChild(),
             remove_node:      () => this.removeNode(),
             settings:         () => this.showSettings(),
@@ -9125,6 +9148,132 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.setProjectsRoot('');
     },
 
+    // ── Recipe Test ───────────────────────────────────────────────
+    // Modalities exercised by the standalone Recipe Test dialog. `target`
+    // matches the label returned by _classifyRecipeUsecase() so we can filter.
+    RT_MODALITIES: [
+        { usecase: 't2t', icon: '📝', labelKey: 'RtModT2T', target: 'Text-to-Text (T2T)',  sampleKey: 'RtSampleT2T' },
+        { usecase: 't2i', icon: '🖼️', labelKey: 'RtModT2I', target: 'Text-to-Image (T2I)', sampleKey: 'RtSampleT2I' },
+        { usecase: 't2v', icon: '🎬', labelKey: 'RtModT2V', target: 'Text-to-Video (T2V)', sampleKey: 'RtSampleT2V' },
+        { usecase: 'tts', icon: '🎵', labelKey: 'RtModTTS', target: 'Text-to-Speech (TTS)', sampleKey: 'RtSampleTTS' },
+    ],
+
+    rt_: { requests: {} },
+
+    showRecipeTest() {
+        const modal = document.getElementById('recipe-test-modal');
+        if (!modal) { this.addLog('⚠ recipe-test-modal not found in DOM'); return; }
+        this.rt_ = { requests: {} };
+        modal.classList.add('visible');
+        this.rtRender();
+    },
+
+    closeRecipeTest() {
+        const modal = document.getElementById('recipe-test-modal');
+        if (modal) modal.classList.remove('visible');
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    },
+
+    // Recipes (excluding command/CLI recipes) matching the given modality target.
+    rtRecipesFor(target) {
+        return (this.state.recipes || []).filter(r =>
+            r.type !== 'command' && this._classifyRecipeUsecase(r) === target);
+    },
+
+    rtRender() {
+        const body = document.getElementById('rt-body');
+        if (!body) return;
+        body.innerHTML = this.RT_MODALITIES.map(m => {
+            const recipes = this.rtRecipesFor(m.target);
+            const has = recipes.length > 0;
+            const sample = this.t(m.sampleKey);
+            const options = recipes.map(r =>
+                `<option value="${this.escapeHtml(r.name)}">${this.escapeHtml(r.name)} — ${this.escapeHtml(r.provider || '')} / ${this.escapeHtml(r.model || '')}</option>`).join('');
+            return `
+            <div class="rt-section" data-usecase="${m.usecase}">
+                <div class="rt-section-head">${m.icon} ${this.t(m.labelKey)}</div>
+                ${has ? `
+                <div class="rt-row">
+                    <select id="rt-recipe-${m.usecase}" class="recipe-select" style="flex:1">${options}</select>
+                    <button id="rt-run-${m.usecase}" class="btn-primary" onclick="app.runRecipeTest('${m.usecase}')">▶ ${this.t('RtRun')}</button>
+                </div>
+                <textarea id="rt-prompt-${m.usecase}" class="sw-textarea rt-prompt">${this.escapeHtml(sample)}</textarea>
+                <div id="rt-result-${m.usecase}" class="rt-result"></div>
+                ` : `<div class="sw-hint">⚠ ${this.t('RtNoRecipe')}</div>`}
+            </div>`;
+        }).join('');
+    },
+
+    runRecipeTest(usecase) {
+        const selEl = document.getElementById('rt-recipe-' + usecase);
+        const promptEl = document.getElementById('rt-prompt-' + usecase);
+        const runBtn = document.getElementById('rt-run-' + usecase);
+        const resultEl = document.getElementById('rt-result-' + usecase);
+        if (!selEl) return;
+        const recipe = (this.state.recipes || []).find(r => r.name === selEl.value);
+        if (!recipe) { this.addLog('⚠ ' + this.t('RtNoRecipe')); return; }
+
+        const requestId = 'rt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        this.rt_.requests[requestId] = usecase;
+
+        const payload = {
+            requestId,
+            provider: recipe.provider || 'openai',
+            model: recipe.model || '',
+            systemPrompt: recipe.systemPrompt || '',
+            userPrompt: promptEl ? promptEl.value : '',
+            temperature: recipe.temperature ?? 0.7,
+            maxTokens: recipe.maxTokens || '',
+            baseUrl: recipe.baseUrl || '',
+            apiPath: recipe.useCustomApiPath ? (recipe.apiPath || '') : '',
+            customParams: recipe.customParams || {},
+        };
+
+        if (runBtn) { runBtn.disabled = true; runBtn.textContent = '⏳ ' + this.t('RtRunning'); }
+        if (resultEl) resultEl.innerHTML = `<div class="rt-running">⏳ ${this.t('RtRunning')}</div>`;
+        this.addLog(`🧪 ${this.t('RtRun')}: ${recipe.name} (${usecase})`);
+        this.postMessage({ type: 'test_recipe', payload });
+    },
+
+    onTestRecipeResult(payload) {
+        if (!payload) return;
+        const usecase = this.rt_.requests[payload.requestId];
+        if (!usecase) return;
+        delete this.rt_.requests[payload.requestId];
+
+        const runBtn = document.getElementById('rt-run-' + usecase);
+        const resultEl = document.getElementById('rt-result-' + usecase);
+        if (runBtn) { runBtn.disabled = false; runBtn.textContent = '▶ ' + this.t('RtRun'); }
+        if (!resultEl) return;
+
+        if (!payload.success) {
+            resultEl.innerHTML = `<div class="rt-error">❌ ${this.escapeHtml(payload.error || 'Unknown error')}</div>`;
+            return;
+        }
+
+        let html = '';
+        const text = (payload.content || '').trim();
+        if (text) html += `<pre class="rt-text">${this.escapeHtml(text)}</pre>`;
+
+        (payload.outputAttachments || []).forEach(att => {
+            const mime = att.mimetype || 'application/octet-stream';
+            const src = `data:${mime};base64,${att.content}`;
+            if (mime.startsWith('image/')) {
+                html += `<img class="rt-media" src="${src}" alt="${this.escapeHtml(att.file || '')}">`;
+            } else if (mime.startsWith('video/')) {
+                html += `<video class="rt-media" controls src="${src}"></video>`;
+            } else if (mime.startsWith('audio/')) {
+                html += `<audio controls src="${src}"></audio>`;
+            } else {
+                html += `<div class="rt-text">📎 ${this.escapeHtml(att.file || mime)}</div>`;
+            }
+        });
+
+        if (!html) html = `<div class="rt-running">✅ ${this.t('RtDone')}</div>`;
+        else html = `<div class="rt-ok">✅ ${this.t('RtDone')}</div>` + html;
+        resultEl.innerHTML = html;
+    },
+
     // ── Setup Wizard ──────────────────────────────────────────────
     get SW_TEMPLATES() {
         const t = key => this.t(key);
@@ -9163,6 +9312,13 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 desc: t('VideoSummaryDesc'),
                 sample: t('VideoSummarySample'),
                 pipeline: t('VideoSummaryPipeline')
+            },
+            {
+                id: 'video-gen',
+                label: '🎬 ' + t('VideoGen'),
+                desc: t('VideoGenDesc'),
+                sample: t('VideoGenSample'),
+                pipeline: ''
             },
             {
                 id: 'music',
@@ -9234,7 +9390,8 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 this.sw_.tabName = nameEl ? nameEl.value.trim() || this.t('Project') : this.t('Project');
                 const tmpl = this.SW_TEMPLATES.find(t => t.id === this.sw_.templateId) || this.SW_TEMPLATES.find(t => t.id === 'free');
                 if (!this.sw_.content) this.sw_.content = tmpl.sample;
-                this.sw_.pipelineName = tmpl.pipeline;
+                // Only pre-select a pipeline the template suggests if it actually exists.
+                this.sw_.pipelineName = this.swMatchPipeline(tmpl.pipeline);
                 this.swNext();
             };
 
@@ -9324,6 +9481,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                     <div class="sw-summary-row"><span class="sw-summary-label">${this.t('Content')}</span><span class="sw-summary-preview">${this.escapeHtml(preview)}</span></div>
                     <div class="sw-summary-row"><span class="sw-summary-label">${this.t('Attachments')}</span><span>${filesSummary}</span></div>
                     <div class="sw-summary-row"><span class="sw-summary-label">${this.t('Pipeline')}</span><span>${s.pipelineName ? '🔧 ' + this.escapeHtml(s.pipelineName) : this.t('Skip')}</span></div>
+                </div>
+                <div class="sw-hint" style="margin-top:12px">
+                    🧪 ${this.t('SwTestHint')}
+                    <button class="sw-test-link" onclick="app.showRecipeTest()">${this.t('RecipeTestTitle')} →</button>
                 </div>`;
             nextBtn.textContent = '🚀 ' + this.t('Create');
             nextBtn.onclick = () => this.swCreate();
@@ -9337,8 +9498,15 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.sw_.templateId = id;
         const tmpl = this.SW_TEMPLATES.find(t => t.id === id) || this.SW_TEMPLATES.find(t => t.id === 'free');
         this.sw_.content = tmpl.sample;
-        this.sw_.pipelineName = tmpl.pipeline;
+        this.sw_.pipelineName = this.swMatchPipeline(tmpl.pipeline);
         this.swRender();
+    },
+
+    // Return the pipeline name only if it exists among the user's real pipelines,
+    // otherwise '' so the wizard never auto-runs a non-existent (phantom) pipeline.
+    swMatchPipeline(name) {
+        if (!name) return '';
+        return (this.state.pipelines || []).some(p => p.name === name) ? name : '';
     },
 
     swSelectPipeline(name) {
@@ -9475,8 +9643,8 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.closeSetupWizard();
         this.addLog(`🚀 ${this.t('ProjectCreated').replace('{name}', s.tabName)}`);
 
-        // Run pipeline if selected
-        if (s.pipelineName) {
+        // Run pipeline only if the selected one actually exists.
+        if (s.pipelineName && this.swMatchPipeline(s.pipelineName)) {
             setTimeout(() => this.runPipeline(s.pipelineName), 300);
         }
     },

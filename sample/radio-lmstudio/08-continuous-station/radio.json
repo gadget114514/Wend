@@ -1,0 +1,112 @@
+{
+  "title": "",
+  "content": "",
+  "mimetype": "text/plain",
+  "attachments": [],
+  "children": [
+    {
+      "title": "VHJhY2sgMQ==",
+      "content": "",
+      "mimetype": "text/plain",
+      "attachments": [],
+      "children": [
+        {
+          "title": "RmV0Y2ggSW5mbyAx",
+          "content": "",
+          "mimetype": "text/plain",
+          "attachments": [],
+          "children": [],
+          "nodeType": "assemble",
+          "selectedRecipe": "Radio Music Fetcher",
+          "btOutputKey": "music_info",
+          "btPrompt": "U2VhcmNoIGZvciBtdXNpYyB0cmFjayAjMSBmb3IgYSByYWRpbyBzdGF0aW9uIHBsYXlsaXN0LiBSZXR1cm4gdGhlIHRpdGxlLCBhcnRpc3QsIGdlbnJlLCBhbmQgYSBicmllZiBkZXNjcmlwdGlvbi4="
+        },
+        {
+          "title": "V3JpdGUgQXJ0aWNsZSAx",
+          "content": "",
+          "mimetype": "text/plain",
+          "attachments": [],
+          "children": [],
+          "nodeType": "assemble",
+          "selectedRecipe": "Radio Article Writer",
+          "btInputKey": "music_info",
+          "btInputType": "text",
+          "btOutputKey": "article",
+          "btPrompt": "V3JpdGUgYSAyMDAtd29yZCByYWRpbyBESiBhcnRpY2xlIGFib3V0OiB7YmI6bXVzaWNfaW5mb30="
+        }
+      ],
+      "nodeType": "assemble",
+      "btType": "sequence"
+    },
+    {
+      "title": "VHJhY2sgMg==",
+      "content": "",
+      "mimetype": "text/plain",
+      "attachments": [],
+      "children": [
+        {
+          "title": "RmV0Y2ggSW5mbyAy",
+          "content": "",
+          "mimetype": "text/plain",
+          "attachments": [],
+          "children": [],
+          "nodeType": "assemble",
+          "selectedRecipe": "Radio Music Fetcher",
+          "btOutputKey": "music_info",
+          "btPrompt": "U2VhcmNoIGZvciBtdXNpYyB0cmFjayAjMiBmb3IgYSByYWRpbyBzdGF0aW9uIHBsYXlsaXN0LiBSZXR1cm4gdGhlIHRpdGxlLCBhcnRpc3QsIGdlbnJlLCBhbmQgYSBicmllZiBkZXNjcmlwdGlvbi4="
+        },
+        {
+          "title": "V3JpdGUgQXJ0aWNsZSAy",
+          "content": "",
+          "mimetype": "text/plain",
+          "attachments": [],
+          "children": [],
+          "nodeType": "assemble",
+          "selectedRecipe": "Radio Article Writer",
+          "btInputKey": "music_info",
+          "btInputType": "text",
+          "btOutputKey": "article",
+          "btPrompt": "V3JpdGUgYSAyMDAtd29yZCByYWRpbyBESiBhcnRpY2xlIGFib3V0OiB7YmI6bXVzaWNfaW5mb30="
+        }
+      ],
+      "nodeType": "assemble",
+      "btType": "sequence"
+    },
+    {
+      "title": "VHJhY2sgMw==",
+      "content": "",
+      "mimetype": "text/plain",
+      "attachments": [],
+      "children": [
+        {
+          "title": "RmV0Y2ggSW5mbyAz",
+          "content": "",
+          "mimetype": "text/plain",
+          "attachments": [],
+          "children": [],
+          "nodeType": "assemble",
+          "selectedRecipe": "Radio Music Fetcher",
+          "btOutputKey": "music_info",
+          "btPrompt": "U2VhcmNoIGZvciBtdXNpYyB0cmFjayAjMyBmb3IgYSByYWRpbyBzdGF0aW9uIHBsYXlsaXN0LiBSZXR1cm4gdGhlIHRpdGxlLCBhcnRpc3QsIGdlbnJlLCBhbmQgYSBicmllZiBkZXNjcmlwdGlvbi4="
+        },
+        {
+          "title": "V3JpdGUgQXJ0aWNsZSAz",
+          "content": "",
+          "mimetype": "text/plain",
+          "attachments": [],
+          "children": [],
+          "nodeType": "assemble",
+          "selectedRecipe": "Radio Article Writer",
+          "btInputKey": "music_info",
+          "btInputType": "text",
+          "btOutputKey": "article",
+          "btPrompt": "V3JpdGUgYSAyMDAtd29yZCByYWRpbyBESiBhcnRpY2xlIGFib3V0OiB7YmI6bXVzaWNfaW5mb30="
+        }
+      ],
+      "nodeType": "assemble",
+      "btType": "sequence"
+    }
+  ],
+  "nodeType": "root",
+  "btType": "sequence"
+}

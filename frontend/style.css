@@ -100,6 +100,8 @@ button.btn-pressed { animation: btn-press 0.12s ease-out; }
 .sw-file-remove { background: none; border: none; color: #ff4a4a; cursor: pointer; font-size: 14px; padding: 2px 6px; }
 .sw-file-remove:hover { color: #ff8888; }
 .sw-hint { font-size: 11px; color: var(--theme-text2); margin-top: 8px; }
+.sw-test-link { background: none; border: none; color: var(--theme-accent); cursor: pointer; font-size: 11px; padding: 0 2px; text-decoration: underline; }
+.sw-test-link:hover { color: var(--theme-accentHover); }
 .sw-pipeline-list { display: flex; flex-direction: column; gap: 6px; }
 .sw-pipeline-item { background: var(--theme-bg); border: 2px solid var(--theme-bg3); border-radius: 5px; padding: 10px 14px; cursor: pointer; font-size: 13px; color: var(--theme-text); }
 .sw-pipeline-item:hover { border-color: var(--theme-border); }
@@ -141,6 +143,24 @@ button.btn-pressed { animation: btn-press 0.12s ease-out; }
 .wizard-nav .btn-primary { background: var(--theme-accent); border-color: var(--theme-accent); color: #fff; box-shadow: 0 2px 4px rgba(74, 158, 255, 0.3); }
 .wizard-nav .btn-primary:hover { background: var(--theme-accentHover); border-color: var(--theme-accentHover); box-shadow: 0 3px 8px rgba(74, 158, 255, 0.4); }
 .wizard-nav .btn-primary:active { background: var(--theme-accentActive); box-shadow: inset 0 1px 3px rgba(0,0,0,0.3); transform: scale(0.98); }
+
+/* Recipe Test dialog */
+.recipe-test-content { min-width: 560px; max-width: 680px; }
+.recipe-test-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.rt-close { background: none; border: none; color: var(--theme-text2); font-size: 22px; line-height: 1; cursor: pointer; padding: 0 4px; }
+.rt-close:hover { color: var(--theme-text); }
+.recipe-test-body { max-height: 60vh; overflow-y: auto; margin-top: 10px; }
+.rt-section { border: 1px solid var(--theme-border); border-radius: 6px; padding: 12px; margin-bottom: 12px; background: var(--theme-bg); }
+.rt-section-head { font-weight: bold; color: var(--theme-text); margin-bottom: 8px; font-size: 13px; }
+.rt-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.rt-prompt { height: 64px; padding-right: 10px; }
+.rt-result { margin-top: 10px; }
+.rt-result:empty { display: none; }
+.rt-text { white-space: pre-wrap; word-break: break-word; background: var(--theme-bg3); border-radius: 4px; padding: 8px; font-size: 12px; color: var(--theme-text); max-height: 180px; overflow-y: auto; margin: 6px 0; }
+.rt-media { max-width: 100%; max-height: 240px; border-radius: 4px; margin: 6px 0; display: block; }
+.rt-ok { color: #4caf50; font-size: 12px; margin-bottom: 4px; }
+.rt-error { color: #ff6b6b; font-size: 12px; white-space: pre-wrap; background: rgba(255,107,107,0.1); border-radius: 4px; padding: 8px; }
+.rt-running { color: var(--theme-text2); font-size: 12px; }
 .wizard-tips { margin-top: 14px; border-top: 1px solid #2a3050; padding-top: 12px; }
 .wizard-tips-label { font-size: 11px; font-weight: bold; color: var(--theme-accent); letter-spacing: 0.05em; margin-bottom: 8px; }
 .wizard-tip { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 7px; background: #1a2035; border-radius: 5px; padding: 7px 10px; }
@@ -260,6 +280,9 @@ button.btn-pressed { animation: btn-press 0.12s ease-out; }
 @keyframes bt-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .tree-node.bt-error { background: #3a2a0a !important; outline: 1px solid #ffb74d; animation: taskPulse 1.2s ease-in-out infinite; }
 .tree-node.bt-error .bt-status::before { content: '⏸'; color: #ffb74d; }
+.tree-node.nt-data.is-error { background: #3a1a1a; color: #ffb3b3; border-left: 2px solid var(--theme-danger); }
+.list-item.is-error { background: #2a1515; border-left: 2px solid var(--theme-danger); }
+.list-item.is-error:hover { background: #3a1a1a; }
 
 /* ── BT Node Accordion (演算ペイン) ──────────────────────────────────── */
 .bt-node-accordion {

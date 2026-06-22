@@ -4499,7 +4499,7 @@ describe('Builtin Providers Loading', () => {
         }
         
         const expectedProviders = ['openai', 'anthropic', 'gemini', 
-                                   'ollama', 'opencode', 'mock', 'mock-http', 'openai-image', 
+                                   'ollama', 'lmstudio', 'opencode', 'mock', 'mock-http', 'openai-image', 
                                    'replicate', 'fal-ai'];
         for (const name of expectedProviders) {
             assert.ok(builtinProviders[name], `Provider "${name}" should be loaded`);
@@ -4518,6 +4518,7 @@ describe('Builtin Providers Loading', () => {
             { file: 'anthropic.js', name: 'anthropic', models: ['claude-sonnet-4-6', 'claude-haiku-4-5'] },
             { file: 'gemini.js', name: 'gemini', models: ['gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.1-flash-image', 'gemini-3-pro-image', 'gemini-2.5-flash-image', 'imagen-3.0-generate-001', 'imagen-4.0-generate-001'] },
             { file: 'ollama.js', name: 'ollama', models: ['llama3.2', 'mistral'] },
+            { file: 'lmstudio.js', name: 'lmstudio', models: ['llama-3.2-8b-instruct', 'mistral-7b-instruct', 'phi-3-mini'] },
             { file: 'opencode.js', name: 'opencode', models: ['gpt-5.5', 'gpt-5.5-pro', 'gpt-5.4', 'gpt-5.4-pro', 'glm-5.2', 'glm-5.1'] },
             { file: 'mock.js', name: 'mock', models: ['echo', 'fixed', 'image-echo', 'image-compose'] },
             { file: 'mock-http.js', name: 'mock-http', models: ['echo', 'image-echo', 'image-compose'] },

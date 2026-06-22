@@ -1,0 +1,47 @@
+{
+  "title": "",
+  "content": "",
+  "mimetype": "text/plain",
+  "attachments": [],
+  "children": [
+    {
+      "title": "RmV0Y2ggU3RyZWFtIEluZm8=",
+      "content": "",
+      "mimetype": "text/plain",
+      "attachments": [],
+      "children": [],
+      "nodeType": "assemble",
+      "selectedRecipe": "Radio Music Fetcher",
+      "btOutputKey": "stream_info",
+      "btPrompt": "U2ltdWxhdGUgZmV0Y2hpbmcgbm93LXBsYXlpbmcgaW5mb3JtYXRpb24gZnJvbSBhbiBvbmxpbmUgcmFkaW8gc3RyZWFtIEFQSS4gUmV0dXJuIHRoZSBjdXJyZW50IHRyYWNrIHRpdGxlLCBhcnRpc3QsIGFsYnVtLCBhbmQgYW55IHJlbGV2YW50IG1ldGFkYXRhLg=="
+    },
+    {
+      "title": "V3JpdGUgQXJ0aWNsZQ==",
+      "content": "",
+      "mimetype": "text/plain",
+      "attachments": [],
+      "children": [],
+      "nodeType": "assemble",
+      "selectedRecipe": "Radio Article Writer",
+      "btInputKey": "stream_info",
+      "btInputType": "text",
+      "btOutputKey": "article",
+      "btPrompt": "V3JpdGUgYSAyMDAtd29yZCByYWRpbyBESiBpbnRyb2R1Y3Rpb24gZm9yIHRoZSBjdXJyZW50bHkgcGxheWluZyB0cmFjazoge2JiOnN0cmVhbV9pbmZvfQ=="
+    },
+    {
+      "title": "TG9nIEJyb2FkY2FzdA==",
+      "content": "",
+      "mimetype": "text/plain",
+      "attachments": [],
+      "children": [],
+      "nodeType": "assemble",
+      "selectedRecipe": "Radio Log Writer",
+      "btInputKey": "article",
+      "btInputType": "text",
+      "btOutputKey": "log",
+      "btPrompt": "TG9nIHRoaXMgYnJvYWRjYXN0IHNlZ21lbnQuIFN1bW1hcml6ZSB3aGF0IHdhcyBwcmVzZW50ZWQ6IHtiYjphcnRpY2xlfQ=="
+    }
+  ],
+  "nodeType": "root",
+  "btType": "sequence"
+}

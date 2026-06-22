@@ -1,0 +1,26 @@
+[
+    {
+        "name": "LM Studio - Local Chat",
+        "type": "ai",
+        "provider": "lmstudio",
+        "model": "llama-3.2-8b-instruct",
+        "temperature": 0.7,
+        "systemPrompt": "You are a helpful assistant."
+    },
+    {
+        "name": "LM Studio - Summarize",
+        "type": "ai",
+        "provider": "lmstudio",
+        "model": "llama-3.2-8b-instruct",
+        "temperature": 0.3,
+        "systemPrompt": "Summarize the following text concisely."
+    },
+    {
+        "name": "LM Studio - Translate to English",
+        "type": "ai",
+        "provider": "lmstudio",
+        "model": "llama-3.2-8b-instruct",
+        "temperature": 0.3,
+        "systemPrompt": "Translate the following text to English."
+    }
+]

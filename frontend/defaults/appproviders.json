@@ -48,6 +48,18 @@
         "description": "Text generation"
     },
     {
+        "id": "lmstudio",
+        "label": "LM Studio",
+        "defaultUrl": "http://localhost:1234/v1",
+        "defaultApiPath": "/chat/completions",
+        "defaultFormat": "lmstudio",
+        "formatLabel": "LM Studio (Local)",
+        "apiType": "simple",
+        "input": ["text", "image"],
+        "output": ["text"],
+        "description": "Local LLM via LM Studio"
+    },
+    {
         "id": "opencode",
         "label": "OpenCode",
         "defaultUrl": "https://opencode.ai/zen/v1",

@@ -307,6 +307,7 @@ for (const [key, file] of [
     ['anthropic',    './providers/anthropic'],
     ['gemini',       './providers/gemini'],
     ['ollama',       './providers/ollama'],
+    ['lmstudio',     './providers/lmstudio'],
     ['opencode',     './providers/opencode'],
     ['mock',         './providers/mock'],
     ['mock-http',    './providers/mock-http'],
@@ -1518,6 +1519,11 @@ function seedDemoProject(sampleSubDir) {
     const recipesPath = path.join(sampleDir, 'projectrecipes.json');
     if (fs.existsSync(recipesPath)) {
         storage.saveProjectRecipes(JSON.parse(fs.readFileSync(recipesPath, 'utf8')));
+    }
+
+    const providersPath = path.join(sampleDir, 'providers.json');
+    if (fs.existsSync(providersPath)) {
+        storage.saveProviders(JSON.parse(fs.readFileSync(providersPath, 'utf8')));
     }
 
     const entries = fs.readdirSync(sampleDir, { withFileTypes: true })
@@ -3090,6 +3096,50 @@ async function handleBridgeMessage(type, payload) {
             }
             break;
         }
+        case 'test_recipe': {
+            // Lightweight single-shot recipe runner for the Recipe Test dialog.
+            // Calls the provider directly (no runner / node routing) and returns the result.
+            const requestId = payload?.requestId || null;
+            try {
+                const providerName = payload?.provider || 'openai';
+                const cfg = storage.loadProviders()[providerName] || {};
+                const baseUrl = payload?.baseUrl || cfg.baseUrl || '';
+                const prov = createProvider(cfg.apiFormat || providerName, cfg.apiKey || '', baseUrl);
+                if (!prov) {
+                    throw new Error(`Provider "${providerName}" not configured\nAction: Configure "${providerName}" with an API key (or Base URL) in Provider Settings`);
+                }
+
+                const userPrompt = String(payload?.userPrompt || '').replace(/\{content\}/g, '').replace(/\{result\}/g, '');
+                const req = {
+                    model: payload?.model || 'gpt-4.1',
+                    systemPrompt: payload?.systemPrompt || '',
+                    userPrompt,
+                    temperature: parseFloat(payload?.temperature ?? 0.7),
+                    maxTokens: parseInt(payload?.maxTokens || '4096'),
+                    attachments: [],
+                    apiPath: payload?.apiPath || '',
+                    customParams: payload?.customParams || {},
+                };
+
+                postToJS('log', JSON.stringify({ message: `[Recipe Test] Calling ${providerName}/${req.model}...` }));
+                const resp = await prov.call(req);
+                postToJS('test_recipe_result', JSON.stringify({
+                    requestId,
+                    success: true,
+                    content: resp?.content || '',
+                    outputAttachments: resp?.outputAttachments || [],
+                    requestUrl: resp?.requestUrl || '',
+                }));
+            } catch (e) {
+                postToJS('log', JSON.stringify({ message: `[Recipe Test] Error: ${e.message || e}` }));
+                postToJS('test_recipe_result', JSON.stringify({
+                    requestId,
+                    success: false,
+                    error: String(e && e.message ? e.message : e),
+                }));
+            }
+            break;
+        }
         case 'run_command_recipe': {
             const cmd = payload?.command || '';
             const optionsStr = payload?.options || '';
@@ -4469,6 +4519,7 @@ function buildMenu() {
                 { label: 'Welcome Wizard', click: send('welcome_wizard') },
                 { label: 'Reset Welcome Wizard', click: send('reset_wizard') },
                 { label: 'Setup Wizard', click: send('setup_wizard') },
+                { label: 'Recipe Test...', click: send('recipe_test') },
                 { label: 'Folder Structure...', click: send('folder_help') },
                 { label: 'Documentation', click: () => shell.openExternal('https://github.com/gadget114514/Wend') },
                 { label: 'About', click: send('about') },
