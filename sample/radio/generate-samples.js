@@ -234,9 +234,41 @@ samples['09-tts-playback'] = rootTree('sequence', [
 const baseDir = __dirname;
 
 // Write projectrecipes.json at project root
+const general = [];
+const grouped = {};
+const knownProviders = ['openai', 'gemini', 'anthropic', 'replicate', 'opencode'];
+
+for (const r of recipes) {
+    const prov = (r.provider || '').toLowerCase().trim();
+    if (r.type === 'ai' && prov && knownProviders.includes(prov)) {
+        if (!grouped[prov]) grouped[prov] = [];
+        grouped[prov].push(r);
+    } else {
+        general.push(r);
+    }
+}
+
+// Clean existing projectrecipes-*.json in baseDir
+try {
+    const files = fs.readdirSync(baseDir);
+    for (const file of files) {
+        if (file.startsWith('projectrecipes-') && file.endsWith('.json')) {
+            fs.unlinkSync(path.join(baseDir, file));
+        }
+    }
+} catch (e) {
+    console.error('Failed to clean projectrecipes files:', e.message);
+}
+
 const recipesPath = path.join(baseDir, 'projectrecipes.json');
-fs.writeFileSync(recipesPath, JSON.stringify(recipes, null, 2), 'utf8');
+fs.writeFileSync(recipesPath, JSON.stringify(general, null, 2), 'utf8');
 console.log(`Wrote ${recipesPath}`);
+
+for (const [prov, list] of Object.entries(grouped)) {
+    const outPath = path.join(baseDir, `projectrecipes-${prov}.json`);
+    fs.writeFileSync(outPath, JSON.stringify(list, null, 2), 'utf8');
+    console.log(`Wrote ${outPath}`);
+}
 
 // Write all samples
 for (const [dirName, tree] of Object.entries(samples)) {

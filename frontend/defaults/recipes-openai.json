@@ -1,0 +1,80 @@
+[
+  {
+    "name": "Music Info Fetcher",
+    "type": "ai",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "temperature": 0.3,
+    "systemPrompt": "You are a music metadata assistant. Provide concise, accurate information about songs, artists, and genres.",
+    "command": "",
+    "useCustomApiPath": false,
+    "apiPath": "/chat/completions",
+    "apiType": "simple",
+    "customParams": {}
+  },
+  {
+    "name": "Article Writer (GPT)",
+    "type": "ai",
+    "provider": "openai",
+    "model": "gpt-4.1",
+    "temperature": 0.8,
+    "systemPrompt": "You are a radio DJ and music journalist. Write engaging, informative articles about music.",
+    "command": "",
+    "useCustomApiPath": false,
+    "apiPath": "/chat/completions",
+    "apiType": "simple",
+    "customParams": {}
+  },
+  {
+    "name": "OpenAI TTS HD",
+    "type": "ai",
+    "provider": "openai",
+    "model": "tts-1-hd",
+    "temperature": 0.7,
+    "systemPrompt": "",
+    "command": "",
+    "useCustomApiPath": false,
+    "apiPath": "/chat/completions",
+    "apiType": "simple",
+    "customParams": {}
+  },
+  {
+    "name": "OpenAI TTS",
+    "type": "ai",
+    "provider": "openai",
+    "model": "tts-1",
+    "temperature": 0.7,
+    "systemPrompt": "",
+    "command": "",
+    "useCustomApiPath": false,
+    "apiPath": "/chat/completions",
+    "apiType": "simple",
+    "customParams": {}
+  },
+  {
+    "name": "Logical calculation tester (GPT)",
+    "type": "ai",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "temperature": 0.1,
+    "systemPrompt": "You are a logical evaluation assistant. Evaluate the mathematical or logical expression/condition provided in the prompt. Return exactly 'true' if the expression evaluates to true, or 'false' if it evaluates to false. Do not include any other text, explanation, or markdown formatting.",
+    "command": "",
+    "useCustomApiPath": false,
+    "apiPath": "/chat/completions",
+    "apiType": "simple",
+    "customParams": {}
+  },
+  {
+    "name": "QA Content Tester (GPT)",
+    "type": "ai",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "temperature": 0.1,
+    "systemPrompt": "You are a quality assurance testing assistant. Evaluate the provided text or data against the specified criteria or test instructions. Return exactly 'true' if it meets the criteria/passes, or 'false' if it does not. Do not include any other text, explanation, or markdown formatting.",
+    "command": "",
+    "useCustomApiPath": false,
+    "apiPath": "/chat/completions",
+    "apiType": "simple",
+    "customParams": {}
+  }
+]

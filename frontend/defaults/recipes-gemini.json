@@ -1,0 +1,185 @@
+[
+  {
+    "name": "Article Writer (Gemini) gemini-3.1-pro-preview",
+    "type": "ai",
+    "provider": "gemini",
+    "model": "gemini-3.1-pro-preview",
+    "temperature": 0.8,
+    "systemPrompt": "You are a radio DJ and music journalist. Write engaging, informative articles about music.",
+    "command": "",
+    "useCustomApiPath": false,
+    "apiPath": "/v1beta/models/{model}:generateContent",
+    "apiType": "simple",
+    "customParams": {}
+  },
+  {
+    "name": "Gemini T2I (Text-to-Image) gemini-3-pro-image",
+    "type": "ai",
+    "provider": "gemini",
+    "model": "gemini-3-pro-image",
+    "temperature": 0.7,
+    "systemPrompt": "You are an AI image generator. Generate high-quality images based on the user prompt.",
+    "command": "",
+    "useCustomApiPath": false,
+    "apiPath": "/v1beta/models/{model}:generateContent",
+    "apiType": "simple",
+    "customParams": {}
+  },
+  {
+    "name": "Gemini T2I Flash (Text-to-Image) gemini-3.1-flash-image",
+    "type": "ai",
+    "provider": "gemini",
+    "model": "gemini-3.1-flash-image",
+    "temperature": 0.7,
+    "systemPrompt": "You are an AI image generator. Generate high-quality images based on the user prompt.",
+    "command": "",
+    "useCustomApiPath": false,
+    "apiPath": "/v1beta/models/{model}:generateContent",
+    "apiType": "simple",
+    "customParams": {}
+  },
+  {
+    "name": "Gemini I2I (Image-to-Image) gemini-3.1-flash-image",
+    "type": "ai",
+    "provider": "gemini",
+    "model": "gemini-3.1-flash-image",
+    "temperature": 0.7,
+    "systemPrompt": "You are an AI image generator. Generate a modified image based on the input image and the user prompt.",
+    "command": "",
+    "useCustomApiPath": false,
+    "apiPath": "/v1beta/models/{model}:generateContent",
+    "apiType": "simple",
+    "customParams": {}
+  },
+  {
+    "name": "Gemini Imagen T2I (imagen-3.1-generate-001)",
+    "type": "ai",
+    "provider": "gemini",
+    "model": "imagen-3.1-generate-001",
+    "temperature": 0.7,
+    "systemPrompt": "You are an AI image generator. Generate high-quality images based on the user prompt.",
+    "command": "",
+    "useCustomApiPath": true,
+    "apiPath": "/v1beta/models/{model}:predict",
+    "apiType": "simple",
+    "customParams": {}
+  },
+  {
+    "name": "Gemini I2I Edit (gemini-3.1-flash-image)",
+    "type": "ai",
+    "provider": "gemini",
+    "model": "gemini-3.1-flash-image",
+    "temperature": 0.7,
+    "systemPrompt": "You are an AI image generator. Specify an image and use a text prompt to add, remove, change elements, alter style, or adjust color grading.",
+    "command": "",
+    "useCustomApiPath": true,
+    "apiPath": "/v1/models/{model}:generateContent",
+    "apiType": "simple",
+    "customParams": {}
+  },
+  {
+    "name": "Gemini I2I Multiple Reference (gemini-3.1-flash-image)",
+    "type": "ai",
+    "provider": "gemini",
+    "model": "gemini-3.1-flash-image",
+    "temperature": 0.7,
+    "systemPrompt": "You are an AI image generator. Generate a new image that references multiple input images based on the user prompt.",
+    "command": "",
+    "useCustomApiPath": true,
+    "apiPath": "/v1/models/{model}:generateContent",
+    "apiType": "simple",
+    "customParams": {
+      "responseModalities": [
+        "TEXT",
+        "IMAGE"
+      ]
+    }
+  },
+  {
+    "name": "Gemini Grounding (gemini-3.1-flash-image)",
+    "type": "ai",
+    "provider": "gemini",
+    "model": "gemini-3.1-flash-image",
+    "temperature": 0.7,
+    "systemPrompt": "You are an AI image generator. Use Google Search grounding to gather the latest information and generate a visual chart or infographic based on the user prompt.",
+    "command": "",
+    "useCustomApiPath": true,
+    "apiPath": "/v1/models/{model}:generateContent",
+    "apiType": "simple",
+    "customParams": {
+      "tools": [
+        {
+          "google_search": {}
+        }
+      ],
+      "responseModalities": [
+        "TEXT",
+        "IMAGE"
+      ]
+    }
+  },
+  {
+    "name": "Gemini V2I (gemini-3.1-flash-image)",
+    "type": "ai",
+    "provider": "gemini",
+    "model": "gemini-3.1-flash-image",
+    "temperature": 0.7,
+    "systemPrompt": "You are an AI image generator. Understand the video content specified by the URL and generate a relevant infographic or summary chart.",
+    "command": "",
+    "useCustomApiPath": true,
+    "apiPath": "/v1/models/{model}:generateContent",
+    "apiType": "simple",
+    "customParams": {
+      "file_data": {
+        "file_uri": "https://www.youtube.com/watch?v=UTdfxFyOQTI"
+      },
+      "video_metadata": {
+        "fps": 0.5
+      }
+    }
+  },
+  {
+    "name": "Gemini Imagen 4 T2I (imagen-4.0-generate-001)",
+    "type": "ai",
+    "provider": "gemini",
+    "model": "imagen-4.0-generate-001",
+    "temperature": 0.7,
+    "systemPrompt": "You are an AI image generator. Generate high-quality images based on the user prompt.",
+    "command": "",
+    "useCustomApiPath": true,
+    "apiPath": "/v1beta/models/{model}:predict",
+    "apiType": "simple",
+    "customParams": {}
+  },
+  {
+    "name": "Gemini T2I Flash (gemini-2.5-flash-image)",
+    "type": "ai",
+    "provider": "gemini",
+    "model": "gemini-2.5-flash-image",
+    "temperature": 0.7,
+    "systemPrompt": "You are an AI image generator. Generate high-quality images based on the user prompt.",
+    "command": "",
+    "useCustomApiPath": true,
+    "apiPath": "/v1beta/models/{model}:generateContent",
+    "apiType": "simple",
+    "customParams": {
+      "responseModalities": [
+        "TEXT",
+        "IMAGE"
+      ]
+    }
+  },
+  {
+    "name": "Logical calculation tester (Gemini)",
+    "type": "ai",
+    "provider": "gemini",
+    "model": "gemini-3.1-pro-preview",
+    "temperature": 0.1,
+    "systemPrompt": "You are a logical evaluation assistant. Evaluate the mathematical or logical expression/condition provided in the prompt. Return exactly 'true' if the expression evaluates to true, or 'false' if it evaluates to false. Do not include any other text, explanation, or markdown formatting.",
+    "command": "",
+    "useCustomApiPath": false,
+    "apiPath": "/v1beta/models/{model}:generateContent",
+    "apiType": "simple",
+    "customParams": {}
+  }
+]

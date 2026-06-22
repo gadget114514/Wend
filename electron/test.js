@@ -78,7 +78,9 @@ function getDefaultRecipes() {
         { name: 'Logical calculation tester (Gemini)', type: 'ai', provider: 'gemini', model: 'gemini-3.1-pro-preview', temperature: 0.1, systemPrompt: 'You are a logical evaluation assistant. Evaluate the mathematical or logical expression/condition provided in the prompt. Return exactly \'true\' if the expression evaluates to true, or \'false\' if it evaluates to false. Do not include any other text, explanation, or markdown formatting.', command: '', customParams: {} },
         { name: 'Logical calculation tester (GPT)', type: 'ai', provider: 'openai', model: 'gpt-4o-mini', temperature: 0.1, systemPrompt: 'You are a logical evaluation assistant. Evaluate the mathematical or logical expression/condition provided in the prompt. Return exactly \'true\' if the expression evaluates to true, or \'false\' if it evaluates to false. Do not include any other text, explanation, or markdown formatting.', command: '', customParams: {} },
         { name: 'Logical calculation tester (Claude)', type: 'ai', provider: 'anthropic', model: 'claude-sonnet-4-20250514', temperature: 0.1, systemPrompt: 'You are a logical evaluation assistant. Evaluate the mathematical or logical expression/condition provided in the prompt. Return exactly \'true\' if the expression evaluates to true, or \'false\' if it evaluates to false. Do not include any other text, explanation, or markdown formatting.', command: '', customParams: {} },
-        { name: 'QA Content Tester (GPT)', type: 'ai', provider: 'openai', model: 'gpt-4o-mini', temperature: 0.1, systemPrompt: 'You are a quality assurance testing assistant. Evaluate the provided text or data against the specified criteria or test instructions. Return exactly \'true\' if it meets the criteria/passes, or \'false\' if it does not. Do not include any other text, explanation, or markdown formatting.', command: '', customParams: {} }
+        { name: 'QA Content Tester (GPT)', type: 'ai', provider: 'openai', model: 'gpt-4o-mini', temperature: 0.1, systemPrompt: 'You are a quality assurance testing assistant. Evaluate the provided text or data against the specified criteria or test instructions. Return exactly \'true\' if it meets the criteria/passes, or \'false\' if it does not. Do not include any other text, explanation, or markdown formatting.', command: '', customParams: {} },
+        { name: 'Code Assistant (OpenCode)', type: 'ai', provider: 'opencode', model: 'gpt-5.5', temperature: 0.2, systemPrompt: 'You are a professional software engineer. Write high-quality, clean, well-commented code, and answer technical questions.', command: '', customParams: {} },
+        { name: 'Code Reviewer (OpenCode)', type: 'ai', provider: 'opencode', model: 'gpt-5.4', temperature: 0.1, systemPrompt: 'You are a senior technical architect and code reviewer. Analyze the code for bugs, performance issues, security vulnerabilities, and suggest improvements.', command: '', customParams: {} }
     ];
 }
 
@@ -4497,7 +4499,7 @@ describe('Builtin Providers Loading', () => {
         }
         
         const expectedProviders = ['openai', 'anthropic', 'gemini', 
-                                   'ollama', 'mock', 'mock-http', 'openai-image', 
+                                   'ollama', 'opencode', 'mock', 'mock-http', 'openai-image', 
                                    'replicate', 'fal-ai'];
         for (const name of expectedProviders) {
             assert.ok(builtinProviders[name], `Provider "${name}" should be loaded`);
@@ -4516,6 +4518,7 @@ describe('Builtin Providers Loading', () => {
             { file: 'anthropic.js', name: 'anthropic', models: ['claude-sonnet-4-6', 'claude-haiku-4-5'] },
             { file: 'gemini.js', name: 'gemini', models: ['gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.1-flash-image', 'gemini-3-pro-image', 'gemini-2.5-flash-image', 'imagen-3.0-generate-001', 'imagen-4.0-generate-001'] },
             { file: 'ollama.js', name: 'ollama', models: ['llama3.2', 'mistral'] },
+            { file: 'opencode.js', name: 'opencode', models: ['gpt-5.5', 'gpt-5.5-pro', 'gpt-5.4', 'gpt-5.4-pro', 'glm-5.2', 'glm-5.1'] },
             { file: 'mock.js', name: 'mock', models: ['echo', 'fixed', 'image-echo', 'image-compose'] },
             { file: 'mock-http.js', name: 'mock-http', models: ['echo', 'image-echo', 'image-compose'] },
             { file: 'openai-image.js', name: 'openai-image', models: ['dall-e-3', 'dall-e-2'] },

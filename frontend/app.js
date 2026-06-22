@@ -1892,6 +1892,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         if (provider.includes('anthropic')) return 'anthropic';
         if (provider.includes('replicate')) return 'replicate';
         if (provider.includes('ollama')) return 'ollama';
+        if (provider.includes('opencode')) return 'opencode';
         return 'other';
     },
 
@@ -1983,6 +1984,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             { key: 'anthropic', label: 'Anthropic', icon: '✉️' },
             { key: 'replicate', label: 'Replicate', icon: '🎨' },
             { key: 'ollama', label: 'Ollama', icon: '🦙' },
+            { key: 'opencode', label: 'OpenCode', icon: '💻' },
             { key: 'command', label: 'Command / CLI', icon: '⚙️' },
             { key: 'other', label: 'Others', icon: '❓' }
         ];
@@ -2261,6 +2263,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             { key: 'anthropic', label: 'Anthropic', icon: '✉️' },
             { key: 'replicate', label: 'Replicate', icon: '🎨' },
             { key: 'ollama', label: 'Ollama', icon: '🦙' },
+            { key: 'opencode', label: 'OpenCode', icon: '💻' },
             { key: 'command', label: 'Command / CLI', icon: '⚙️' },
             { key: 'other', label: 'Others', icon: '❓' }
         ];

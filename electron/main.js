@@ -307,6 +307,7 @@ for (const [key, file] of [
     ['anthropic',    './providers/anthropic'],
     ['gemini',       './providers/gemini'],
     ['ollama',       './providers/ollama'],
+    ['opencode',     './providers/opencode'],
     ['mock',         './providers/mock'],
     ['mock-http',    './providers/mock-http'],
     ['openai-image', './providers/openai-image'],
@@ -365,11 +366,66 @@ const providerCapabilities = (() => {
 })();
 
 function getDefaultRecipes() {
-    return readJson(path.join(FRONTEND_ROOT, 'defaults', 'apprecipes.json'), []);
+    const list = [];
+    const baseFile = path.join(FRONTEND_ROOT, 'defaults', 'apprecipes.json');
+    const baseRecipes = readJson(baseFile, []);
+    if (Array.isArray(baseRecipes)) {
+        list.push(...baseRecipes);
+    }
+    
+    const defaultsDir = path.join(FRONTEND_ROOT, 'defaults');
+    try {
+        if (fs.existsSync(defaultsDir)) {
+            const files = fs.readdirSync(defaultsDir);
+            for (const file of files) {
+                if (file.startsWith('recipes-') && file.endsWith('.json')) {
+                    const extra = readJson(path.join(defaultsDir, file), []);
+                    if (Array.isArray(extra)) {
+                        list.push(...extra);
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error('[getDefaultRecipes] Failed to read defaults dir:', e.message);
+    }
+    return list;
 }
 
 function saveDefaultRecipes(recipes) {
-    writeJson(path.join(FRONTEND_ROOT, 'defaults', 'apprecipes.json'), recipes);
+    const defaultsDir = path.join(FRONTEND_ROOT, 'defaults');
+    const general = [];
+    const grouped = {};
+    
+    const knownProviders = ['openai', 'gemini', 'anthropic', 'replicate', 'opencode'];
+    for (const r of recipes) {
+        const prov = (r.provider || '').toLowerCase().trim();
+        if (r.type === 'ai' && prov && knownProviders.includes(prov)) {
+            if (!grouped[prov]) grouped[prov] = [];
+            grouped[prov].push(r);
+        } else {
+            general.push(r);
+        }
+    }
+    
+    writeJson(path.join(defaultsDir, 'apprecipes.json'), general);
+    
+    try {
+        if (fs.existsSync(defaultsDir)) {
+            const files = fs.readdirSync(defaultsDir);
+            for (const file of files) {
+                if (file.startsWith('recipes-') && file.endsWith('.json')) {
+                    fs.unlinkSync(path.join(defaultsDir, file));
+                }
+            }
+        }
+    } catch (e) {
+        console.error('[saveDefaultRecipes] Failed to clean recipes files:', e.message);
+    }
+    
+    for (const [prov, list] of Object.entries(grouped)) {
+        writeJson(path.join(defaultsDir, `recipes-${prov}.json`), list);
+    }
 }
 
 // ============================================================
@@ -628,11 +684,64 @@ class Storage {
     }
 
     loadProjectRecipes() {
-        return readJson(path.join(this.basePath, 'projectrecipes.json'), []);
+        const list = [];
+        const baseFile = path.join(this.basePath, 'projectrecipes.json');
+        const baseRecipes = readJson(baseFile, []);
+        if (Array.isArray(baseRecipes)) {
+            list.push(...baseRecipes);
+        }
+        
+        try {
+            if (fs.existsSync(this.basePath)) {
+                const files = fs.readdirSync(this.basePath);
+                for (const file of files) {
+                    if (file.startsWith('projectrecipes-') && file.endsWith('.json')) {
+                        const extra = readJson(path.join(this.basePath, file), []);
+                        if (Array.isArray(extra)) {
+                            list.push(...extra);
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('[loadProjectRecipes] Failed to read basePath dir:', e.message);
+        }
+        return list;
     }
 
     saveProjectRecipes(recipes) {
-        writeJson(path.join(this.basePath, 'projectrecipes.json'), recipes);
+        const general = [];
+        const grouped = {};
+        
+        const knownProviders = ['openai', 'gemini', 'anthropic', 'replicate', 'opencode'];
+        for (const r of recipes) {
+            const prov = (r.provider || '').toLowerCase().trim();
+            if (r.type === 'ai' && prov && knownProviders.includes(prov)) {
+                if (!grouped[prov]) grouped[prov] = [];
+                grouped[prov].push(r);
+            } else {
+                general.push(r);
+            }
+        }
+        
+        writeJson(path.join(this.basePath, 'projectrecipes.json'), general);
+        
+        try {
+            if (fs.existsSync(this.basePath)) {
+                const files = fs.readdirSync(this.basePath);
+                for (const file of files) {
+                    if (file.startsWith('projectrecipes-') && file.endsWith('.json')) {
+                        fs.unlinkSync(path.join(this.basePath, file));
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('[saveProjectRecipes] Failed to clean projectrecipes files:', e.message);
+        }
+        
+        for (const [prov, list] of Object.entries(grouped)) {
+            writeJson(path.join(this.basePath, `projectrecipes-${prov}.json`), list);
+        }
         return true;
     }
 

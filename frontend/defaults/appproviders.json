@@ -48,6 +48,18 @@
         "description": "Text generation"
     },
     {
+        "id": "opencode",
+        "label": "OpenCode",
+        "defaultUrl": "https://opencode.ai/zen/v1",
+        "defaultApiPath": "/chat/completions",
+        "defaultFormat": "opencode",
+        "formatLabel": "OpenCode Zen",
+        "apiType": "simple",
+        "input": ["text"],
+        "output": ["text"],
+        "description": "Text generation"
+    },
+    {
         "id": "openai-image",
         "label": "OpenAI Image (DALL-E)",
         "defaultUrl": "https://api.openai.com/v1",
