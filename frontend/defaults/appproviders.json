@@ -143,5 +143,17 @@
         "input": ["text"],
         "output": ["audio"],
         "description": "Local TTS via Voicebox"
+    },
+    {
+        "id": "mcp",
+        "label": "MCP",
+        "defaultUrl": "",
+        "defaultApiPath": "/message",
+        "defaultFormat": "mcp",
+        "formatLabel": "MCP Client",
+        "apiType": "mcp",
+        "input": ["text"],
+        "output": ["text", "image", "audio"],
+        "description": "Generic MCP Server Tool"
     }
 ]

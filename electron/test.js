@@ -4500,7 +4500,7 @@ describe('Builtin Providers Loading', () => {
         
         const expectedProviders = ['openai', 'anthropic', 'gemini', 
                                    'ollama', 'lmstudio', 'opencode', 'mock', 'mock-http', 'openai-image', 
-                                   'replicate', 'fal-ai', 'voicebox'];
+                                   'replicate', 'fal-ai', 'voicebox', 'mcp'];
         for (const name of expectedProviders) {
             assert.ok(builtinProviders[name], `Provider "${name}" should be loaded`);
         }
@@ -4526,6 +4526,7 @@ describe('Builtin Providers Loading', () => {
             { file: 'replicate.js', name: 'replicate', models: ['stability-ai/sdxl', 'bytedance/animatediff'] },
             { file: 'fal-ai.js', name: 'fal-ai', models: ['fal-ai/flux/schnell', 'fal-ai/stable-diffusion-v35-medium'] },
             { file: 'voicebox.js', name: 'voicebox', models: ['kokoro', 'qwen', 'qwen_custom_voice', 'luxtts', 'chatterbox', 'chatterbox_turbo', 'tada'] },
+            { file: 'mcp-client.js', name: 'mcp', models: ['mcp-tool'] },
         ];
         
         for (const test of providerTests) {

@@ -316,6 +316,7 @@ for (const [key, file] of [
     ['replicate',    './providers/replicate'],
     ['fal-ai',       './providers/fal-ai'],
     ['voicebox',     './providers/voicebox'],
+    ['mcp',          './providers/mcp-client'],
 ]) {
     try {
         builtinProviders[key] = require(file);
@@ -715,7 +716,7 @@ class Storage {
         const general = [];
         const grouped = {};
         
-        const knownProviders = ['openai', 'gemini', 'anthropic', 'replicate', 'opencode', 'mock'];
+        const knownProviders = ['openai', 'gemini', 'anthropic', 'replicate', 'opencode', 'mock', 'mcp'];
         for (const r of recipes) {
             const prov = (r.provider || '').toLowerCase().trim();
             if (r.type === 'ai' && prov && knownProviders.includes(prov)) {
