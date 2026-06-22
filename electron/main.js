@@ -315,6 +315,7 @@ for (const [key, file] of [
     ['gemini-image', './providers/gemini-image'],
     ['replicate',    './providers/replicate'],
     ['fal-ai',       './providers/fal-ai'],
+    ['voicebox',     './providers/voicebox'],
 ]) {
     try {
         builtinProviders[key] = require(file);
@@ -398,7 +399,7 @@ function saveDefaultRecipes(recipes) {
     const general = [];
     const grouped = {};
     
-    const knownProviders = ['openai', 'gemini', 'anthropic', 'replicate', 'opencode'];
+    const knownProviders = ['openai', 'gemini', 'anthropic', 'replicate', 'opencode', 'voicebox'];
     for (const r of recipes) {
         const prov = (r.provider || '').toLowerCase().trim();
         if (r.type === 'ai' && prov && knownProviders.includes(prov)) {

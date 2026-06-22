@@ -131,5 +131,17 @@
         "input": ["text", "image"],
         "output": ["text", "image"],
         "description": "HTTP test provider"
+    },
+    {
+        "id": "voicebox",
+        "label": "Voicebox",
+        "defaultUrl": "http://127.0.0.1:17493",
+        "defaultApiPath": "/speak",
+        "defaultFormat": "voicebox",
+        "formatLabel": "Voicebox TTS",
+        "apiType": "simple",
+        "input": ["text"],
+        "output": ["audio"],
+        "description": "Local TTS via Voicebox"
     }
 ]

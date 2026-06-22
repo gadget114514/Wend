@@ -4500,7 +4500,7 @@ describe('Builtin Providers Loading', () => {
         
         const expectedProviders = ['openai', 'anthropic', 'gemini', 
                                    'ollama', 'lmstudio', 'opencode', 'mock', 'mock-http', 'openai-image', 
-                                   'replicate', 'fal-ai'];
+                                   'replicate', 'fal-ai', 'voicebox'];
         for (const name of expectedProviders) {
             assert.ok(builtinProviders[name], `Provider "${name}" should be loaded`);
         }
@@ -4525,6 +4525,7 @@ describe('Builtin Providers Loading', () => {
             { file: 'openai-image.js', name: 'openai-image', models: ['dall-e-3', 'dall-e-2'] },
             { file: 'replicate.js', name: 'replicate', models: ['stability-ai/sdxl', 'bytedance/animatediff'] },
             { file: 'fal-ai.js', name: 'fal-ai', models: ['fal-ai/flux/schnell', 'fal-ai/stable-diffusion-v35-medium'] },
+            { file: 'voicebox.js', name: 'voicebox', models: ['kokoro', 'qwen', 'qwen_custom_voice', 'luxtts', 'chatterbox', 'chatterbox_turbo', 'tada'] },
         ];
         
         for (const test of providerTests) {
@@ -7911,6 +7912,98 @@ describe('GeminiProvider Multimodal & Image Generation URL resolution', () => {
         } finally {
             utils.httpRequest = originalHttpRequest;
             delete require.cache[require.resolve('./providers/gemini.js')];
+        }
+    });
+});
+
+// ── Recipe files — triplet validation ──────────────────────
+const RECIPES_DIR = path.join(__dirname, '..', 'frontend', 'defaults');
+
+const VALID_TOOL_TYPES = ['t2t', 't2i', 'i2i', 'v2i', 'tts', 'stt', 't2a', 't2v', 'translate'];
+const VALID_API_TYPES  = ['openai', 'anthropic', 'gemini', 'ollama', 'polling', 'simple'];
+
+describe('Recipe files — structural validation', () => {
+    const recipeFiles = fs.readdirSync(RECIPES_DIR)
+        .filter(f => f.startsWith('recipes-') && f.endsWith('.json'))
+        .sort();
+
+    for (const file of recipeFiles) {
+        test(`${file} is valid JSON and has required fields`, () => {
+            const recipes = readJson(path.join(RECIPES_DIR, file), null);
+            assert.ok(Array.isArray(recipes), `${file}: must be an array`);
+
+            for (let i = 0; i < recipes.length; i++) {
+                const r = recipes[i];
+                const tag = `${file}[${i}] "${r.name || 'unnamed'}"`;
+                assert.ok(r.name,          `${tag}: missing name`);
+                assert.equal(r.type, 'ai', `${tag}: type must be "ai"`);
+                assert.ok(r.provider,      `${tag}: missing provider`);
+                assert.ok(r.model,         `${tag}: missing model`);
+                assert.equal(typeof r.temperature, 'number', `${tag}: temperature must be a number`);
+                assert.ok(Array.isArray(r.tool),      `${tag}: tool must be an array`);
+                assert.ok(r.tool.length > 0,           `${tag}: tool must not be empty`);
+                for (const t of r.tool) {
+                    assert.ok(VALID_TOOL_TYPES.includes(t), `${tag}: unknown tool type "${t}"`);
+                }
+            }
+        });
+    }
+});
+
+describe('Recipe files — triplet validation', () => {
+    const recipeFiles = fs.readdirSync(RECIPES_DIR)
+        .filter(f => f.startsWith('recipes-') && f.endsWith('.json'))
+        .sort();
+
+    const allRecipes = [];
+    for (const file of recipeFiles) {
+        const recipes = readJson(path.join(RECIPES_DIR, file), []);
+        if (Array.isArray(recipes)) {
+            for (const r of recipes) {
+                allRecipes.push({ file, recipe: r });
+            }
+        }
+    }
+
+    test('every recipe has the triplet (provider, model, apiType)', () => {
+        for (const { file, recipe: r } of allRecipes) {
+            const tag = `${file} "${r.name}"`;
+            assert.ok(r.provider, `${tag}: missing provider (1st triplet element)`);
+            assert.ok(r.model,    `${tag}: missing model (2nd triplet element)`);
+            assert.ok(r.apiType,  `${tag}: missing apiType (3rd triplet element)`);
+            assert.ok(VALID_API_TYPES.includes(r.apiType), `${tag}: unknown apiType "${r.apiType}"`);
+        }
+    });
+
+    test('every recipe has tool matching its name/purpose', () => {
+        for (const { file, recipe: r } of allRecipes) {
+            const tag = `${file} "${r.name}"`;
+            const tools = r.tool || [];
+            const nameLower = r.name.toLowerCase();
+
+            if (nameLower.includes('translate')) {
+                assert.ok(tools.includes('translate'), `${tag}: translate recipe should include "translate" in tool`);
+            }
+            if (nameLower.includes('tts') || nameLower.includes('speech')) {
+                assert.ok(tools.includes('tts'), `${tag}: TTS recipe should include "tts" in tool`);
+            }
+            if ((nameLower.includes('t2i') || nameLower.includes('text-to-image')) && !nameLower.includes('i2i')) {
+                assert.ok(tools.includes('t2i'), `${tag}: T2I recipe should include "t2i" in tool`);
+            }
+            if (nameLower.includes('i2i')) {
+                assert.ok(tools.includes('i2i'), `${tag}: I2I recipe should include "i2i" in tool`);
+            }
+            if (nameLower.includes('v2i')) {
+                assert.ok(tools.includes('v2i'), `${tag}: V2I recipe should include "v2i" in tool`);
+            }
+        }
+    });
+
+    test('file name matches provider prefix', () => {
+        for (const { file, recipe: r } of allRecipes) {
+            const expectedPrefix = `recipes-${r.provider}.json`;
+            assert.equal(file, expectedPrefix,
+                `"${r.name}" has provider "${r.provider}" but lives in ${file}, expected ${expectedPrefix}`);
         }
     });
 });

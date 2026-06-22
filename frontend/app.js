@@ -1896,6 +1896,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         if (provider.includes('replicate')) return 'replicate';
         if (provider.includes('ollama')) return 'ollama';
         if (provider.includes('opencode')) return 'opencode';
+        if (provider.includes('voicebox')) return 'voicebox';
         return 'other';
     },
 
@@ -1996,6 +1997,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             { key: 'replicate', label: 'Replicate', icon: '🎨' },
             { key: 'ollama', label: 'Ollama', icon: '🦙' },
             { key: 'opencode', label: 'OpenCode', icon: '💻' },
+            { key: 'voicebox', label: 'Voicebox', icon: '🎵' },
             { key: 'command', label: 'Command / CLI', icon: '⚙️' },
             { key: 'other', label: 'Others', icon: '❓' }
         ];
@@ -2278,6 +2280,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             { key: 'replicate', label: 'Replicate', icon: '🎨' },
             { key: 'ollama', label: 'Ollama', icon: '🦙' },
             { key: 'opencode', label: 'OpenCode', icon: '💻' },
+            { key: 'voicebox', label: 'Voicebox', icon: '🎵' },
             { key: 'command', label: 'Command / CLI', icon: '⚙️' },
             { key: 'other', label: 'Others', icon: '❓' }
         ];
