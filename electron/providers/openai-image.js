@@ -52,4 +52,20 @@ class OpenAIImageProvider {
     async testConnection() { return ''; }
 }
 
-module.exports = OpenAIImageProvider;
+const metadata = {
+    id: 'openai-image',
+    label: 'OpenAI Image (DALL-E)',
+    icon: '🖼️',
+    defaultUrl: 'https://api.openai.com/v1',
+    defaultApiPath: '/v1/images/generations',
+    defaultFormat: 'openai-image',
+    formatLabel: 'OpenAI Image (DALL-E)',
+    apiType: 'simple',
+    input: ['text'],
+    output: ['image'],
+    maxOutputs: 1,
+    description: 'Image generation (DALL-E)',
+    defaultApiDescUrl: 'https://api.openai.com/docs'
+};
+
+module.exports = { ProviderClass: OpenAIImageProvider, metadata };

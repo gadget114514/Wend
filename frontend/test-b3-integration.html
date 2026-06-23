@@ -147,6 +147,7 @@ function testBlackboardOperations() {
             state: { btRunState: new Map(), pipelineRun: { running: false } },
             renderTree: () => {},
             addLog: () => {},
+            outputMessage: () => {},
             safeAtob: (str) => {
                 try {
                     return atob(str);
@@ -233,6 +234,7 @@ function testStateTracking() {
             state: { btRunState: new Map(), pipelineRun: { running: false } },
             renderTree: () => {},
             addLog: () => {},
+            outputMessage: () => {},
             safeAtob: (str) => {
                 try {
                     return atob(str);
@@ -301,6 +303,7 @@ function testExecutionFlow() {
             state: { btRunState: new Map(), pipelineRun: { running: false } },
             renderTree: () => {},
             addLog: () => {},
+            outputMessage: () => {},
             safeAtob: (str) => {
                 try {
                     return atob(str);

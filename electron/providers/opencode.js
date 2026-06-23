@@ -81,4 +81,19 @@ class OpenCodeProvider {
     }
 }
 
-module.exports = OpenCodeProvider;
+const metadata = {
+    id: 'opencode',
+    label: 'OpenCode',
+    icon: '💻',
+    defaultUrl: 'https://opencode.ai/zen/v1',
+    defaultApiPath: '/chat/completions',
+    defaultFormat: 'opencode',
+    formatLabel: 'OpenCode Zen',
+    apiType: 'simple',
+    input: ['text'],
+    output: ['text'],
+    description: 'Text generation',
+    defaultApiDescUrl: 'https://opencode.ai/zen/docs'
+};
+
+module.exports = { ProviderClass: OpenCodeProvider, metadata };

@@ -97,4 +97,19 @@ class ReplicateProvider {
     async testConnection() { return ''; }
 }
 
-module.exports = ReplicateProvider;
+const metadata = {
+    id: 'replicate',
+    label: 'Replicate',
+    icon: '🎨',
+    defaultUrl: 'https://api.replicate.com',
+    defaultApiPath: '/v1/predictions',
+    defaultFormat: 'replicate',
+    formatLabel: 'Replicate (Image/Video)',
+    apiType: 'polling',
+    input: ['text'],
+    output: ['image', 'video', 'audio'],
+    description: 'Image/Video/Audio generation',
+    defaultApiDescUrl: 'https://api.replicate.com/docs'
+};
+
+module.exports = { ProviderClass: ReplicateProvider, metadata };

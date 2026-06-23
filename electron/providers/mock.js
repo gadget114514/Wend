@@ -52,4 +52,19 @@ class MockProvider {
     async testConnection() { return ''; }
 }
 
-module.exports = MockProvider;
+const metadata = {
+    id: 'mock',
+    label: 'Mock',
+    icon: '🧪',
+    defaultUrl: '',
+    defaultApiPath: '',
+    defaultFormat: 'mock',
+    formatLabel: 'Mock',
+    apiType: 'simple',
+    input: ['text', 'image', 'audio'],
+    output: ['text', 'image'],
+    description: 'Test provider',
+    defaultApiDescUrl: ''
+};
+
+module.exports = { ProviderClass: MockProvider, metadata };

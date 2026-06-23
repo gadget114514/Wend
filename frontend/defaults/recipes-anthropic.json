@@ -9,8 +9,11 @@
     "command": "",
     "useCustomApiPath": false,
     "apiPath": "/v1/messages",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "anthropic",
+    "customParams": {},
+    "tool": [
+      "t2t"
+    ]
   },
   {
     "name": "Logical calculation tester (Claude)",
@@ -22,7 +25,10 @@
     "command": "",
     "useCustomApiPath": false,
     "apiPath": "/v1/messages",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "anthropic",
+    "customParams": {},
+    "tool": [
+      "t2t"
+    ]
   }
 ]

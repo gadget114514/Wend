@@ -71,7 +71,8 @@
         <div id="messages-resize-handle"></div>
         <div class="pane-header" onclick="app.togglePane('messages-pane')">
             <span class="msg-tabs">
-                <button class="msg-tab msg-tab-active" data-tab="log" onclick="event.stopPropagation();app.switchMsgTab('log')">📝 <span data-i18n="Messages">Log</span></button>
+                <button class="msg-tab msg-tab-active" data-tab="messages" onclick="event.stopPropagation();app.switchMsgTab('messages')">📝 <span data-i18n="Messages">Messages</span></button>
+                <button class="msg-tab" data-tab="debuglog" onclick="event.stopPropagation();app.switchMsgTab('debuglog')">🐛 Debug</button>
                 <button class="msg-tab" data-tab="http" onclick="event.stopPropagation();app.switchMsgTab('http')">🌐 HTTP</button>
                 <button class="msg-tab" data-tab="manager" onclick="event.stopPropagation();app.switchMsgTab('manager')">🚀 Tasks</button>
             </span>
@@ -84,6 +85,7 @@
             </span>
         </div>
         <div id="messages-content" oncontextmenu="event.preventDefault();app.showLogContextMenu(event)"></div>
+        <div id="debuglog-content" style="display:none;overflow-y:auto;flex:1;font-family:monospace;font-size:11px;padding:4px;background:#1e1e1e;white-space:pre-wrap;" oncontextmenu="event.preventDefault();app.showLogContextMenu(event)"></div>
         <div id="http-log-content" style="display:none;overflow-y:auto;flex:1;font-family:monospace;font-size:11px;padding:4px;background:#1e1e1e;"></div>
         <div id="task-manager-content" class="task-manager-pane" style="display:none;padding:0">
             <div class="task-manager-body-pane">
@@ -154,20 +156,18 @@
             </div>
         </div>
     </div>
-    <!-- BT Blackboard Dialog -->
-    <div id="bt-bb-modal" class="modal" style="display:none" onclick="if(event.target===this)app.btBbClose()">
-        <div class="modal-content bt-bb-modal-content">
-            <div class="bt-bb-header">
-                <span class="bt-bb-title">📋 <span data-i18n="Blackboard">Blackboard</span></span>
-                <span class="bt-bb-subtitle" data-i18n="BlackboardSubtitle">Shared variables during BT execution</span>
-                <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
-                    <button class="copy-btn" onclick="app._btBbAddNew()">＋ 追加</button>
-                    <button class="copy-btn" onclick="app._renderBbDialog()">↻ 更新</button>
-                    <span class="modal-close" style="position:static;font-size:18px" onclick="app.btBbClose()">&times;</span>
-                </div>
+    <!-- BT Blackboard Dialog (non-modal floating) -->
+    <div id="bt-bb-modal">
+        <div class="bt-bb-header" id="bt-bb-drag-handle">
+            <span class="bt-bb-title">📋 <span data-i18n="Blackboard">Blackboard</span></span>
+            <span class="bt-bb-subtitle" data-i18n="BlackboardSubtitle">Shared variables during BT execution</span>
+            <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+                <button class="copy-btn" onclick="app._btBbAddNew()">＋ 追加</button>
+                <button class="copy-btn" onclick="app._renderBbDialog()">↻ 更新</button>
+                <span class="modal-close" style="position:static;font-size:18px" onclick="app.btBbClose()">&times;</span>
             </div>
-            <div id="bt-bb-body" class="bt-bb-body"></div>
         </div>
+        <div id="bt-bb-body" class="bt-bb-body"></div>
     </div>
     <!-- Log Context Menu -->
     <div id="log-context-menu" class="context-menu" style="display:none"></div>
@@ -337,6 +337,21 @@
                 <button id="wizard-prev" onclick="app.wizardPrev()" data-i18n="WizardPrev">← Back</button>
                 <button id="wizard-next" class="btn-primary" data-i18n="WizardNext">Next →</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sample Wizard Modal -->
+<div id="sample-wizard-modal" class="modal">
+    <div class="modal-content wizard-content" style="max-width:560px">
+        <div class="wizard-body">
+            <div class="wizard-icon">📦</div>
+            <h2 class="wizard-title" id="sample-wizard-title">Sample Projects</h2>
+            <div class="wizard-text" style="margin-bottom:12px">Choose a sample project to set up. It will be copied as a new project with pre-configured nodes and pipelines.</div>
+            <div id="sample-wizard-list"></div>
+        </div>
+        <div class="wizard-footer" style="justify-content:flex-end">
+            <button onclick="app.closeSampleWizard()" data-i18n="Close">Close</button>
         </div>
     </div>
 </div>
@@ -550,6 +565,17 @@
         </div>
         <div class="settings-separator"></div>
         <div class="settings-field-row">
+            <label>Local Mock Server</label>
+            <div class="settings-field-hint">Start and stop the local mock server on port 8765.</div>
+            <div class="settings-field-control">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                    <input type="checkbox" id="config-start-mock-server" onchange="app.setStartMockServer(this.checked)">
+                    <span>Run Mock Server</span>
+                </label>
+            </div>
+        </div>
+        <div class="settings-separator"></div>
+        <div class="settings-field-row">
             <label data-i18n="PlaceholderArchiveName">Placeholder Name</label>
             <div class="settings-field-hint" data-i18n="PlaceholderArchiveNameDesc">Default name for new placeholders created via context menu</div>
             <div class="settings-field-control">
@@ -643,7 +669,7 @@
 
 <!-- Recipe Select Dialog -->
 <div id="recipe-select-modal" class="modal">
-    <div class="modal-content" style="min-width:720px;max-width:850px;height:500px;display:flex;flex-direction:column;padding:0">
+    <div class="modal-content" style="min-width:950px;max-width:1150px;height:550px;display:flex;flex-direction:column;padding:0">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444;flex-shrink:0">
             <span style="font-size:14px;font-weight:bold;color:#eee" data-i18n="RecipeSelectTitle">📋 Select Recipe</span>
             <span class="modal-close" onclick="app.closeRecipeSelectDialog()">&times;</span>
@@ -653,18 +679,28 @@
             <!-- Left Sidebar: Providers -->
             <div id="recipe-select-sidebar" style="width:200px;border-right:1px solid #333;background:#151515;overflow-y:auto;padding:8px 0;display:flex;flex-direction:column;gap:2px">
             </div>
-            <!-- Right Panel: Search & Usecase Groups -->
-            <div style="flex:1;display:flex;flex-direction:column;min-width:0;background:#1e1e1e">
+            <!-- Middle Panel: Search & Usecase Groups -->
+            <div style="flex:1.2;display:flex;flex-direction:column;min-width:0;background:#1e1e1e;border-right:1px solid #333">
                 <div style="padding:10px 14px;border-bottom:1px solid #2d2d2d;flex-shrink:0">
                     <input id="recipe-select-search" type="text" placeholder="🔍 Search by name or description..." data-i18n-placeholder="SearchPlaceholder" oninput="app.filterRecipeSelectDialog()"
                         style="width:100%;box-sizing:border-box;background:#121212;border:1px solid #3c3c3c;color:#eee;padding:6px 10px;border-radius:4px;font-size:12px;outline:none">
                 </div>
                 <div id="recipe-select-list" style="flex:1;overflow-y:auto;padding:12px 16px"></div>
             </div>
+            <!-- Right Panel: Recipe Detail / Definition -->
+            <div id="recipe-select-detail" style="width:320px;background:#161616;display:flex;flex-direction:column;overflow-y:auto;padding:12px 16px">
+            </div>
         </div>
-        <div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 14px;border-top:1px solid #333;flex-shrink:0;background:#1a1a1a">
-            <button class="btn" onclick="app.closeRecipeSelectDialog()" data-i18n="Cancel">Cancel</button>
-            <button class="btn-primary" onclick="app.applyRecipeSelectDialog()" data-i18n="Apply">Apply</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-top:1px solid #333;flex-shrink:0;background:#1a1a1a">
+            <div>
+                <button class="btn" onclick="app.openRecipeManagerFromSelector()" style="display:flex;align-items:center;gap:6px;font-size:11px">
+                    ⚙️ <span data-i18n="ManageRecipes">Manage Recipes</span>
+                </button>
+            </div>
+            <div style="display:flex;gap:8px">
+                <button class="btn" onclick="app.closeRecipeSelectDialog()" data-i18n="Cancel">Cancel</button>
+                <button class="btn-primary" onclick="app.applyRecipeSelectDialog()" data-i18n="Apply">Apply</button>
+            </div>
         </div>
     </div>
 </div>
@@ -808,6 +844,10 @@
 <script src="bt-b3-actions.js"></script>
 <script src="bt-b3-converter.js"></script>
 <script src="bt-b3-adapter.js"></script>
+
+<!-- Action Registry and Built-in Actions -->
+<script src="bt-registry.js"></script>
+<script src="bt-actions.js"></script>
 
 <!-- Core BT and App -->
 <script src="bt.js"></script>

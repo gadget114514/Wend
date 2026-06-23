@@ -55,20 +55,27 @@ class ProcessPromptAction extends b3.Action {
             }
         }
 
-        // Get output key
+        // Get output key and type
         const outputKey = this.properties?.outputKey;
-        console.log(`[ProcessPromptAction] Prompt: "${String(this.properties?.prompt || this.title).slice(0, 50)}..."`);
+        const outputType = this.properties?.outputType || 'text';
+        
+        const rawPrompt = this.properties?.prompt || this.title;
+        const resolvedPrompt = rawPrompt ? this._expandPlaceholders(rawPrompt, blackboard) : '';
+
+        console.log(`[ProcessPromptAction] Prompt: "${String(resolvedPrompt).slice(0, 50)}..."`);
         console.log(`[ProcessPromptAction] Input: key="${inputKey}", type="${inputType}"`);
-        console.log(`[ProcessPromptAction] Output: key="${outputKey}"`);
+        console.log(`[ProcessPromptAction] Output: key="${outputKey}", type="${outputType}"`);
 
         // Set BT run context for processPrompt to read
         if (window.app) {
             window.app.state.btRunContext = {
-                prompt: this.properties?.prompt || this.title,
+                prompt: resolvedPrompt,
                 bbTextInput: inputType === 'text' ? inputValue : null,
                 bbMediaInput: inputType === 'media' ? inputValue : null,
                 outputKey: outputKey || null,
-                btActionNodeId: nodeId
+                outputType: outputType,
+                btActionNodeId: nodeId,
+                targetNodePath: this.properties?._origPath || null,
             };
 
             console.log(`[ProcessPromptAction] Calling app.processPrompt()...`);
@@ -96,6 +103,68 @@ class ProcessPromptAction extends b3.Action {
         // Return RUNNING - will resume on next tick after pipeline completes
         console.log(`[ProcessPromptAction] Returning RUNNING, waiting for pipeline...`);
         return b3.Status.RUNNING;
+    }
+
+    _expandPlaceholders(text, blackboard) {
+        if (!text) return text;
+        return text
+            .replace(/\{bb:([^}:]+):json\}/g, (_, k) => {
+                const slot = blackboard.get(k);
+                const d = slot ? slot.data : null;
+                return d != null ? JSON.stringify(d) : '';
+            })
+            .replace(/\{bb:([^}]+)\}/g, (_, k) => {
+                const slot = blackboard.get(k);
+                if (slot) {
+                    if (slot.text == null && (slot.media != null || slot.data != null)) {
+                        const errorMsg = `Blackboard variable "${k}" is not of type "text"`;
+                        if (window.app && window.app.addLog) {
+                            window.app.outputDebug(`❌ Error: ${errorMsg}`);
+                        }
+                        return `[ERROR: ${errorMsg}]`;
+                    }
+                    const v = slot.text;
+                    if (v != null) return v;
+                    if (slot.data != null) return typeof slot.data === 'string' ? slot.data : JSON.stringify(slot.data);
+                }
+                return '';
+            })
+            .replace(/\{tab:([^}]+)\}/g, (_, k) => {
+                let slot = blackboard.get(k);
+                if (!slot && window.app && window.app._bt && window.app._bt._tabBlackboard) {
+                    slot = window.app._bt._tabBlackboard[k];
+                }
+                if (slot) {
+                    if (slot.text == null && (slot.media != null || slot.data != null)) {
+                        const errorMsg = `Tab blackboard variable "${k}" is not of type "text"`;
+                        if (window.app && window.app.addLog) {
+                            window.app.outputDebug(`❌ Error: ${errorMsg}`);
+                        }
+                        return `[ERROR: ${errorMsg}]`;
+                    }
+                    const v = slot.text;
+                    if (v != null) return v;
+                }
+                return '';
+            })
+            .replace(/\{proj:([^}]+)\}/g, (_, k) => {
+                let slot = blackboard.get(k);
+                if (!slot && window.app && window.app._projectBlackboard) {
+                    slot = window.app._projectBlackboard[k];
+                }
+                if (slot) {
+                    if (slot.text == null && (slot.media != null || slot.data != null)) {
+                        const errorMsg = `Project blackboard variable "${k}" is not of type "text"`;
+                        if (window.app && window.app.addLog) {
+                            window.app.outputDebug(`❌ Error: ${errorMsg}`);
+                        }
+                        return `[ERROR: ${errorMsg}]`;
+                    }
+                    const v = slot.text;
+                    if (v != null) return v;
+                }
+                return '';
+            });
     }
 }
 

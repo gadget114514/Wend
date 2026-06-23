@@ -6,7 +6,7 @@
  *   this._runState  (Map)
  *   app.state.pipelineRun.running
  *   app.renderTree()
- *   app.addLog(msg)
+ *   app.outputMessage(msg)
  *   app.processPrompt()
  *   app.state.selectedOpPath, app.state.currentNodePath
  */
@@ -18,8 +18,8 @@ class BehaviorTreeEngine {
         this._leafCallback = null;      // kept for back-compat, single callback (deprecated)
         this._pendingCallbacks = new Map();  // Phase A: requestId → callback (concurrent-safe)
         this._nextRequestId = 1;        // counter for generating unique requestIds
-        this._blackboard = {};        // run scope (reset each run/cycle)
-        this._tabBlackboard = {};     // tab scope (persists across runs within a tab)
+        this._blackboard = this._createBbProxy({}, 'run');        // run scope (reset each run/cycle)
+        this._tabBlackboard = this._createBbProxy({}, 'tab');     // tab scope (persists across runs within a tab)
         // project scope lives on app (shared across tabs); accessed via _projScope()
         // Execution config: mode='single'|'cycle', count=repeat count (0=infinite)
         this._config = { mode: 'single', count: 1 };
@@ -27,25 +27,69 @@ class BehaviorTreeEngine {
         this._promptTokens = 0;
         this._completionTokens = 0;
         this._lastLeafError = null;   // set when a leaf fails with a real error (not semantic false)
+        this._actionCleanups = null;   // cleanup hooks for registered actions
         if (this._app && this._app.addLog) {
-            this._app.addLog('[BT Engine] Using custom BehaviorTreeEngine (bt.js)');
+            this._app.outputTrace('[BT Engine] Using custom BehaviorTreeEngine (bt.js)');
         }
         console.log('[BT Engine] Using custom BehaviorTreeEngine (bt.js)');
+    }
+
+    _createBbProxy(store, label) {
+        const self = this;
+        return new Proxy(store, {
+            get(target, prop, receiver) {
+                if (typeof prop === 'string' && !prop.startsWith('_') && prop !== 'constructor' && prop !== 'toJSON') {
+                    self._bbNotifyChange();
+                }
+                const value = Reflect.get(target, prop, receiver);
+                if (value !== null && typeof value === 'object') {
+                    return new Proxy(value, {
+                        set(subTarget, subProp, subValue, subReceiver) {
+                            const res = Reflect.set(subTarget, subProp, subValue, subReceiver);
+                            self._bbNotifyChange();
+                            return res;
+                        },
+                        deleteProperty(subTarget, subProp) {
+                            const res = Reflect.deleteProperty(subTarget, subProp);
+                            self._bbNotifyChange();
+                            return res;
+                        }
+                    });
+                }
+                return value;
+            },
+            set(target, prop, value, receiver) {
+                const res = Reflect.set(target, prop, value, receiver);
+                self._bbNotifyChange();
+                return res;
+            },
+            deleteProperty(target, prop) {
+                const res = Reflect.deleteProperty(target, prop);
+                self._bbNotifyChange();
+                return res;
+            }
+        });
     }
 
     /** Get a copy of the current blackboard contents (for debug/display) */
     getBlackboard() { return JSON.parse(JSON.stringify(this._blackboard)); }
 
+    _bbNotifyChange() {
+        if (this._bbChangeCallback) this._bbChangeCallback();
+    }
+
     /** Manually set text from variable management dialog */
     bbSetText(key, value) {
         if (!this._blackboard[key]) this._blackboard[key] = {};
         this._blackboard[key].text = value;
+        this._bbNotifyChange();
     }
 
     /** Manually set media from variable management dialog */
     bbSetMedia(key, mediaArray) {
         if (!this._blackboard[key]) this._blackboard[key] = {};
         this._blackboard[key].media = mediaArray;
+        this._bbNotifyChange();
     }
 
     /** Clear a specific slot of a variable */
@@ -54,20 +98,27 @@ class BehaviorTreeEngine {
         if (type === 'text')  delete this._blackboard[key].text;
         if (type === 'media') delete this._blackboard[key].media;
         if (!Object.keys(this._blackboard[key]).length) delete this._blackboard[key];
+        this._bbNotifyChange();
     }
 
     /** Clear an entire variable */
-    bbClearKey(key) { delete this._blackboard[key]; }
+    bbClearKey(key) { delete this._blackboard[key]; this._bbNotifyChange(); }
 
     /** Project-scope store (shared across tabs, lives on app). */
     _projScope() {
         if (this._app) {
             if (!this._app._projectBlackboard) this._app._projectBlackboard = {};
-            return this._app._projectBlackboard;
+            if (!this._app._projectBlackboardProxy) {
+                this._app._projectBlackboardProxy = this._createBbProxy(this._app._projectBlackboard, 'project');
+            }
+            return this._app._projectBlackboardProxy;
         }
         // Fallback when no app (tests)
         if (!this.__projFallback) this.__projFallback = {};
-        return this.__projFallback;
+        if (!this.__projFallbackProxy) {
+            this.__projFallbackProxy = this._createBbProxy(this.__projFallback, 'project');
+        }
+        return this.__projFallbackProxy;
     }
 
     /** Resolve the store object for a given scope name. */
@@ -119,10 +170,12 @@ class BehaviorTreeEngine {
      * Persists project scope to disk via app when scope==='project'.
      */
     bbWrite(key, value, scope = 'run', field = 'text') {
+        this._app.outputDebug(`app ` + key + value + scope + field );
+    
         if (scope === 'chest') {
-            // chest is handled by app (named persistent storage)
             if (this._app && typeof this._app.btChestPut === 'function') {
                 this._app.btChestPut(key, typeof value === 'string' ? value : JSON.stringify(value));
+                if (this._app.addLog) this._app.outputDebug(`📋 Chest["${key}"] ← ${String(value).slice(0, 80)}`);
             }
             return;
         }
@@ -132,6 +185,20 @@ class BehaviorTreeEngine {
         if (scope === 'project' && this._app && typeof this._app.saveProjectBlackboard === 'function') {
             this._app.saveProjectBlackboard();
         }
+        const preview = field === 'media'
+            ? `${Array.isArray(value) ? value.length : 0} item(s)`
+            : `"${String(value).slice(0, 80)}${String(value).length > 80 ? '…' : ''}"`;
+        if (this._app && this._app.addLog) this._app.outputDebug(`📋 BB[${scope}:"${key}"].${field} ← ${preview}`);
+        this._bbNotifyChange();
+    }
+
+    _findSlot(key) {
+        for (const store of [this._blackboard, this._tabBlackboard, this._projScope()]) {
+            if (store && store[key] !== undefined) {
+                return store[key];
+            }
+        }
+        return null;
     }
 
     /**
@@ -144,26 +211,56 @@ class BehaviorTreeEngine {
      */
     _expandPlaceholders(text) {
         if (!text) return text;
+        const app = this._app;
         return text
             .replace(/\{bb:([^}:]+):json\}/g, (_, k) => {
                 const d = this._bbReadData(k);
+                if (d != null && app?.outputDebug) app.outputDebug(`📖 BB["${k}"].data → ${JSON.stringify(d).slice(0, 80)}`);
                 return d != null ? JSON.stringify(d) : '';
             })
             .replace(/\{bb:([^}]+)\}/g, (_, k) => {
+                const slot = this._findSlot(k);
+                if (slot) {
+                    if (slot.text == null && (slot.media != null || slot.data != null)) {
+                        const errorMsg = `Blackboard variable "${k}" is not of type "text"`;
+                        if (app?.outputDebug) app.outputDebug(`❌ Error: ${errorMsg}`);
+                        return `[ERROR: ${errorMsg}]`;
+                    }
+                }
                 const v = this._bbReadText(k);
+                if (v != null && app?.outputDebug) app.outputDebug(`📖 BB["${k}"].text → "${String(v).slice(0, 80)}${String(v).length > 80 ? '…' : ''}"`);
                 return v != null ? v : '';
             })
             .replace(/\{tab:([^}]+)\}/g, (_, k) => {
                 const slot = this._tabBlackboard[k];
-                return (slot && slot.text != null) ? slot.text : '';
+                if (slot) {
+                    if (slot.text == null && (slot.media != null || slot.data != null)) {
+                        const errorMsg = `Tab blackboard variable "${k}" is not of type "text"`;
+                        if (app?.outputDebug) app.outputDebug(`❌ Error: ${errorMsg}`);
+                        return `[ERROR: ${errorMsg}]`;
+                    }
+                }
+                const v = (slot && slot.text != null) ? slot.text : '';
+                if (v && app?.outputDebug) app.outputDebug(`📖 Tab["${k}"].text → "${String(v).slice(0, 80)}${String(v).length > 80 ? '…' : ''}"`);
+                return v;
             })
             .replace(/\{proj:([^}]+)\}/g, (_, k) => {
                 const slot = this._projScope()[k];
-                return (slot && slot.text != null) ? slot.text : '';
+                if (slot) {
+                    if (slot.text == null && (slot.media != null || slot.data != null)) {
+                        const errorMsg = `Project blackboard variable "${k}" is not of type "text"`;
+                        if (app?.outputDebug) app.outputDebug(`❌ Error: ${errorMsg}`);
+                        return `[ERROR: ${errorMsg}]`;
+                    }
+                }
+                const v = (slot && slot.text != null) ? slot.text : '';
+                if (v && app?.outputDebug) app.outputDebug(`📖 Proj["${k}"].text → "${String(v).slice(0, 80)}${String(v).length > 80 ? '…' : ''}"`);
+                return v;
             })
             .replace(/\{chest:([^}]+)\}/g, (_, k) => {
                 if (this._app && typeof this._app.btChestGet === 'function') {
                     const v = this._app.btChestGet(k);
+                    if (v != null && app?.outputDebug) app.outputDebug(`📖 Chest["${k}"] → "${String(v).slice(0, 80)}${String(v).length > 80 ? '…' : ''}"`);
                     return v != null ? v : '';
                 }
                 return '';
@@ -195,7 +292,7 @@ class BehaviorTreeEngine {
         const el = document.getElementById('bt-target-label');
         if (el) el.textContent = label;
         this._updateCycleBadge();
-        app.addLog(`🎯 BT target: ${label}`);
+        app.outputMessage(`🎯 BT target: ${label}`);
     }
 
     run() {
@@ -251,6 +348,13 @@ class BehaviorTreeEngine {
             const cb = this._leafCallback;
             this._leafCallback = null;
             cb({ outputContent: '', error: true, _stopped: true });
+        }
+        // Fire action cleanup hooks (playAudio, playVideo, etc.)
+        if (this._actionCleanups) {
+            for (const fn of this._actionCleanups) {
+                try { fn(); } catch (e) { /* ignore */ }
+            }
+            this._actionCleanups = null;
         }
     }
 
@@ -325,7 +429,7 @@ class BehaviorTreeEngine {
         this._completionTokens = 0;
         const app = this._app;
         if (app.state.pipelineRun.running) {
-            app.addLog('⚠ Pipeline is already running');
+            app.outputMessage('⚠ Pipeline is already running');
             if (this._ctrl) this._ctrl.mode = 'idle';
             this._updateToolbar();
             return;
@@ -338,28 +442,28 @@ class BehaviorTreeEngine {
             ? (cfg.count === 0 ? ' (infinite loop)' : ` (${cfg.count} repeats)`)
             : '';
 
-        app.addLog(`▶ BT execution started${cycleLabel}`);
+        app.outputTrace(`▶ BT execution started${cycleLabel}`);
 
         let iter = 0;
         try {
             while (iter < maxIter) {
                 iter++;
-                this._blackboard = {};  // Reset blackboard for each cycle
+                this._blackboard = this._createBbProxy({}, 'run');  // Reset blackboard for each cycle
                 this._runState.clear();
                 app.renderTree();
                 if (isCycle && maxIter !== Infinity) {
-                    app.addLog(`🔁 Cycle ${iter}/${cfg.count}`);
+                    app.outputTrace(`🔁 Cycle ${iter}/${cfg.count}`);
                 } else if (isCycle) {
-                    app.addLog(`🔁 Cycle ${iter}`);
+                    app.outputTrace(`🔁 Cycle ${iter}`);
                 }
 
                 const success = await this._runNode(path);
                 const ctrl = this._ctrl;
                 if (ctrl && ctrl.mode === 'stopped') {
-                    app.addLog('⏹ BT stopped');
+                    app.outputTrace('⏹ BT stopped');
                     break;
                 }
-                app.addLog(success ? `✅ Cycle ${iter} succeeded` : `❌ Cycle ${iter} failed`);
+                app.outputMessage(success ? `✅ Cycle ${iter} succeeded` : `❌ Cycle ${iter} failed`);
 
                 if (iter < maxIter) {
                     // Check for stop between cycles
@@ -369,10 +473,10 @@ class BehaviorTreeEngine {
                             ctrl2.mode = 'stepping';
                             this._updateToolbar();
                             const sig = await new Promise(r => { this._stepResolve = r; });
-                            if (sig === 'stop') { app.addLog('⏹ BT stopped'); break; }
+                            if (sig === 'stop') { app.outputTrace('⏹ BT stopped'); break; }
                             if (sig === 'run') { ctrl2.mode = 'running'; this._updateToolbar(); }
                         } else {
-                            app.addLog('⏹ BT stopped');
+                    app.outputTrace('⏹ BT stopped');
                             break;
                         }
                     }
@@ -380,9 +484,9 @@ class BehaviorTreeEngine {
             }
         } catch (e) {
             if (e && e.message === 'BT_STOPPED') {
-                app.addLog('⏹ BT stopped');
+                app.outputTrace('⏹ BT stopped');
             } else {
-                app.addLog('❌ BT error: ' + (e.message || e));
+                app.outputMessage('❌ BT error: ' + (e.message || e));
             }
         }
 
@@ -448,7 +552,7 @@ class BehaviorTreeEngine {
                 this._updateToolbar();
                 this._runState.set(path, 'error');
                 app.renderTree();
-                app.addLog(`⏸ Paused at error node [${path}]\n${errMsg}\n→ Fix the issue then click ↺ Retry Node, or ⏹ Stop`);
+                app.outputMessage(`⏸ Paused at error node [${path}]\n${errMsg}\n→ Fix the issue then click ↺ Retry Node, or ⏹ Stop`);
 
                 const signal = await new Promise(res => { this._stepResolve = res; });
                 if (signal === 'stop') throw new Error('BT_STOPPED');
@@ -663,7 +767,7 @@ class BehaviorTreeEngine {
                 } catch (e) {
                     clearTimeout(timeoutId);
                     if (e && e.message === 'MAXTIME_TIMEOUT') {
-                        app.addLog('⚠ MaxTime timeout (' + timeout + 'ms) exceeded');
+                        app.outputMessage('⚠ MaxTime timeout (' + timeout + 'ms) exceeded');
                         return false;
                     }
                     throw e;
@@ -679,10 +783,10 @@ class BehaviorTreeEngine {
                     : !!value;
                 if (negate) passes = !passes;
                 if (!passes) {
-                    app.addLog('⛔ Guard "' + condition + '" failed (value=' + JSON.stringify(value) + ')');
+                    app.outputTrace('⛔ Guard "' + condition + '" failed (value=' + JSON.stringify(value) + ')');
                     return false;
                 }
-                app.addLog('✅ Guard "' + condition + '" passed');
+                app.outputTrace('✅ Guard "' + condition + '" passed');
                 return await runChild();
             }
             default:
@@ -798,7 +902,7 @@ class BehaviorTreeEngine {
                 } catch (e) {
                     clearTimeout(timeoutId);
                     if (e && e.message === 'MAXTIME_TIMEOUT') {
-                        app.addLog('⚠ MaxTime timeout (' + timeout + 'ms) exceeded');
+                        app.outputMessage('⚠ MaxTime timeout (' + timeout + 'ms) exceeded');
                         return false;
                     }
                     throw e;
@@ -812,7 +916,7 @@ class BehaviorTreeEngine {
                 let passes = expected !== undefined ? String(value) === String(expected) : !!value;
                 if (negate) passes = !passes;
                 if (!passes) {
-                    app.addLog('⛔ Guard "' + condition + '" failed');
+                    app.outputTrace('⛔ Guard "' + condition + '" failed');
                     return false;
                 }
                 return await runChild();
@@ -827,22 +931,93 @@ class BehaviorTreeEngine {
         const node = app.getNodeByPath(path, this.runId);
 
         const btType = node?.btType || 'leaf';
-        if (btType === 'leaf_file' || btType === 'file' || node?.btAction === 'loadLocalFile') {
-            return this._runLoadLocalFile(path, node);
+
+        // Legacy btType → btAction name mapping for backward compat
+        const typeToAction = {
+            'leaf_file': 'loadLocalFile', 'file': 'loadLocalFile',
+            'leaf_audio': 'playAudio',    'audio': 'playAudio',
+            'leaf_video': 'playVideo',    'video': 'playVideo',
+            'leaf_math':  'math',         'math':  'math',
+            'leaf_web':   'web',          'web':   'web',
+            'leaf_misc':  'misc',         'misc':  'misc',
+        };
+        const actionName = node?.btAction || typeToAction[btType] || '';
+
+        if (actionName && window.btActions.has(actionName)) {
+            return this._runAction(path, node);
         }
-        if (btType === 'leaf_math' || btType === 'math') {
-            return this._runMath(path, node);
-        }
-        if (btType === 'leaf_web' || btType === 'web') {
-            return this._runWeb(path, node);
-        }
-        if (btType === 'leaf_misc' || btType === 'misc') {
-            return this._runMisc(path, node);
-        }
+
         if (btType === 'leaf_next') {
             return this._runNext(path, node);
         }
         return this._runAI(path, node);
+    }
+
+    async _runAction(path, node) {
+        const app = this._app;
+        app.state.selectedOpPath = path;
+        app.state.currentNodePath = path;
+        app.renderTree();
+
+        const btType = node?.btType || 'leaf';
+        const typeToAction = {
+            'leaf_file': 'loadLocalFile', 'file': 'loadLocalFile',
+            'leaf_audio': 'playAudio',    'audio': 'playAudio',
+            'leaf_video': 'playVideo',    'video': 'playVideo',
+            'leaf_math':  'math',         'math':  'math',
+            'leaf_web':   'web',          'web':   'web',
+            'leaf_misc':  'misc',         'misc':  'misc',
+        };
+        const actionName = node?.btAction || typeToAction[btType] || '';
+        const config = window.btActions.get(actionName);
+        if (!config) {
+            app.outputMessage(`❌ Unknown action "${actionName}"`);
+            return false;
+        }
+
+        const inputKey   = node?.btInputKey  || '';
+        const outputKey  = node?.btOutputKey || '';
+        const outputType = node?.btOutputType || 'text';
+
+        // Resolve prompt with BB expansion
+        const btPromptRaw = node?.btPrompt || '';
+        const btPromptDecoded = btPromptRaw
+            ? (() => { try { return atob(btPromptRaw); } catch { return btPromptRaw; } })()
+            : '';
+        const prompt = btPromptDecoded
+            ? this._expandPlaceholders(btPromptDecoded)
+            : '';
+
+        // Read media from blackboard if input key exists
+        const mediaArr = inputKey ? this._bbReadMedia(inputKey) : null;
+
+        // Read text from blackboard if input key exists
+        const textInput = inputKey ? this._bbReadText(inputKey) : null;
+
+        // Action lifecycle: store cleanup hooks so stop() can fire them
+        const cleanups = [];
+        this._actionCleanups = cleanups;
+
+        const setCleanup = (fn) => { cleanups.push(fn); };
+
+        const ctx = {
+            bt: this, app, path, node,
+            inputKey, outputKey, outputType,
+            prompt, textInput, mediaArr,
+            setCleanup,
+        };
+
+        try {
+            const result = await config.handler(ctx);
+            return result !== false;
+        } catch (e) {
+            app.outputMessage(`❌ Action "${config.label}" error: ${e.message}`);
+            return false;
+        } finally {
+            if (this._actionCleanups === cleanups) this._actionCleanups = null;
+            app.state.currentNodePath = '';
+            app.renderTree();
+        }
     }
 
     _runAI(path, node) {
@@ -850,6 +1025,7 @@ class BehaviorTreeEngine {
         const inputKey   = node?.btInputKey  || '';
         const inputType  = node?.btInputType || 'text';
         const outputKey  = node?.btOutputKey || '';
+        const outputType = node?.btOutputType || 'text';
         const btPromptRaw = node?.btPrompt   || '';
         const btPromptDecoded = btPromptRaw
             ? (() => { try { return atob(btPromptRaw); } catch { return btPromptRaw; } })()
@@ -896,17 +1072,24 @@ class BehaviorTreeEngine {
                     }
                 }
                 if (meta?._stopped) { resolve(false); return; }
+                
+                 app.outputTrace(`bt.js:997`);
                 if (!meta.error && outputKey) {
+                    app.outputTrace(`bt.js:999`);
+                
                     if (meta.outputContent != null) {
-                        this.bbWrite(outputKey, meta.outputContent, outputScope, 'text');
-                        const preview = String(meta.outputContent).slice(0, 50).replace(/\n/g, ' ');
-                        app.addLog(`📋 BB[${outputScope}:"${outputKey}"].text ← ${preview}${meta.outputContent.length > 50 ? '…' : ''}`);
+                        app.outputTrace(`bt.js:1002`);
+                        this.bbWrite(outputKey, meta.outputContent, outputScope, outputType);
+                    } else {
+                       app.outputTrace(`bt.js:962`);
+                     
                     }
                     const outMedia = Array.isArray(meta.outputAttachments) ? meta.outputAttachments : [];
                     if (outMedia.length > 0) {
                         this.bbWrite(outputKey, outMedia, outputScope, 'media');
-                        app.addLog(`📋 BB[${outputScope}:"${outputKey}"].media ← ${outMedia.length} item(s)`);
                     }
+                } else {
+                
                 }
                 const outText = (meta && meta.outputContent) ? String(meta.outputContent).trim() : '';
                 let isSuccess = !meta.error;
@@ -926,187 +1109,6 @@ class BehaviorTreeEngine {
         });
     }
 
-    _runMath(path, node) {
-        const app = this._app;
-        app.state.selectedOpPath = path;
-        app.state.currentNodePath = path;
-        app.renderTree();
-
-        // 1. Get math expression prompt
-        const btPromptRaw = node?.btPrompt || '';
-        const btPromptDecoded = btPromptRaw
-            ? (() => { try { return atob(btPromptRaw); } catch { return btPromptRaw; } })()
-             : '';
-        let promptText = btPromptDecoded;
-        if (!promptText && node?.content) {
-            const rawContent = node.content;
-            promptText = (() => { try { return atob(rawContent); } catch { return rawContent; } })();
-        }
-
-        // 2. Expand blackboard references ({bb:}/{tab:}/{proj:}/{chest:})
-        const resolvedPrompt = promptText
-            ? this._expandPlaceholders(promptText)
-            : '';
-
-        let result = '';
-        let error = null;
-        try {
-            let expr = resolvedPrompt.trim();
-            if (!expr) {
-                throw new Error('Empty mathematical expression');
-            }
-            const allowedPattern = /^(?:[0-9+\-*/%().\s<>=!&|?:,]|Math\.(?:sin|cos|tan|abs|sqrt|pow|min|max|floor|ceil|round|random|PI|E))+$/;
-            if (!allowedPattern.test(expr)) {
-                throw new Error('Invalid characters in mathematical expression.');
-            }
-            const evalFn = new Function(`return (${expr});`);
-            const val = evalFn();
-            result = String(val);
-        } catch (e) {
-            error = e.message || String(e);
-        }
-
-        const outputKey = node.btOutputKey || '';
-        const outputScope = node.btOutputScope || 'run';
-        if (!error && outputKey) {
-            this.bbWrite(outputKey, result, outputScope, 'text');
-            app.addLog(`📋 BB[${outputScope}:"${outputKey}"].text ← ${result}`);
-        }
-
-        if (error) {
-            app.addLog(`❌ Math calculation failed: ${error}`);
-        } else {
-            app.addLog(`🔢 Math calculation: ${resolvedPrompt} = ${result}`);
-        }
-
-        let isSuccess = !error;
-        if (result.toLowerCase() === 'false') {
-            isSuccess = false;
-        }
-
-        return Promise.resolve(isSuccess);
-    }
-
-    _runWeb(path, node) {
-        const app = this._app;
-        app.state.selectedOpPath = path;
-        app.state.currentNodePath = path;
-        app.renderTree();
-
-        // 1. Get prompt
-        const btPromptRaw = node?.btPrompt || '';
-        const btPromptDecoded = btPromptRaw
-            ? (() => { try { return atob(btPromptRaw); } catch { return btPromptRaw; } })()
-             : '';
-        let promptText = btPromptDecoded;
-        if (!promptText && node?.content) {
-            const rawContent = node.content;
-            promptText = (() => { try { return atob(rawContent); } catch { return rawContent; } })();
-        }
-
-        // 2. Expand blackboard references ({bb:}/{tab:}/{proj:}/{chest:})
-        const resolvedPrompt = promptText
-            ? this._expandPlaceholders(promptText)
-            : '';
-
-        let url = resolvedPrompt.trim();
-        let method = 'GET';
-        let headers = {};
-        let body = null;
-
-        try {
-            if (url.startsWith('{')) {
-                const config = JSON.parse(url);
-                if (config.url) {
-                    url = config.url;
-                    if (config.method) method = config.method;
-                    if (config.headers) headers = config.headers;
-                    if (config.body) body = typeof config.body === 'object' ? JSON.stringify(config.body) : String(config.body);
-                }
-            }
-        } catch (e) {
-            // Treat as raw URL
-        }
-
-        if (!url) {
-            app.addLog('❌ Web request failed: No URL specified');
-            return Promise.resolve(false);
-        }
-
-        const outputKey = node.btOutputKey || '';
-        const outputScope = node.btOutputScope || 'run';
-
-        return new Promise(resolve => {
-            const handler = (msg) => {
-                if (msg.type === 'bt_http_request_result') {
-                    app._removeMessageListener(handler);
-                    if (msg.error) {
-                        app.addLog(`❌ Web request failed: ${msg.error}`);
-                        resolve(false);
-                    } else {
-                        const responseText = msg.response || '';
-                        if (outputKey) {
-                            this.bbWrite(outputKey, responseText, outputScope, 'text');
-                            const preview = String(responseText).slice(0, 50).replace(/\n/g, ' ');
-                            app.addLog(`📋 BB[${outputScope}:"${outputKey}"].text ← ${preview}${responseText.length > 50 ? '…' : ''}`);
-                        }
-                        app.addLog(`🌐 Web request to ${url} succeeded`);
-                        
-                        let isSuccess = true;
-                        const normalized = responseText.toLowerCase().replace(/[^a-z]/g, '');
-                        if (normalized === 'false') {
-                            isSuccess = false;
-                        }
-                        resolve(isSuccess);
-                    }
-                }
-            };
-            app._addMessageListener(handler);
-            app.postMessage({ type: 'bt_http_request', payload: { url, method, headers, body } });
-        });
-    }
-
-    _runLoadLocalFile(path, node) {
-        const app = this._app;
-        const filePath = node?.btLocalFilePath || '';
-        const outputKey = node?.btOutputKey || '';
-        const outputScope = node?.btOutputScope || 'run';
-
-        if (!filePath) {
-            app.addLog('❌ loadLocalFile: No file path specified');
-            return Promise.resolve(false);
-        }
-
-        // Get the base file path from current tab
-        const tabIndex = this.runId && app._runIdToTabIndex ? app._runIdToTabIndex.get(this.runId) : undefined;
-        const tab = tabIndex !== undefined ? app.state.tabs[tabIndex] : app.state.tabs[app.state.activeTab];
-        const basePath = tab?.file || '';
-
-        return new Promise(resolve => {
-            app.state.selectedOpPath = path;
-            app.state.currentNodePath = path;
-            app.renderTree();
-
-            const handler = (msg) => {
-                if (msg.type === 'bt_load_local_file_result') {
-                    app._removeMessageListener(handler);
-                    if (msg.error) {
-                        app.addLog(`❌ Load local file failed: ${msg.error}`);
-                        resolve(false);
-                    } else {
-                        if (outputKey) {
-                            this.bbWrite(outputKey, [msg], outputScope, 'media');
-                            app.addLog(`📁 BB[${outputScope}:"${outputKey}"].media ← ${msg.file}`);
-                        }
-                        resolve(true);
-                    }
-                }
-            };
-            app._addMessageListener(handler);
-            app.postMessage({ type: 'bt_load_local_file', payload: { filePath, basePath } });
-        });
-    }
-
     async _runNext(path, node) {
         const app = this._app;
         app.state.selectedOpPath = path;
@@ -1117,93 +1119,26 @@ class BehaviorTreeEngine {
         const fsmState = node.btFsmState?.trim() || '';
 
         if (!fsmState) {
-            app.addLog(`❌ leaf_next [${path}]: btFsmState is required`);
+            app.outputMessage(`❌ leaf_next [${path}]: btFsmState is required`);
             return false;
         }
 
         // Find tab whose name matches the target state
         const tabIndex = app.state.tabs.findIndex(t => t.name === fsmState);
         if (tabIndex < 0) {
-            app.addLog(`❌ leaf_next: no tab named "${fsmState}" found`);
+            app.outputMessage(`❌ leaf_next: no tab named "${fsmState}" found`);
             return false;
         }
 
         // Write state register to project BB
         const bbKey = `fsm.${fsmName}`;
         this.bbWrite(bbKey, fsmState, 'project', 'text');
-        app.addLog(`🔀 FSM[${fsmName}] → "${fsmState}"`);
+        app.outputTrace(`🔀 FSM[${fsmName}] → "${fsmState}"`);
 
         // Switch to the target tab and run its BT from root
         app.switchTab(tabIndex);
         app.btCtrlSetTarget('');
         app.btCtrlRun();
         return true;
-    }
-
-    async _runMisc(path, node) {
-        const app = this._app;
-        app.state.selectedOpPath = path;
-        app.state.currentNodePath = path;
-        app.renderTree();
-
-        // 1. Get prompt text
-        const btPromptRaw = node?.btPrompt || '';
-        const btPromptDecoded = btPromptRaw
-            ? (() => { try { return atob(btPromptRaw); } catch { return btPromptRaw; } })()
-             : '';
-        let promptText = btPromptDecoded;
-        if (!promptText && node?.content) {
-            const rawContent = node.content;
-            promptText = (() => { try { return atob(rawContent); } catch { return rawContent; } })();
-        }
-
-        // 2. Expand blackboard references ({bb:}/{tab:}/{proj:}/{chest:})
-        const resolvedPrompt = promptText
-            ? this._expandPlaceholders(promptText)
-            : '';
-
-        let result = '';
-        let error = null;
-        let actionMsg = '';
-
-        try {
-            const input = resolvedPrompt.trim();
-            const lowerInput = input.toLowerCase();
-
-            if (lowerInput.startsWith('copy ') || lowerInput.startsWith('copy:')) {
-                // Copy to clipboard
-                const textToCopy = input.substring(input.startsWith('copy:') ? 5 : 5).trim();
-                await navigator.clipboard.writeText(textToCopy);
-                actionMsg = `📋 Copied to clipboard: "${textToCopy.slice(0, 50)}${textToCopy.length > 50 ? '...' : ''}"`;
-                result = textToCopy;
-            } else if (lowerInput === 'paste' || lowerInput.startsWith('paste ') || lowerInput.startsWith('paste:')) {
-                // Paste from clipboard
-                const clipboardText = await navigator.clipboard.readText();
-                result = clipboardText || '';
-                actionMsg = `📋 Pasted from clipboard: "${result.slice(0, 50)}${result.length > 50 ? '...' : ''}"`;
-            } else {
-                // Default: Write/Read to Blackboard
-                result = input;
-                actionMsg = `✍️ Write to blackboard: "${input.slice(0, 50)}${input.length > 50 ? '...' : ''}"`;
-            }
-
-            // Write output to blackboard if outputKey is configured
-            const outputKey = node.btOutputKey || '';
-            const outputScope = node.btOutputScope || 'run';
-            if (outputKey) {
-                this.bbWrite(outputKey, result, outputScope, 'text');
-                app.addLog(`📋 BB[${outputScope}:"${outputKey}"].text ← "${result.slice(0, 50)}${result.length > 50 ? '...' : ''}"`);
-            }
-        } catch (e) {
-            error = e.message || String(e);
-        }
-
-        if (error) {
-            app.addLog(`❌ Misc operation failed: ${error}`);
-        } else {
-            app.addLog(actionMsg);
-        }
-
-        return !error;
     }
 }

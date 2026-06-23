@@ -26,7 +26,7 @@
       "btInputKey": "music_info",
       "btInputType": "text",
       "btOutputKey": "article",
-      "btPrompt": "V3JpdGUgYSAyMDAtd29yZCByYWRpbyBESiBhcnRpY2xlIGFib3V0OiB7YmI6bXVzaWNfaW5mb30="
+      "btPrompt": "V3JpdGUgYSAxMC13b3JkIHJhZGlvIERKIGFydGljbGUgYWJvdXQ6IHtiYjptdXNpY19pbmZvfQ=="
     }
   ],
   "nodeType": "root",

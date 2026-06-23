@@ -46,12 +46,13 @@ const app = {
         btRunContext: null,    // Leaf context during BT execution {btPrompt, bbInput, outputKey}
         maintainRecipe: '',
         logHttpHeaders: false,
-        viewOnlyMode: false
+        viewOnlyMode: false,
+        startMockServer: false
     },
 
     init() {
         this._bt = new BehaviorTreeEngine(this);
-        this.addLog('[BT Engine] Active engine: custom BehaviorTreeEngine');
+        this.outputTrace('[BT Engine] Active engine: custom BehaviorTreeEngine');
         this._engines = new Map();      // Phase B: runId → BehaviorTreeEngine (multi-instance)
         this._engines.set('__default__', this._bt);  // default engine for single-run mode
         this.state.btRunState = this._bt._runState;
@@ -63,7 +64,6 @@ const app = {
         this._taskMetrics = { activeCount: 0, queuedCount: 0, completedCount: 0, failedCount: 0, groups: {}, runs: {} };  // Task Manager state
         this.setupBridge();
         this.loadLanguage(this.state.language);
-        this.loadDefaults();
         this.setupHints();
         this.initMessagesResizer();
         this.initPaneResizers();
@@ -86,13 +86,6 @@ const app = {
                 setTimeout(() => btn.classList.remove('btn-pressed'), 120);
             }
         }, true);
-    },
-
-    loadDefaults() {
-        fetch('defaults/appproviders.json')
-            .then(r => r.json())
-            .then(list => { this.state.defaultProviders = list; })
-            .catch(() => { this.state.defaultProviders = []; });
     },
 
     setupBridge() {
@@ -150,6 +143,8 @@ const app = {
                         this.state.logHttpHeaders = msg.payload.config.logHttpHeaders;
                     if (msg.payload.config.viewOnlyMode !== undefined)
                         this.state.viewOnlyMode = msg.payload.config.viewOnlyMode;
+                    if (msg.payload.config.startMockServer !== undefined)
+                        this.state.startMockServer = msg.payload.config.startMockServer;
                     if (msg.payload.config.maintainRecipe)
                         this.state.maintainRecipe = msg.payload.config.maintainRecipe;
                     if (msg.payload.config.customThemeColors) {
@@ -187,10 +182,13 @@ const app = {
                 if (msg.payload.demos) {
                     this.state.demos = msg.payload.demos;
                 }
+                if (msg.payload.defaultProviders) {
+                    this.state.defaultProviders = msg.payload.defaultProviders;
+                }
                 // Always show hamburger (embedded: replaces menubar; standalone: supplement)
                 const hb = document.getElementById('btn-hamburger');
                 if (hb) hb.style.display = '';
-                this.addLog('✅ ' + this.t('AppReady'));
+                this.outputMessage('✅ ' + this.t('AppReady'));
                 // Show wizard on first run
                 if (!localStorage.getItem('prompts_wizard_done')) {
                     setTimeout(() => this.showWizard(), 400);
@@ -313,7 +311,7 @@ const app = {
                 this.onSaveAsResult(msg.payload.path);
                 break;
             case 'file_saved':
-                this.addLog('💾 ' + msg.payload.path);
+                this.outputMessage('💾 ' + msg.payload.path);
                 break;
             case 'ai_maintain_result':
                 this.onAIMaintainResult(msg.payload);
@@ -325,7 +323,7 @@ const app = {
                     this.pmState_.pipelines = this.state.pipelines.slice();
                     this.pmRenderPipelineList();
                 }
-                this.addLog('📋 ' + this.t('PipelinesUpdated'));
+                this.outputMessage('📋 ' + this.t('PipelinesUpdated'));
                 break;
             case 'history_list_result':
                 this.onHistoryListResult(msg.payload);
@@ -361,7 +359,7 @@ const app = {
                 this.onTestRecipeResult(msg.payload);
                 break;
             case 'log':
-                this.addLog('📋 ' + (msg.payload.message || ''));
+                this.outputMessage('📋 ' + (msg.payload.message || ''));
                 break;
             case 'http_log':
                 this.addHttpLog(msg.payload);
@@ -371,13 +369,13 @@ const app = {
                 this.showFilterStep(msg.payload);
                 break;
             case 'step_filter_result':
-                this.addLog(`🔍 ${this.t('FilterTitle')}: ${msg.payload.approved} ${this.t('Save')}, ${msg.payload.rejected} ${this.t('Discard')}`);
+                this.outputMessage(`🔍 ${this.t('FilterTitle')}: ${msg.payload.approved} ${this.t('Save')}, ${msg.payload.rejected} ${this.t('Discard')}`);
                 break;
             case 'evaluate_result':
                 this.showEvaluateResult(msg.payload);
                 break;
             case 'chest_put':
-                this.addLog(`📦 Sending to chest: ${msg.payload.chestName}`);
+                this.outputMessage(`📦 Sending to chest: ${msg.payload.chestName}`);
                 this.postMessage({ type: 'send_to_chest', payload: msg.payload });
                 if (!this._chestCache) this._chestCache = {};
                 if (msg.payload.content != null) this._chestCache[msg.payload.chestName] = msg.payload.content;
@@ -385,7 +383,7 @@ const app = {
                 if (!this.state.chestList.includes(msg.payload.chestName)) this.state.chestList.push(msg.payload.chestName);
                 break;
             case 'chest_take':
-                this.addLog(`📦 Loading from chest: ${msg.payload.chestName}`);
+                this.outputMessage(`📦 Loading from chest: ${msg.payload.chestName}`);
                 this.postMessage({ type: 'select_input_source', payload: { source: 'chest', chestName: msg.payload.chestName } });
                 break;
             case 'chest_view':
@@ -428,16 +426,16 @@ const app = {
                 }
                 this.renderTabs();
                 this.renderTree();
-                this.addLog(`📁 Switched to project: ${msg.payload.projectName}`);
+                this.outputMessage(`📁 Switched to project: ${msg.payload.projectName}`);
                 break;
             case 'setup_demo_result': {
                 const { sampleSubDir, success, projectName, count, error } = msg.payload;
                 const btn = document.getElementById('btn-setup-demo-' + sampleSubDir);
                 if (success) {
-                    this.addLog(`✅ Demo setup complete: ${count} samples loaded into ${projectName} project`);
+                    this.outputMessage(`✅ Demo setup complete: ${count} samples loaded into ${projectName} project`);
                     if (btn) { btn.textContent = '✅ Ready'; btn.disabled = true; }
                 } else {
-                    this.addLog(`Demo Setup Error\nOperation: setup_demo_result\nSample: ${sampleSubDir}\nError: ${error}\nAction: Verify sample files exist and are accessible`);
+                    this.outputMessage(`Demo Setup Error\nOperation: setup_demo_result\nSample: ${sampleSubDir}\nError: ${error}\nAction: Verify sample files exist and are accessible`);
                     if (btn) { btn.textContent = '🎬 Setup Demo'; btn.disabled = false; }
                 }
                 break;
@@ -457,27 +455,27 @@ const app = {
                 }
                 break;
             case 'project_renamed':
-                this.addLog(`📝 Project renamed: ${msg.payload.oldName} → ${msg.payload.newName}`);
+                this.outputMessage(`📝 Project renamed: ${msg.payload.oldName} → ${msg.payload.newName}`);
                 if (this.state.activeProject === msg.payload.oldName) {
                     this.state.activeProject = msg.payload.newName;
                 }
                 break;
             case 'project_duplicated':
-                this.addLog(`📋 Project duplicated: ${msg.payload.sourceName} → ${msg.payload.newName}`);
+                this.outputMessage(`📋 Project duplicated: ${msg.payload.sourceName} → ${msg.payload.newName}`);
                 break;
             case 'project_deleted':
-                this.addLog(`🗑️ Project deleted: ${msg.payload.name}`);
+                this.outputMessage(`🗑️ Project deleted: ${msg.payload.name}`);
                 break;
             case 'project_verified': {
                 const v = msg.payload;
                 let logMsg = `✓ Verify "${v.name}": ${v.status}`;
                 if (v.issues.length > 0) logMsg += `\n  Issues: ${v.issues.join(', ')}`;
                 if (v.fixes.length > 0) logMsg += `\n  Fixed: ${v.fixes.join(', ')}`;
-                this.addLog(logMsg);
+                this.outputMessage(logMsg);
                 break;
             }
             case 'project_error':
-                this.addLog(`Project Error\nError: ${msg.payload.message}`);
+                this.outputMessage(`Project Error\nError: ${msg.payload.message}`);
                 alert(`Project Error\n\n${msg.payload.message}`);
                 break;
             case 'projects_root_result':
@@ -492,7 +490,7 @@ const app = {
                 break;
             case 'projects_root_changed':
                 if (msg.payload.success) {
-                    this.addLog('✅ ' + this.t('ProjectsRootUpdated'));
+                    this.outputMessage('✅ ' + this.t('ProjectsRootUpdated'));
                     alert('Projects root folder updated.\nPlease restart the app for changes to take effect.');
                 }
                 break;
@@ -744,7 +742,7 @@ const app = {
             type: 'init_complete',
             language: this.state.language
         });
-        this.addLog('✅ ' + this.t('AppInitialized'));
+        this.outputMessage('✅ ' + this.t('AppInitialized'));
     },
 
     loadLanguage(lang) {
@@ -858,7 +856,7 @@ const app = {
         }});
         this.renderTabs();
         this.renderTree();
-        this.addLog(this.t('TabClosed'));
+        this.outputDebug(this.t('TabClosed'));
     },
 
 	// renameTab means rename BT
@@ -900,7 +898,7 @@ const app = {
         this.renderTabs();
         this.renderTree();
         this.renderList();
-        this.addLog('📄 ' + this.t('NewTabCreated'));
+        this.outputDebug('📄 ' + this.t('NewTabCreated'));
     },
 
     openFile() {
@@ -917,19 +915,19 @@ const app = {
             this.state.tabs.push({ name: path.split('/').pop().split('\\').pop(), file: path, root: { title: '', content: '', mimetype: 'text/plain', attachments: [], children: [], nodeType: 'root' } });
             this.state.activeTab = this.state.tabs.length - 1;
             this.renderTabs();
-            this.addLog('📂 ' + this.t('Opened') + ': ' + path);
+            this.outputMessage('📂 ' + this.t('Opened') + ': ' + path);
             this.postMessage({ type: 'load_file_data', payload: { path: path } });
         }
     },
 
     saveFile() {
-        this.addLog('💾 ' + this.t('SaveRequested'));
+        this.outputMessage('💾 ' + this.t('SaveRequested'));
         this.updateNode();
     },
     saveFileAs() {
         this.updateNode();
         this.postMessage({ type: 'save_file_as' });
-        this.addLog('💾 ' + this.t('SaveAs'));
+        this.outputMessage('💾 ' + this.t('SaveAs'));
     },
     saveProject() {
         // Save all open BTs
@@ -945,7 +943,7 @@ const app = {
         }});
         // Save global config (recipes, providers, etc.)
         this.postMessage({ type: 'save_recipes', payload: this.state.recipes || [] });
-        this.addLog('💾 ' + this.t('ProjectSaved'));
+        this.outputMessage('💾 ' + this.t('ProjectSaved'));
     },
     newProject() {
         this.showProjectInputModal(
@@ -1003,8 +1001,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     },
     onPipelineCompleted(meta) {
         this.state.pipelineRun.running = false;
-        this.addLog(`✅ Pipeline "${meta.pipelineName}" completed`);
+        this.outputMessage(`✅ Pipeline "${meta.pipelineName}" completed`);
 
+        let handledByBt = false;
         // Phase C-D: If this is a parallel run, route to the correct engine and tab
         if (meta.runId && this._runIdToTabIndex) {
             const tabIndex = this._runIdToTabIndex.get(meta.runId);
@@ -1012,11 +1011,11 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 this.state.activeTab = tabIndex;  // switch to parallel tab
             }
             const engine = this.getEngine(meta.runId);
-            if (engine) engine.notifyLeafComplete(meta);
+            if (engine) handledByBt = engine.notifyLeafComplete(meta);
         } else {
             // Phase A: notifyLeafComplete will route via requestId if present, else fall back to state
             // If BT is running, notify leaf completion to BT engine (fall through to save output normally)
-            if (this._bt) this._bt.notifyLeafComplete(meta);
+            if (this._bt) handledByBt = this._bt.notifyLeafComplete(meta);
         }
 
         const outputContent = meta.outputContent || '';
@@ -1027,6 +1026,22 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         let opNodePath = meta.targetNodePath || (this.state.selectedOpPath || this.state.currentNodePath);
         opNodePath = this.getLogicalOpPath(opNodePath);
         let opNode = this.getNodeByPath(opNodePath);
+
+        // If not handled by BT (e.g. manual execution in UI), and it's an assemble node with outputKey:
+        if (!handledByBt && opNode && opNode.nodeType === 'assemble' && opNode.btOutputKey) {
+            const outputKey = opNode.btOutputKey;
+            const outputType = opNode.btOutputType || 'text';
+            const outputScope = opNode.btOutputScope || 'run';
+            if (!meta.error && this._bt) {
+                if (meta.outputContent != null) {
+                    this._bt.bbWrite(outputKey, meta.outputContent, outputScope, outputType);
+                }
+                const outMedia = Array.isArray(meta.outputAttachments) ? meta.outputAttachments : [];
+                if (outMedia.length > 0) {
+                    this._bt.bbWrite(outputKey, outMedia, outputScope, 'media');
+                }
+            }
+        }
         const opNodeCopy = opNode ? JSON.parse(JSON.stringify(opNode)) : null;
         if (opNodeCopy && opNodeCopy.children) {
             opNodeCopy.children = [];
@@ -1042,6 +1057,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             children: [],
             pipelineMeta: JSON.stringify(meta),
             nodeType: 'data',
+            datetime: new Date().toISOString(),
             originalOpNode: opNodeCopy,
             selectedRecipe: recipeUsed,
             input: inputAttachmentsCopy.text || '',
@@ -1087,7 +1103,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             }
 
             target.children.unshift(outputNode);
-            this.addLog(`📦 Child node saved: "${meta.pipelineName}"`);
+            this.outputMessage(`📦 Child node saved: "${meta.pipelineName}"`);
             this.renderTree();
             this.renderList();
             if (tab.file && tab.root) {
@@ -1116,7 +1132,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         if (!node || !node.pipelineMeta) { el.style.display = 'none'; return; }
 
         let meta;
-        try { meta = JSON.parse(node.pipelineMeta); } catch (e) {         this.addLog(`Pipeline Metadata Parse Error\nOperation: renderPipelineMeta\nNode: ${node.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); el.style.display = 'none'; return; }
+        try { meta = JSON.parse(node.pipelineMeta); } catch (e) {         this.outputDebug(`Pipeline Metadata Parse Error\nOperation: renderPipelineMeta\nNode: ${node.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); el.style.display = 'none'; return; }
 
         el.style.display = '';
         const stepsHtml = (meta.steps || []).map((s, i) => `
@@ -1165,9 +1181,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                         })
                     };
                     this.postMessage({ type: 'save_pipeline', payload: pipeline });
-                    this.addLog(`💾 ${this.t('PipelineSavedFromMeta').replace('{name}', pipeline.name)}`);
+                    this.outputMessage(`💾 ${this.t('PipelineSavedFromMeta').replace('{name}', pipeline.name)}`);
                 } catch (e) {
-                    this.addLog(`Pipeline Save Error\nOperation: renderPipelineMeta (save handler)\nError: ${e.message}\nAction: Check pipeline configuration and try saving again`);
+                    this.outputMessage(`Pipeline Save Error\nOperation: renderPipelineMeta (save handler)\nError: ${e.message}\nAction: Check pipeline configuration and try saving again`);
                 }
             };
         }
@@ -1176,7 +1192,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
 
     reproducePipeline(pipelineName) {
-        if (!this.state.currentNode) { this.addLog('⚠ ' + this.t('PleaseSelectNode')); return; }
+        if (!this.state.currentNode) { this.outputMessage('⚠ ' + this.t('PleaseSelectNode')); return; }
         const content = this.state.currentNode.content
             ? decodeURIComponent(escape(atob(this.state.currentNode.content))) : '';
         const tab = this.state.tabs[this.state.activeTab];
@@ -1190,7 +1206,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             }
         });
         this.state.pipelineRun.running = true;
-        this.addLog(`▶ Reproducing pipeline "${pipelineName}"...`);
+        this.outputTrace(`▶ Reproducing pipeline "${pipelineName}"...`);
     },
 
     showManualStep(payload) {
@@ -1250,7 +1266,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         }
 
         modal.classList.add('visible');
-        this.addLog(`⏸ Manual step ${index + 1} — waiting for user (${mode})`);
+        this.outputTrace(`⏸ Manual step ${index + 1} — waiting for user (${mode})`);
     },
 
     resumeManual(content) {
@@ -1280,24 +1296,24 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         let wizardData = payload.wizardData;
         if (!wizardData && wizard) {
             // Try to fetch from frontend/wizards/
-            this.addLog(`📋 ${this.t('LoadingWizard').replace('{wizard}', wizard)}`);
+            this.outputMessage(`📋 ${this.t('LoadingWizard').replace('{wizard}', wizard)}`);
             fetch(`wizards/${wizard}.json`).then(r => r.json()).then(data => {
                 this._renderPipelineWizard(index, data, content);
             }).catch(err => {
-                this.addLog(`Wizard Load Error\nOperation: renderPipelineStep\nWizard: ${wizard}\nError: ${err.message}\nAction: Verify wizard file exists at wizards/${wizard}.json and is valid JSON`);
+                this.outputMessage(`Wizard Load Error\nOperation: renderPipelineStep\nWizard: ${wizard}\nError: ${err.message}\nAction: Verify wizard file exists at wizards/${wizard}.json and is valid JSON`);
                 this.postMessage({ type: 'wizard_step_resume', payload: { values: {} } });
             });
             return;
         }
         if (typeof wizardData === 'string') {
-            try { wizardData = JSON.parse(wizardData); } catch { this.addLog('⚠ ' + this.t('FailedToParseWizardData')); }
+            try { wizardData = JSON.parse(wizardData); } catch { this.outputMessage('⚠ ' + this.t('FailedToParseWizardData')); }
         }
         this._renderPipelineWizard(index, wizardData, content);
     },
 
     _renderPipelineWizard(index, wizardData, content) {
         if (!wizardData || !wizardData.steps) {
-            this.addLog('⚠ ' + this.t('InvalidWizardDefinition'));
+            this.outputMessage('⚠ ' + this.t('InvalidWizardDefinition'));
             this.postMessage({ type: 'wizard_step_resume', payload: { values: {} } });
             return;
         }
@@ -1419,10 +1435,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             try {
                 const re = new RegExp(stepDef.validate);
                 if (!re.test(val)) {
-                    this.addLog(`⚠ Invalid input for "${stepDef.id}"`);
+                    this.outputMessage(`⚠ Invalid input for "${stepDef.id}"`);
                     return;
                 }
-            } catch { this.addLog('⚠ ' + this.t('FailedToParseWizardStepInput')); }
+            } catch { this.outputMessage('⚠ ' + this.t('FailedToParseWizardStepInput')); }
         }
         // Apply action
         if (stepDef.action === 'setLanguage') {
@@ -1453,7 +1469,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 }
             }
         }
-        this.addLog(`✅ ${this.t('WizardCompleted').replace('{name}', s.wizardData.name || 'pipeline')}`);
+        this.outputMessage(`✅ ${this.t('WizardCompleted').replace('{name}', s.wizardData.name || 'pipeline')}`);
         this.postMessage({ type: 'wizard_step_resume', payload: { values: s.values } });
     },
 
@@ -1624,7 +1640,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         panel.classList.add('visible');
         this.postMessage({ type: 'get_providers' });
         this.initConfigDrag();
-        this.addLog('⚙ ' + this.t('ConfigOpened'));
+        this.outputDebug('⚙ ' + this.t('ConfigOpened'));
     },
 
     showAppConfig() {
@@ -1635,7 +1651,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.renderGeneralConfig();
         this.renderThemeConfig();
         this.loadExecutionConfig();
-        this.addLog('⚙ Application Config opened');
+        this.outputDebug('⚙ Application Config opened');
     },
 
     async loadExecutionConfig() {
@@ -1667,10 +1683,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 body: JSON.stringify({ maxParallel: val }),
             });
             const result = await response.json();
-            this.addLog(`⚙ Max parallel BT runs set to ${val}`);
+            this.outputMessage(`⚙ Max parallel BT runs set to ${val}`);
             document.getElementById('config-max-parallel').value = val;
         } catch (e) {
-            this.addLog(`❌ Error setting maxParallel: ${e.message}`);
+            this.outputMessage(`❌ Error setting maxParallel: ${e.message}`);
         }
     },
 
@@ -1683,10 +1699,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 body: JSON.stringify({ maxConcurrentLLMCalls: val }),
             });
             const result = await response.json();
-            this.addLog(`⚙ Max concurrent HTTP calls set to ${val}`);
+            this.outputMessage(`⚙ Max concurrent HTTP calls set to ${val}`);
             document.getElementById('config-max-concurrent-llm').value = val;
         } catch (e) {
-            this.addLog(`❌ Error setting maxConcurrentLLMCalls: ${e.message}`);
+            this.outputMessage(`❌ Error setting maxConcurrentLLMCalls: ${e.message}`);
         }
     },
 
@@ -1710,7 +1726,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const val = Math.max(1, Math.min(60, parseInt(value)));
         if (!this.state.config) this.state.config = {};
         this.state.config.taskPollingInterval = val;
-        this.addLog(`⚙ Task polling interval set to ${val}s`);
+        this.outputMessage(`⚙ Task polling interval set to ${val}s`);
         document.getElementById('config-task-polling-interval').value = val;
         if (this._taskMetricsInterval) {
             this.stopTaskMetricsPolling();
@@ -1736,6 +1752,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             defaultImageFit: this.state.defaultImageFit,
             theme: this.state.theme,
             customThemeColors: this.themes.custom.colors,
+            startMockServer: this.state.startMockServer,
         }});
         panel.classList.remove('visible');
     },
@@ -1754,6 +1771,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             defaultImageFit: this.state.defaultImageFit,
             theme: this.state.theme,
             customThemeColors: this.themes.custom.colors,
+            startMockServer: this.state.startMockServer,
         }});
         panel.classList.remove('visible');
     },
@@ -1772,7 +1790,22 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             defaultImageFit: this.state.defaultImageFit,
             theme: this.state.theme,
             customThemeColors: this.themes.custom.colors,
-            logHttpHeaders: enabled
+            logHttpHeaders: enabled,
+            startMockServer: this.state.startMockServer
+        }});
+    },
+
+    setStartMockServer(enabled) {
+        this.state.startMockServer = enabled;
+        this.postMessage({ type: 'save_config', payload: {
+            historyRetention: this.state.historyRetention,
+            defaultProvider: this.state.defaultProvider,
+            defaultModel: this.state.defaultModel,
+            defaultImageFit: this.state.defaultImageFit,
+            theme: this.state.theme,
+            customThemeColors: this.themes.custom.colors,
+            logHttpHeaders: this.state.logHttpHeaders,
+            startMockServer: enabled
         }});
     },
 
@@ -1788,7 +1821,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 instructions: 'Add a test field "aiMaintenanceTest": true to verify the AI maintenance feature is working'
             }
         });
-        this.addLog('🤖 Testing AI maintenance...');
+        this.outputMessage('🤖 Testing AI maintenance...');
     },
 
     _isRecipeError(message) {
@@ -1837,7 +1870,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             type: 'ai_maintain_fix_error',
             payload: { error, recipeConfig, context }
         });
-        this.addLog('🤖 Requesting AI fix...');
+        this.outputMessage('🤖 Requesting AI fix...');
         this.dismissAIFix();
     },
 
@@ -1849,22 +1882,22 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     onAIMaintainResult(result) {
         if (result.success) {
             if (result.suggestion) {
-                this.addLog(`✅ AI Analysis: ${result.suggestion.analysis}`);
+                this.outputMessage(`✅ AI Analysis: ${result.suggestion.analysis}`);
                 if (result.suggestion.fixes && result.suggestion.fixes.length > 0) {
-                    this.addLog(`🔧 Suggested fixes: ${result.suggestion.fixes.length}`);
+                    this.outputMessage(`🔧 Suggested fixes: ${result.suggestion.fixes.length}`);
                     result.suggestion.fixes.forEach(fix => {
-                        this.addLog(`  - ${fix.field}: ${fix.oldValue} → ${fix.newValue} (${fix.reason})`);
+                        this.outputTrace(`  - ${fix.field}: ${fix.oldValue} → ${fix.newValue} (${fix.reason})`);
                     });
                 }
             } else if (result.updated) {
-                this.addLog(`✅ Configuration updated by AI`);
+                this.outputMessage(`✅ Configuration updated by AI`);
                 if (result.filePath) {
-                    this.addLog(`📄 Saved to: ${result.filePath}`);
+                    this.outputMessage(`📄 Saved to: ${result.filePath}`);
                 }
                 this.loadRecipes();
             }
         } else {
-            this.addLog(`AI Maintenance Error\nOperation: onAIMaintainResult\nError: ${result.error}\nAction: Review the error details and check provider configuration`);
+            this.outputMessage(`AI Maintenance Error\nOperation: onAIMaintainResult\nError: ${result.error}\nAction: Review the error details and check provider configuration`);
         }
     },
 
@@ -1890,14 +1923,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     _classifyRecipeProvider(recipe) {
         if (recipe.type === 'command') return 'command';
         const provider = (recipe.provider || '').toLowerCase();
-        if (provider.includes('gemini')) return 'gemini';
-        if (provider.includes('openai')) return 'openai';
-        if (provider.includes('anthropic')) return 'anthropic';
-        if (provider.includes('replicate')) return 'replicate';
-        if (provider.includes('ollama')) return 'ollama';
-        if (provider.includes('opencode')) return 'opencode';
-        if (provider.includes('voicebox')) return 'voicebox';
-        if (provider === 'mcp') return 'mcp';
+        const knownIds = (this.state.defaultProviders || []).map(p => p.id);
+        for (const id of knownIds) {
+            if (provider.includes(id)) return id;
+        }
         return 'other';
     },
 
@@ -1992,14 +2021,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const providersList = [
             { key: 'all', label: 'All Providers', icon: '🌐' },
             { key: 'verified', label: 'Verified', icon: '✅' },
-            { key: 'gemini', label: 'Gemini', icon: '♊' },
-            { key: 'openai', label: 'OpenAI', icon: '🧠' },
-            { key: 'anthropic', label: 'Anthropic', icon: '✉️' },
-            { key: 'replicate', label: 'Replicate', icon: '🎨' },
-            { key: 'ollama', label: 'Ollama', icon: '🦙' },
-            { key: 'opencode', label: 'OpenCode', icon: '💻' },
-            { key: 'voicebox', label: 'Voicebox', icon: '🎵' },
-            { key: 'mcp', label: 'MCP', icon: '🔌' },
+            ...(this.state.defaultProviders || [])
+                .filter(p => !['mock', 'mock-http'].includes(p.id))
+                .map(p => ({ key: p.id, label: p.label, icon: p.icon || '🔌' })),
             { key: 'command', label: 'Command / CLI', icon: '⚙️' },
             { key: 'other', label: 'Others', icon: '❓' }
         ];
@@ -2061,6 +2085,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
         if (displayedRecipes.length === 0) {
             list.innerHTML = `<div style="color:#666;font-size:12px;padding:30px;text-align:center">${this.t('NoRecipes')}</div>`;
+            this._renderRecipeSelectDetail();
             return;
         }
 
@@ -2129,6 +2154,119 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                     </div>
                 </div>`;
         }).join('');
+        this._renderRecipeSelectDetail();
+    },
+
+    _renderRecipeSelectDetail() {
+        const detailEl = document.getElementById('recipe-select-detail');
+        if (!detailEl) return;
+        
+        const recipes = this.state.recipes || [];
+        const selRecipe = recipes.find(r => r.name === this._recipeSelectPending);
+        if (!selRecipe) {
+            detailEl.innerHTML = `
+                <div style="color:#666;font-size:12px;text-align:center;margin-top:60px;line-height:1.6">
+                    <div style="font-size:28px;margin-bottom:12px">📋</div>
+                    <div>Select a recipe from the list to view its details.</div>
+                </div>`;
+            return;
+        }
+
+        const isCommand = selRecipe.type === 'command';
+        const typeIcon = isCommand ? '⚙️' : '🤖';
+        const badgeClass = isCommand ? 'type-command' : 'type-ai';
+        const badgeLabel = isCommand ? '⚙️ CMD' : '🤖 AI';
+        const verifiedBadge = selRecipe.verified ? `<span style="color:#4caf50;font-size:12px;margin-left:6px" title="Verified">✅</span>` : '';
+        
+        let detailsHtml = '';
+        if (isCommand) {
+            detailsHtml = `
+                <div style="display:flex;flex-direction:column;gap:10px;font-size:12px">
+                    <div>
+                        <span style="color:#888;display:block;font-size:10px;text-transform:uppercase;margin-bottom:2px">Command</span>
+                        <span style="font-family:monospace;background:#222;padding:4px 6px;border-radius:4px;display:block;word-break:break-all;border:1px solid #333">${this.escapeHtml(selRecipe.command || '(none)')}</span>
+                    </div>
+                    <div>
+                        <span style="color:#888;display:block;font-size:10px;text-transform:uppercase;margin-bottom:2px">Options</span>
+                        <span style="font-family:monospace;background:#222;padding:4px 6px;border-radius:4px;display:block;word-break:break-all;border:1px solid #333">${this.escapeHtml(selRecipe.options || '(none)')}</span>
+                    </div>
+                    <div style="display:flex;gap:10px">
+                        <div style="flex:1">
+                            <span style="color:#888;display:block;font-size:10px;text-transform:uppercase;margin-bottom:2px">Input Ext</span>
+                            <span style="font-family:monospace;background:#222;padding:4px 6px;border-radius:4px;display:block;border:1px solid #333">${this.escapeHtml(selRecipe.inExt || '(any)')}</span>
+                        </div>
+                        <div style="flex:1">
+                            <span style="color:#888;display:block;font-size:10px;text-transform:uppercase;margin-bottom:2px">Output Ext</span>
+                            <span style="font-family:monospace;background:#222;padding:4px 6px;border-radius:4px;display:block;border:1px solid #333">${this.escapeHtml(selRecipe.outExt || '(any)')}</span>
+                        </div>
+                    </div>
+                </div>`;
+        } else {
+            const urlInfo = selRecipe.baseUrl ? `<div style="margin-bottom:8px"><span style="color:#888;font-size:10px;text-transform:uppercase;display:block;margin-bottom:2px">Base URL</span><span style="font-family:monospace;background:#222;padding:4px 6px;border-radius:4px;display:block;word-break:break-all;border:1px solid #333">${this.escapeHtml(selRecipe.baseUrl)}</span></div>` : '';
+            const pathInfo = (selRecipe.useCustomApiPath && selRecipe.apiPath) ? `<div style="margin-bottom:8px"><span style="color:#888;font-size:10px;text-transform:uppercase;display:block;margin-bottom:2px">API Path</span><span style="font-family:monospace;background:#222;padding:4px 6px;border-radius:4px;display:block;word-break:break-all;border:1px solid #333">${this.escapeHtml(selRecipe.apiPath)}</span></div>` : '';
+            const customParamsStr = (selRecipe.customParams && Object.keys(selRecipe.customParams).length > 0) ? JSON.stringify(selRecipe.customParams, null, 2) : '';
+            const customParamsHtml = customParamsStr ? `<div style="margin-bottom:8px"><span style="color:#888;font-size:10px;text-transform:uppercase;display:block;margin-bottom:2px">Custom Parameters</span><pre style="margin:0;background:#222;padding:6px;border-radius:4px;font-size:10px;overflow-x:auto;border:1px solid #333;color:#ccc;line-height:1.3">${this.escapeHtml(customParamsStr)}</pre></div>` : '';
+            
+            detailsHtml = `
+                <div style="display:flex;flex-direction:column;gap:10px;font-size:12px">
+                    <div style="display:flex;gap:10px">
+                        <div style="flex:1">
+                            <span style="color:#888;display:block;font-size:10px;text-transform:uppercase;margin-bottom:2px">Provider</span>
+                            <span style="background:#222;padding:4px 6px;border-radius:4px;display:block;border:1px solid #333;font-weight:500">${this.escapeHtml(selRecipe.provider || '(none)')}</span>
+                        </div>
+                        <div style="flex:1">
+                            <span style="color:#888;display:block;font-size:10px;text-transform:uppercase;margin-bottom:2px">Temperature</span>
+                            <span style="background:#222;padding:4px 6px;border-radius:4px;display:block;border:1px solid #333;font-weight:500">${selRecipe.temperature !== undefined ? selRecipe.temperature : '0.7'}</span>
+                        </div>
+                    </div>
+                    <div>
+                        <span style="color:#888;display:block;font-size:10px;text-transform:uppercase;margin-bottom:2px">Model</span>
+                        <span style="font-family:monospace;background:#222;padding:4px 6px;border-radius:4px;display:block;border:1px solid #333;word-break:break-all">${this.escapeHtml(selRecipe.model || '(none)')}</span>
+                    </div>
+                    ${urlInfo}
+                    ${pathInfo}
+                    ${customParamsHtml}
+                    <div>
+                        <span style="color:#888;display:block;font-size:10px;text-transform:uppercase;margin-bottom:2px">System Prompt</span>
+                        <div style="background:#222;border:1px solid #333;border-radius:4px;padding:8px;font-size:11px;color:#ccc;white-space:pre-wrap;max-height:160px;overflow-y:auto;font-family:monospace;line-height:1.4">${this.escapeHtml(selRecipe.systemPrompt || '(none)')}</div>
+                    </div>
+                </div>`;
+        }
+        
+        detailEl.innerHTML = `
+            <div style="margin-bottom:12px;display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid #333;padding-bottom:10px">
+                <div style="min-width:0;flex:1">
+                    <div style="font-size:14px;font-weight:bold;color:#fff;word-break:break-all;line-height:1.3;display:flex;align-items:center;gap:4px">
+                        <span>${typeIcon}</span>
+                        <span>${this.escapeHtml(selRecipe.name)}</span>
+                        ${verifiedBadge}
+                    </div>
+                </div>
+                <span class="recipe-mgr-item-type-badge ${badgeClass}" style="flex-shrink:0;margin-left:8px">${badgeLabel}</span>
+            </div>
+            <div style="flex:1;overflow-y:auto;margin-bottom:12px">
+                ${detailsHtml}
+            </div>
+            <div style="border-top:1px solid #333;padding-top:12px;margin-top:auto;display:flex;flex-direction:column;gap:6px">
+                <button class="recipe-btn recipe-btn-primary" onclick="app.editRecipeFromSelector('${this.escapeHtml(selRecipe.name)}')" style="width:100%;justify-content:center;display:flex;align-items:center;gap:6px;padding:8px 0;font-size:12px;font-weight:500">
+                    ✏️ Edit in Recipe Manager
+                </button>
+            </div>`;
+    },
+
+    editRecipeFromSelector(recipeName) {
+        const recipes = this.state.recipes || [];
+        const idx = recipes.findIndex(r => r.name === recipeName);
+        if (idx >= 0) {
+            this.closeRecipeSelectDialog();
+            this.showRecipeManager();
+            this.editRecipe(idx);
+        }
+    },
+
+    openRecipeManagerFromSelector() {
+        this.closeRecipeSelectDialog();
+        this.showRecipeManager();
     },
 
     _recipeSelectPick(idx) {
@@ -2276,14 +2414,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const providersList = [
             { key: 'all', label: 'All Providers', icon: '🌐' },
             { key: 'verified', label: 'Verified', icon: '✅' },
-            { key: 'gemini', label: 'Gemini', icon: '♊' },
-            { key: 'openai', label: 'OpenAI', icon: '🧠' },
-            { key: 'anthropic', label: 'Anthropic', icon: '✉️' },
-            { key: 'replicate', label: 'Replicate', icon: '🎨' },
-            { key: 'ollama', label: 'Ollama', icon: '🦙' },
-            { key: 'opencode', label: 'OpenCode', icon: '💻' },
-            { key: 'voicebox', label: 'Voicebox', icon: '🎵' },
-            { key: 'mcp', label: 'MCP', icon: '🔌' },
+            ...(this.state.defaultProviders || [])
+                .filter(p => !['mock', 'mock-http'].includes(p.id))
+                .map(p => ({ key: p.id, label: p.label, icon: p.icon || '🔌' })),
             { key: 'command', label: 'Command / CLI', icon: '⚙️' },
             { key: 'other', label: 'Others', icon: '❓' }
         ];
@@ -2672,7 +2805,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         }
         this.renderRecipeManager();
         this.saveProjectRecipes();
-        this.addLog(`📋 Recipe added: ${name}`);
+        this.outputMessage(`📋 Recipe added: ${name}`);
     },
 
     editRecipe(index) {
@@ -2761,7 +2894,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         } else {
             this.saveProjectRecipes();
         }
-        this.addLog(`✏️ Recipe saved: ${name}`);
+        this.outputMessage(`✏️ Recipe saved: ${name}`);
     },
 
     cancelEditRecipe() {
@@ -2855,6 +2988,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         // Log HTTP headers
         const logHeadersEl = document.getElementById('config-log-http-headers');
         if (logHeadersEl) logHeadersEl.checked = this.state.logHttpHeaders || false;
+        // Start mock server
+        const startMockServerEl = document.getElementById('config-start-mock-server');
+        if (startMockServerEl) startMockServerEl.checked = this.state.startMockServer || false;
         // Placeholder archive name
         const archiveNameEl = document.getElementById('config-placeholder-archive-name');
         if (archiveNameEl) archiveNameEl.value = this.state.placeholderArchiveName || 'archive';
@@ -3250,7 +3386,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         }
         this.renderRecipesConfig();
         this.saveProjectRecipes();
-        this.addLog(`📋 Recipe added: ${name}`);
+        this.outputMessage(`📋 Recipe added: ${name}`);
     },
 
     deleteRecipe(index) {
@@ -3281,7 +3417,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         } else if (source === 'project') {
             this.saveProjectRecipes();
         }
-        this.addLog(`🗑 Recipe deleted: ${name}`);
+        this.outputMessage(`🗑 Recipe deleted: ${name}`);
     },
 
     moveRecipeUp(index) {
@@ -3413,13 +3549,13 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         }
         this.renderPrompt();
         this.updateRecipeBadge();
-        this.addLog(`📋 Recipe selected: ${this.state.selectedRecipe}`);
+        this.outputMessage(`📋 Recipe selected: ${this.state.selectedRecipe}`);
     },
 
     chooseRecipe() {
         const recipes = this.state.recipes || [];
         if (recipes.length === 0) {
-            this.addLog('⚠ ' + this.t('NoRecipesDefined'));
+            this.outputMessage('⚠ ' + this.t('NoRecipesDefined'));
             return;
         }
         const current = this.state.selectedRecipe;
@@ -3437,7 +3573,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         }
         this.renderPrompt();
         this.updateRecipeBadge();
-        this.addLog(`📋 Recipe: ${this.state.selectedRecipe}`);
+        this.outputMessage(`📋 Recipe: ${this.state.selectedRecipe}`);
     },
 
     updateRecipeBadge() {
@@ -3465,7 +3601,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     },
 
     loadFromChestConfig(name) {
-        this.addLog(`📂 Loading from chest "${name}"...`);
+        this.outputMessage(`📂 Loading from chest "${name}"...`);
         this.postMessage({ type: 'select_input_source', payload: { source: 'chest', chestName: name } });
     },
 
@@ -3479,7 +3615,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     },
 
     deleteChest(name) {
-        this.addLog(`🗑 Chest "${name}" will be deleted on next GC`);
+        this.outputMessage(`🗑 Chest "${name}" will be deleted on next GC`);
     },
 
     showChestManager() {
@@ -3516,7 +3652,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     clearStorageChest() {
         if (!confirm('Empty Storage Chest? This will permanently delete all discarded data.')) return;
-        this.addLog('🧹 ' + this.t('StorageChestCleared'));
+        this.outputMessage('🧹 ' + this.t('StorageChestCleared'));
     },
 
     onProvidersResult(providers, customMetadata) {
@@ -3562,6 +3698,21 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             const defaultUrl = def ? def.defaultUrl : 'https://api.openai.com/v1';
             const defaultFormat = def ? def.defaultFormat : 'openai';
             const currentFormat = cfg.apiFormat || defaultFormat;
+            const currentBaseUrl = cfg.baseUrl || defaultUrl;
+            
+            let defaultApiDescUrl = def ? (def.defaultApiDescUrl || '') : '';
+            if (!defaultApiDescUrl) {
+                if (currentFormat === 'mcp') {
+                    defaultApiDescUrl = 'mcp://';
+                } else if (currentBaseUrl) {
+                    let base = currentBaseUrl.replace(/\/+$/, '');
+                    if (base.endsWith('/v1')) {
+                        base = base.substring(0, base.length - 3);
+                    }
+                    defaultApiDescUrl = base + '/docs';
+                }
+            }
+            
             const isCustom = !knownIds.includes(id);
             return `<div class="provider-item${isCustom ? ' provider-custom' : ''}">
                 <div class="provider-accordion-header" onclick="app.toggleProviderAccordion('${id}')">
@@ -3570,7 +3721,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 </div>
                 <div class="provider-accordion-content" id="provider-content-${id}" style="display:none">
                     <label>Base URL</label>
-                    <input type="text" id="url-${id}" value="${this.escapeHtml(cfg.baseUrl||defaultUrl)}" placeholder="${this.escapeHtml(defaultUrl)}">
+                    <input type="text" id="url-${id}" value="${this.escapeHtml(cfg.baseUrl||defaultUrl)}" placeholder="${this.escapeHtml(defaultUrl)}" oninput="app.suggestApiDescUrl('${id}')">
 
                     <label>API Key</label>
                     <div class="api-key-row">
@@ -3581,9 +3732,11 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                     <details class="provider-advanced">
                         <summary>Advanced Options</summary>
                         <label>API Format</label>
-                        <select id="format-${id}" class="recipe-select" style="width:100%;margin-bottom:6px">
+                        <select id="format-${id}" class="recipe-select" style="width:100%;margin-bottom:6px" onchange="app.suggestApiDescUrl('${id}')">
                             ${formats.map(f => `<option value="${f.id}" ${f.id === currentFormat ? 'selected' : ''}>${f.label}</option>`).join('')}
                         </select>
+                        <label>API description url</label>
+                        <input type="text" id="desc-url-${id}" value="${this.escapeHtml(cfg.apiDescUrl||'')}" placeholder="${this.escapeHtml(defaultApiDescUrl || 'https://example.com/api-docs')}" style="width:100%;box-sizing:border-box;margin-bottom:6px">
                     </details>
 
                     <div class="test-row">
@@ -3609,14 +3762,14 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.state.providers[id] = { apiKey: '', baseUrl: '' };
         this.onProvidersResult(this.state.providers);
         input.value = '';
-        this.addLog(`➕ Custom provider added: ${id}`);
+        this.outputMessage(`➕ Custom provider added: ${id}`);
     },
 
     removeCustomProvider(id) {
         if (!this.state.providers || !this.state.providers[id]) return;
         delete this.state.providers[id];
         this.onProvidersResult(this.state.providers);
-        this.addLog(`🗑 Custom provider removed: ${id}`);
+        this.outputMessage(`🗑 Custom provider removed: ${id}`);
     },
 
     toggleKeyVisible(id, btn) {
@@ -3648,17 +3801,26 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         list.querySelectorAll('.provider-item').forEach(item => {
             let keyInput = null;
             let urlInput = null;
+            let descUrlInput = null;
             item.querySelectorAll('input').forEach(inp => {
                 if (inp.id.startsWith('key-')) keyInput = inp;
                 else if (inp.id.startsWith('url-')) urlInput = inp;
+                else if (inp.id.startsWith('desc-url-')) descUrlInput = inp;
             });
             if (!keyInput || !urlInput) return;
             const id = keyInput.id.replace('key-', '');
             const formatSelect = item.querySelector('#format-' + id);
             const existing = (this.state.providers && this.state.providers[id]) || {};
+            
+            let apiDescUrl = descUrlInput?.value?.trim() || '';
+            if (!apiDescUrl && descUrlInput?.placeholder && descUrlInput.placeholder !== 'https://example.com/api-docs') {
+                apiDescUrl = descUrlInput.placeholder;
+            }
+
             providers[id] = {
                 apiKey:  keyInput.value || '',
                 baseUrl: urlInput.value || '',
+                apiDescUrl: apiDescUrl,
                 apiFormat: formatSelect?.value || 'openai',
                 models:  existing.models || []
             };
@@ -3666,6 +3828,31 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         if (Object.keys(providers).length === 0) return;
         this.postMessage({ type: 'save_providers', payload: providers });
         this.state.providers = providers;
+    },
+
+    suggestApiDescUrl(id) {
+        const urlEl = document.getElementById('url-' + id);
+        const formatSelect = document.getElementById('format-' + id);
+        const descUrlEl = document.getElementById('desc-url-' + id);
+        if (!urlEl || !descUrlEl) return;
+
+        const baseUrl = urlEl.value.trim();
+        const apiFormat = formatSelect ? formatSelect.value : '';
+
+        let suggestion = '';
+        if (apiFormat === 'mcp') {
+            suggestion = 'mcp://';
+        } else if (baseUrl) {
+            let base = baseUrl.replace(/\/+$/, '');
+            if (base.endsWith('/v1')) {
+                base = base.substring(0, base.length - 3);
+            }
+            suggestion = base + '/docs';
+        } else {
+            suggestion = 'https://example.com/api-docs';
+        }
+
+        descUrlEl.placeholder = suggestion;
     },
 
     testProviderConnection(id) {
@@ -3679,7 +3866,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             statusEl.textContent = '⏳ Testing...';
             statusEl.className = 'test-status';
         }
-            this.addLog('🔌 ' + this.t('TestingConnection').replace('{id}', id));
+            this.outputMessage('🔌 ' + this.t('TestingConnection').replace('{id}', id));
         this.postMessage({ type: 'test_provider_connection', payload: { provider: id, apiFormat, apiKey, baseUrl } });
     },
 
@@ -3689,11 +3876,11 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         if (result.success) {
             statusEl.textContent = '✅ ' + result.message;
             statusEl.className = 'test-status success';
-            this.addLog('✅ ' + result.provider + ' ' + this.t('ConnectionOK'));
+            this.outputMessage('✅ ' + result.provider + ' ' + this.t('ConnectionOK'));
         } else {
             statusEl.textContent = '❌ ' + result.message;
             statusEl.className = 'test-status error';
-            this.addLog(`Connection Test Failed\nProvider: ${result.provider}\nError: ${result.message}\nAction: Check API key, base URL, and network connectivity`);
+            this.outputMessage(`Connection Test Failed\nProvider: ${result.provider}\nError: ${result.message}\nAction: Check API key, base URL, and network connectivity`);
         }
     },
 
@@ -3707,8 +3894,8 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             case 'switch_project':  this.showProjectSwitcher(); break;
             case 'projects_root':   this.showProjectsRootConfig(); break;
             case 'about_project_lifecycle': this.showProjectLifecycleInfo(); break;
-            case 'import_zip':      this.addLog('📦 ' + this.t('ImportZipComingSoon')); break;
-            case 'export_node':     this.addLog('📤 ' + this.t('ExportNodeComingSoon')); break;
+            case 'import_zip':      this.outputMessage('📦 ' + this.t('ImportZipComingSoon')); break;
+            case 'export_node':     this.outputMessage('📤 ' + this.t('ExportNodeComingSoon')); break;
             case 'run_pipeline':    this.runPipeline(); break;
             case 'pipeline_manager': this.showPipelineManager(); break;
             case 'pipeline_history': this.showHistory(); break;
@@ -3733,8 +3920,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             case 'welcome_wizard':  this.showWizard(); break;
             case 'reset_wizard':    this.resetWizard(); break;
             case 'setup_wizard':    this.showSetupWizard(); break;
+            case 'sample_wizard':   this.showSampleWizard(); break;
             case 'recipe_test':     this.showRecipeTest(); break;
-            default: this.addLog('⚠ ' + this.t('UnknownMenuCommand').replace('{action}', cmd.action));
+            default: this.outputMessage('⚠ ' + this.t('UnknownMenuCommand').replace('{action}', cmd.action));
         }
     },
 
@@ -3742,7 +3930,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const tab = this.state.tabs[this.state.activeTab];
         if (tab && path) {
             tab.file = path.split('/').pop().split('\\').pop();
-            this.addLog('💾 ' + this.t('SavedAs').replace('{path}', path));
+            this.outputMessage('💾 ' + this.t('SavedAs').replace('{path}', path));
         }
     },
 
@@ -3847,13 +4035,13 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 }
             }
             this.saveProjectRecipes();
-            this.addLog(`📋 Loaded ${localRecipes.length} local recipes (${added} new, ${updated} updated)`);
+            this.outputMessage(`📋 Loaded ${localRecipes.length} local recipes (${added} new, ${updated} updated)`);
         }
     },
 
     onRenameFileResult(payload) {
         if (!payload || !payload.success) {
-            this.addLog(`File Rename Error\nOperation: onRenameFileResult\nError: ${payload ? payload.error : 'unknown'}\nAction: Check file permissions and path validity`);
+            this.outputMessage(`File Rename Error\nOperation: onRenameFileResult\nError: ${payload ? payload.error : 'unknown'}\nAction: Check file permissions and path validity`);
             return;
         }
         const { oldFile, newFile } = payload;
@@ -3867,7 +4055,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             }});
             this.renderTabs();
             this.postMessage({ type: 'get_file_tree' });
-            this.addLog(`✏️ Tab and file renamed to "${newName}"`);
+            this.outputMessage(`✏️ Tab and file renamed to "${newName}"`);
         }
     },
 
@@ -4022,7 +4210,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
         if (errors.length > 0) {
             const msg = `Node Type Validation Error\nOperation: checkNodeTypeInvariants\nTab: ${tab.name}\nIssues Found: ${errors.length}\nDetails:\n` + errors.map(e => '  • ' + e).join('\n') + `\nAction: Use repairNodeTypeInvariants() to auto-fix, or review node structure manually`;
-            this.addLog('[RC-01] ' + msg);
+            this.outputTrace('[RC-01] ' + msg);
             console.error('[RC-01] checkNodeTypeInvariants:', msg);
         }
     },
@@ -4056,7 +4244,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         let html = '';
         let displayStr = node.title ? this.safeAtob(node.title) : this.getTitleFallback(node);
         if (node.isError) {
-            displayStr = '❌ ' + displayStr;
+            displayStr = '❌';
         }
         if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(displayStr)) {
             displayStr = this.formatRunDate(displayStr);
@@ -4486,7 +4674,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.renderTabs();
         this.renderTree();
         this.renderList();
-        this.addLog('📋 Tab duplicated');
+        this.outputDebug('📋 Tab duplicated');
     },
 
     treeCtxAddOutputToInput(dataPath) {
@@ -4505,7 +4693,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                         outputFiles = lastStep.outputAttachments || [];
                     }
                 } catch(e) {
-                    this.addLog(`Pipeline Metadata Parse Error\nOperation: treeCtxAddOutputToInput\nData Node: ${dataNode.title || 'unknown'}\nOp Node: ${opNode.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`);
+                    this.outputDebug(`Pipeline Metadata Parse Error\nOperation: treeCtxAddOutputToInput\nData Node: ${dataNode.title || 'unknown'}\nOp Node: ${opNode.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`);
                 }
             }
 
@@ -4545,7 +4733,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.renderList();
         this.loadEditor(this.state.currentNodePath);
         this.saveCurrentTab();
-        this.addLog('➕ ' + this.t('ChildNodeAdded'));
+        this.outputDebug('➕ ' + this.t('ChildNodeAdded'));
     },
 
     treeCtxAddPlaceholder(path) {
@@ -4563,7 +4751,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.state.currentNodePath = path + '/' + (node.children.length - 1);
         this.renderTree();
         this.saveCurrentTab();
-        this.addLog('📁 ' + this.t('PlaceholderAdded'));
+        this.outputDebug('📁 ' + this.t('PlaceholderAdded'));
     },
 
     treeCtxAddOutputsToInput(dataPaths) {
@@ -4586,7 +4774,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                         outputFiles = lastStep.outputAttachments || [];
                     }
                 } catch(e) {
-                    this.addLog(`Pipeline Metadata Parse Error\nOperation: treeCtxAddOutputsToInput\nData Node: ${dataNode.title || 'unknown'}\nOp Node: ${opNode.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`);
+                    this.outputDebug(`Pipeline Metadata Parse Error\nOperation: treeCtxAddOutputsToInput\nData Node: ${dataNode.title || 'unknown'}\nOp Node: ${opNode.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`);
                 }
             }
             if (outputText) {
@@ -4606,7 +4794,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         }
         this.saveCurrentTab();
         this.renderInput();
-        this.addLog('📥 ' + this.t('OutputsAdded') + ' (' + dataPaths.length + ' ' + this.t('Nodes') + ')');
+        this.outputDebug('📥 ' + this.t('OutputsAdded') + ' (' + dataPaths.length + ' ' + this.t('Nodes') + ')');
     },
 
     treeCtxDeleteMultiple(paths) {
@@ -4639,7 +4827,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.renderTree();
         this.renderList();
         this.saveCurrentTab();
-        this.addLog('🗑 ' + this.t('NodesDeleted') + ' (' + count + ')');
+        this.outputDebug('🗑 ' + this.t('NodesDeleted') + ' (' + count + ')');
     },
 
     treeDragStart(event, path) {
@@ -4728,7 +4916,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
         this.renderTree();
         this.saveCurrentTab();
-        this.addLog('📦 ' + this.t('DataNodesMoved'));
+        this.outputDebug('📦 ' + this.t('DataNodesMoved'));
     },
 
     treeCtxAddSibling(path) {
@@ -4745,7 +4933,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.renderList();
         this.loadEditor(this.state.currentNodePath);
         this.saveCurrentTab();
-        this.addLog('➕ ' + this.t('SiblingNodeAdded'));
+        this.outputDebug('➕ ' + this.t('SiblingNodeAdded'));
     },
 
     treeCtxDelete(path) {
@@ -4762,7 +4950,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.renderList();
         this.loadEditor(this.state.currentNodePath);
         this.saveCurrentTab();
-        this.addLog('🗑 ' + this.t('NodeDeleted'));
+        this.outputDebug('🗑 ' + this.t('NodeDeleted'));
     },
 
     treeCtxMoveUp(path) {
@@ -4779,7 +4967,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.renderTree();
         this.renderList();
         this.saveCurrentTab();
-        this.addLog('⬆ ' + this.t('NodeMovedUp'));
+        this.outputDebug('⬆ ' + this.t('NodeMovedUp'));
     },
 
     treeCtxMoveDown(path) {
@@ -4795,7 +4983,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.renderTree();
         this.renderList();
         this.saveCurrentTab();
-        this.addLog('⬇ ' + this.t('NodeMovedDown'));
+        this.outputDebug('⬇ ' + this.t('NodeMovedDown'));
     },
 
     treeCtxRename(path) {
@@ -4837,7 +5025,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             this.renderList();
             this.loadEditor(path);
             this.saveCurrentTab();
-            this.addLog('✏️ ' + this.t('NodeRenamed'));
+            this.outputDebug('✏️ ' + this.t('NodeRenamed'));
         };
         ok.onclick = commit;
         input.onkeydown = (e) => { if (e.key === 'Enter') commit(); else if (e.key === 'Escape') modal.classList.remove('visible'); };
@@ -4852,7 +5040,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         else node.btType = btType;
         this.renderTree();
         this.saveCurrentTab();
-        this.addLog(`🌳 ${this.t('BTTypeSetTo').replace('{type}', btType)}`);
+        this.outputDebug(`🌳 ${this.t('BTTypeSetTo').replace('{type}', btType)}`);
     },
 
     treeCtxSetCustomBtType(path) {
@@ -4926,8 +5114,8 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     // ── BT Toolbar Controls (delegates to BehaviorTreeEngine in bt.js) ──────────────
 
     btCtrlSetTarget(path) { this._bt.setTarget(path); },
-    btCtrlRun()           { if (this.state.btLocked) { this.addLog('🔒 ' + this.t('ExecutionLocked')); return; } this._bt.run(); },
-    btCtrlStep()          { if (this.state.btLocked) { this.addLog('🔒 ' + this.t('ExecutionLocked')); return; } this._bt.step(); },
+    btCtrlRun()           {         if (this.state.btLocked) { this.outputDebug('🔒 ' + this.t('ExecutionLocked')); return; } this._bt.run(); },
+    btCtrlStep()          { if (this.state.btLocked) { this.outputDebug('🔒 ' + this.t('ExecutionLocked')); return; } this._bt.step(); },
     btCtrlPause()         { this._bt.pause(); },
     btCtrlStop()          { this._bt.stop(); },
     btCtrlRetryNode()     { this._bt.retryNode(); },
@@ -4939,43 +5127,165 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             btn.classList.toggle('locked', this.state.btLocked);
             btn.title = this.state.btLocked ? 'Execution locked (click to unlock)' : 'Execution lock (blocks all execution when ON)';
         }
-        this.addLog(this.state.btLocked ? '🔒 ' + this.t('ExecutionLockOn') : '🔓 ' + this.t('ExecutionLockOff'));
+        this.outputDebug(this.state.btLocked ? '🔒 ' + this.t('ExecutionLockOn') : '🔓 ' + this.t('ExecutionLockOff'));
     },
 
     saveBtNodeConfig() {
         let node = this.getNodeByPath(this.state.currentNodePath);
         if (!node) return;
         if (node.nodeType === 'data' && node.originalOpNode) node = node.originalOpNode;
-        const promptRaw = document.getElementById('bt-node-prompt')?.value || '';
-        node.btPrompt    = promptRaw ? btoa(promptRaw) : '';
-        node.btInputKey  = (document.getElementById('bt-input-key')?.value  || '').trim();
-        node.btInputType = document.getElementById('bt-input-type')?.value  || 'text';
-        node.btOutputKey = (document.getElementById('bt-output-key')?.value || '').trim();
-        node.btAction = document.getElementById('bt-action')?.value || 'processPrompt';
-        node.btLocalFilePath = (document.getElementById('bt-local-file-path')?.value || '').trim();
+        const action = document.getElementById('bt-action')?.value || 'processPrompt';
+        const config = action !== 'processPrompt' ? (window.btActions?.get(action) || null) : null;
+        const fields = config?.fields || [];
+
+        node.btAction = action;
+        node.btPrompt    = fields.includes('prompt') && document.getElementById('bt-node-prompt')
+            ? (document.getElementById('bt-node-prompt').value ? btoa(document.getElementById('bt-node-prompt').value) : '')
+            : node.btPrompt || '';
+        node.btInputKey  = fields.includes('inputKey') && document.getElementById('bt-input-key')
+            ? document.getElementById('bt-input-key').value.trim() : node.btInputKey || '';
+        node.btInputType = config?.defaults?.inputType
+            ? config.defaults.inputType
+            : (document.getElementById('bt-input-type')?.value || 'text');
+        node.btOutputKey = fields.includes('outputKey') && document.getElementById('bt-output-key')
+            ? document.getElementById('bt-output-key').value.trim() : node.btOutputKey || '';
+        node.btOutputType = config?.defaults?.outputType
+            ? config.defaults.outputType
+            : (document.getElementById('bt-output-type')?.value || 'text');
+        node.btLocalFilePath = fields.includes('localFilePath') && document.getElementById('bt-local-file-path')
+            ? document.getElementById('bt-local-file-path').value.trim() : node.btLocalFilePath || '';
+
+        // For processPrompt (no registry entry), always save recipe fields
+        if (action === 'processPrompt') {
+            node.btPrompt = document.getElementById('bt-node-prompt')?.value
+                ? btoa(document.getElementById('bt-node-prompt').value) : '';
+            node.btInputKey = (document.getElementById('bt-input-key')?.value || '').trim();
+            node.btInputType = document.getElementById('bt-input-type')?.value || 'text';
+            node.btOutputKey = (document.getElementById('bt-output-key')?.value || '').trim();
+            node.btOutputType = document.getElementById('bt-output-type')?.value || 'text';
+        }
+
         this.saveCurrentTab();
         this.renderPrompt();
-        this.addLog('💾 ' + this.t('BTSettingsSaved'));
+        this.outputDebug('💾 ' + this.t('BTSettingsSaved'));
+    },
+
+    _getActionFields(actionName) {
+        if (actionName === 'processPrompt') return ['prompt', 'inputKey', 'outputKey'];
+        const config = window.btActions?.get(actionName);
+        return config?.fields || [];
+    },
+
+    _applyActionDefaults(actionName) {
+        if (actionName === 'processPrompt') return;
+        const config = window.btActions?.get(actionName);
+        if (config?.defaults?.inputType) {
+            const el = document.getElementById('bt-input-type');
+            if (el) el.value = config.defaults.inputType;
+        }
+        if (config?.defaults?.outputType) {
+            const el = document.getElementById('bt-output-type');
+            if (el) el.value = config.defaults.outputType;
+        }
     },
 
     onBtActionChange() {
         const action = document.getElementById('bt-action')?.value || 'processPrompt';
+        const fields = this._getActionFields(action);
+        const isProcess = action === 'processPrompt';
+
+        const config = !isProcess ? window.btActions?.get(action) : null;
+
         const promptFields = document.getElementById('bt-prompt-fields');
         const localFileField = document.getElementById('bt-local-file-field');
-        if (promptFields) promptFields.style.display = action === 'processPrompt' ? 'block' : 'none';
-        if (localFileField) localFileField.style.display = action === 'loadLocalFile' ? 'block' : 'none';
+        const inputFields = document.getElementById('bt-input-fields');
+        const inputTypeField = document.getElementById('bt-input-type-field');
+        const outputFields = document.getElementById('bt-output-fields');
+        const outputTypeField = document.getElementById('bt-output-type-field');
+        const recipeSection = document.getElementById('bt-recipe-section');
+        const descriptionEl = document.getElementById('bt-action-description');
+
+        if (promptFields) promptFields.style.display = (isProcess || fields.includes('prompt')) ? 'block' : 'none';
+        if (localFileField) localFileField.style.display = fields.includes('localFilePath') ? 'block' : 'none';
+        if (inputFields) inputFields.style.display = fields.includes('inputKey') ? 'flex' : 'none';
+        if (inputTypeField) inputTypeField.style.display = (fields.includes('inputKey') && !config?.defaults?.inputType) ? 'block' : 'none';
+        if (outputFields) outputFields.style.display = fields.includes('outputKey') ? 'flex' : 'none';
+        if (outputTypeField) outputTypeField.style.display = (fields.includes('outputKey') && !config?.defaults?.outputType) ? 'block' : 'none';
+        if (recipeSection) recipeSection.style.display = isProcess ? 'block' : 'none';
+        if (descriptionEl) {
+            descriptionEl.style.display = config?.description ? 'block' : 'none';
+            if (config?.description) descriptionEl.textContent = config.description;
+        }
+
+        this._applyActionDefaults(action);
     },
 
     btBlackboardDialog() {
         const modal = document.getElementById('bt-bb-modal');
         if (!modal) return;
-        this._renderBbDialog();
-        modal.style.display = 'flex';
+        try { this._renderBbDialog(); }
+        catch (e) { console.error('[BB Dialog] render error:', e); this.outputDebug(`❌ Blackboard render error: ${e.message}`); }
+        modal.classList.add('visible');
+        if (this._bt) this._bt._bbChangeCallback = () => this._renderBbDialog();
+        this._initBbDrag(modal);
+    },
+
+    _initBbDrag(modal) {
+        const handle = document.getElementById('bt-bb-drag-handle');
+        if (!handle || handle._bbDragInit) return;
+        handle._bbDragInit = true;
+        handle.addEventListener('mousedown', e => {
+            if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SPAN' && e.target.classList.contains('modal-close')) return;
+            const rect = modal.getBoundingClientRect();
+            const offsetX = e.clientX - rect.left;
+            const offsetY = e.clientY - rect.top;
+            modal.style.left = rect.left + 'px';
+            modal.style.right = 'auto';
+            modal.style.top = rect.top + 'px';
+            const onMove = (e2) => {
+                modal.style.left = (e2.clientX - offsetX) + 'px';
+                modal.style.top = (e2.clientY - offsetY) + 'px';
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
     },
 
     btBbClose() {
         const modal = document.getElementById('bt-bb-modal');
-        if (modal) modal.style.display = 'none';
+        if (modal) modal.classList.remove('visible');
+        if (this._bt) this._bt._bbChangeCallback = null;
+    },
+
+    initBtBbDrag() {
+        const panel = document.getElementById('bt-bb-modal');
+        const handle = document.getElementById('bt-bb-drag-handle');
+        if (!panel || !handle) return;
+        // Remove old listeners
+        const newHandle = handle.cloneNode(true);
+        handle.parentNode.replaceChild(newHandle, handle);
+        let dragging = false, startX, startY, origX, origY;
+        newHandle.onmousedown = (e) => {
+            if (e.target.tagName === 'BUTTON' || e.target.classList.contains('modal-close')) return;
+            dragging = true;
+            const rect = panel.getBoundingClientRect();
+            startX = e.clientX; startY = e.clientY;
+            origX = rect.left; origY = rect.top;
+            panel.style.left = origX + 'px';
+            panel.style.top = origY + 'px';
+            panel.style.right = 'auto';
+            e.preventDefault();
+        };
+        document.onmousemove = (e) => {
+            if (!dragging) return;
+            panel.style.left = (origX + e.clientX - startX) + 'px';
+            panel.style.top = (origY + e.clientY - startY) + 'px';
+        };
+        document.onmouseup = () => { dragging = false; };
     },
 
     _renderBbDialog() {
@@ -4990,7 +5300,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             body.innerHTML = keys.map(key => {
                 const slot  = bb[key] || {};
                 const hasText  = slot.text  != null;
-                const hasMedia = slot.media && slot.media.length > 0;
+                const hasMedia = Array.isArray(slot.media) && slot.media.length > 0;
                 const textPreview = hasText
                     ? `<div class="bt-bb-text-preview">${this.escapeHtml(String(slot.text).slice(0, 200))}${slot.text.length > 200 ? '…' : ''}</div>`
                     : '';
@@ -5007,14 +5317,26 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                         <span class="bt-bb-key">"${this.escapeHtml(key)}"</span>
                         <span class="bt-bb-types">${hasText ? '<span class="bt-bb-type-badge">text</span>' : ''}${hasMedia ? '<span class="bt-bb-type-badge media">media</span>' : ''}</span>
                         <div class="bt-bb-row-actions">
-                            <button class="copy-btn" onclick="app._btBbEditText('${this.escapeHtml(key)}')" title="${this.t('EditText')}">✏️</button>
-                            <button class="copy-btn" onclick="app._btBbUploadMedia('${this.escapeHtml(key)}')" title="${this.t('UploadMedia')}">📎</button>
-                            <button class="copy-btn" onclick="app._btBbClearKey('${this.escapeHtml(key)}')" title="${this.t('Delete')}">🗑</button>
+                            <button class="copy-btn" onclick="app._btBbCopyText(&quot;${this.escapeHtml(key)}&quot;)" title="${this.t('Copy')}">📋</button>
+                            <button class="copy-btn" onclick="app._btBbEditText(&quot;${this.escapeHtml(key)}&quot;)" title="${this.t('SetText')}">✏️</button>
+                            <button class="copy-btn" onclick="app._btBbUploadMedia(&quot;${this.escapeHtml(key)}&quot;)" title="${this.t('UploadMedia')}">📎</button>
+                            <button class="copy-btn" onclick="app._btBbClearKey(&quot;${this.escapeHtml(key)}&quot;)" title="${this.t('Delete')}">🗑</button>
                         </div>
                     </div>
                     ${textPreview}${mediaThumbs}
                 </div>`;
             }).join('');
+        }
+    },
+
+    _btBbCopyText(key) {
+        const bb   = this._bt ? this._bt.getBlackboard() : {};
+        const slot = bb[key] || {};
+        const text = slot.text != null ? String(slot.text) : '';
+        if (text) {
+            navigator.clipboard.writeText(text).then(() => {
+                this.outputDebug(`📋 BB["${key}"].text → clipboard (${text.slice(0, 80)}${text.length > 80 ? '…' : ''})`);
+            }).catch(() => {});
         }
     },
 
@@ -5025,6 +5347,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const val = prompt(this.t('EditBBText').replace('{key}', key), current);
         if (val === null) return;
         if (this._bt) this._bt.bbSetText(key, val);
+        this.outputDebug(`📋 BB["${key}"].text ← "${String(val).slice(0, 100)}${String(val).length > 100 ? '…' : ''}"`);
         this._renderBbDialog();
     },
 
@@ -5036,6 +5359,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     _btBbClearKey(key) {
         if (!confirm(this.t('DeleteBBKey').replace('{key}', key))) return;
         if (this._bt) this._bt.bbClearKey(key);
+        this.outputDebug(`📋 BB["${key}"] deleted`);
         this._renderBbDialog();
     },
 
@@ -5043,6 +5367,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const key = prompt(this.t('EnterVariableName'));
         if (!key || !key.trim()) return;
         if (this._bt) this._bt.bbSetText(key.trim(), '');
+        this.outputDebug(`📋 BB["${key.trim()}"] created`);
         this._renderBbDialog();
         this._btBbEditText(key.trim());
     },
@@ -5069,7 +5394,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this._bt.setConfig({ mode, count });
         this.btConfigClose();
         const label = mode === 'single' ? this.t('SingleRun') : (count === 0 ? this.t('InfiniteLoop') : this.t('RepeatNTimes').replace('{count}', count));
-        this.addLog(`⚙ ${this.t('BTExecutionSetting').replace('{label}', label)}`);
+        this.outputMessage(`⚙ ${this.t('BTExecutionSetting').replace('{label}', label)}`);
     },
 
     _btCfgModeChange(radio) {
@@ -5157,13 +5482,13 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             try {
                 const meta = JSON.parse(node.pipelineMeta);
                 if (meta && meta.pipelineName) return meta.pipelineName;
-            } catch (e) {         this.addLog(`Pipeline Metadata Parse Error\nOperation: _getPipelineNameFromAssembleNode\nNode: ${node.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
+            } catch (e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: _getPipelineNameFromAssembleNode\nNode: ${node.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
             for (const child of node.children) {
                 if (child.pipelineMeta) {
                     try {
                         const meta = JSON.parse(child.pipelineMeta);
                         if (meta && meta.pipelineName) return meta.pipelineName;
-                    } catch (e) {         this.addLog(`Pipeline Metadata Parse Error\nOperation: _getPipelineNameFromAssembleNode\nChild Node: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
+                    } catch (e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: _getPipelineNameFromAssembleNode\nChild Node: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
                 }
                 if (child.children) {
                     for (const gc of child.children) {
@@ -5171,7 +5496,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                             try {
                                 const meta = JSON.parse(gc.pipelineMeta);
                                 if (meta && meta.pipelineName) return meta.pipelineName;
-                            } catch (e) {         this.addLog(`Pipeline Metadata Parse Error\nOperation: _getPipelineNameFromAssembleNode\nGrandchild Node: ${gc.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
+                            } catch (e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: _getPipelineNameFromAssembleNode\nGrandchild Node: ${gc.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
                         }
                     }
                 }
@@ -5182,7 +5507,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     selectNode(path, event) {
         this.updateNode();
-       this.addLog("Select Node" + path);
+       this.outputMessage("Select Node" + path);
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
             this.clearAllSpeakingStyles();
@@ -5310,7 +5635,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     onEvaluationSaved(payload) {
         const evalLabels = { ok: '👍 ' + this.t('OK'), rejected: '👎 ' + this.t('Rejected'), pinned: '📌 ' + this.t('Pinned'), '': this.t('EvaluationCleared') };
-        this.addLog(`✅ ${this.t('EvaluationSaved').replace('{label}', evalLabels[payload.evaluation] || payload.evaluation)}`);
+        this.outputMessage(`✅ ${this.t('EvaluationSaved').replace('{label}', evalLabels[payload.evaluation] || payload.evaluation)}`);
         this.renderList();
     },
 
@@ -5329,7 +5654,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         el.innerHTML = node.children.map((child, i) => {
             let display = child.title ? this.safeAtob(child.title) : this.getTitleFallback(child);
             if (child.isError) {
-                display = '❌ ' + display;
+                display = '❌';
             }
             display = this.escapeHtml(display);
             const childPath = (this.state.currentNodePath ? this.state.currentNodePath + '/' : '/') + i;
@@ -5412,7 +5737,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         if (!child.content) return;
         const text = atob(child.content);
         navigator.clipboard.writeText(text).then(() => {
-            this.addLog('📋 ' + this.t('Copied'));
+            this.outputMessage('📋 ' + this.t('Copied'));
         });
     },
 
@@ -5469,31 +5794,47 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             node.input = inputTextArea.value;
         }
 
+        const btPromptEl = document.getElementById('bt-node-prompt');
+        if (btPromptEl) {
+            const promptRaw = btPromptEl.value || '';
+            targetNode.btPrompt = promptRaw ? btoa(promptRaw) : '';
+            targetNode.btInputKey = (document.getElementById('bt-input-key')?.value || '').trim();
+            targetNode.btInputType = document.getElementById('bt-input-type')?.value || 'text';
+            targetNode.btOutputKey = (document.getElementById('bt-output-key')?.value || '').trim();
+            targetNode.btOutputType = document.getElementById('bt-output-type')?.value || 'text';
+            targetNode.btAction = document.getElementById('bt-action')?.value || 'processPrompt';
+            targetNode.btLocalFilePath = (document.getElementById('bt-local-file-path')?.value || '').trim();
+        }
+
         this.renderTree();
         this.renderList();
         const tab = this.state.tabs[this.state.activeTab];
         if (tab && tab.file && tab.root) {
             this.postMessage({ type: 'save_node', payload: { tabFile: tab.file, root: tab.root } });
         }
-        this.addLog('💾 ' + this.t('NodeUpdated'));
+        this.outputMessage('💾 ' + this.t('NodeUpdated'));
     },
 
     processPrompt() {
         if (this.state.btLocked) {
-            this.addLog('🔒 ' + this.t('ExecutionLockedPleaseUnlock'));
+            this.outputMessage('🔒 ' + this.t('ExecutionLockedPleaseUnlock'));
             return;
         }
-        this.updateNode();
+
+        // Only save UI state when triggered manually (not from BT engine).
+        // During BT execution the node data is already correct; reading from
+        // the DOM would overwrite it with stale values from a different node.
+        const ctx = this.state.btRunContext;
+        if (!ctx) this.updateNode();
 
         if (this.state.viewMode === 'node') {
             const node = this.getNodeByPath(this.state.currentNodePath);
             if (!node) {
-                this.addLog('⚠ ' + this.t('PleaseSelectNode'));
+                this.outputMessage('⚠ ' + this.t('PleaseSelectNode'));
                 return;
             }
 
             // Prioritize BT execution context if available
-            const ctx = this.state.btRunContext;
 
             const prompt = (ctx?.prompt != null)
                 ? ctx.prompt
@@ -5545,12 +5886,12 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                     attachments: targetNode.attachments || [],
                 };
                 if (ctx?.requestId) cmdPayload.requestId = ctx.requestId;
-                if (ctx?.targetNodePath) cmdPayload.targetNodePath = ctx.targetNodePath;
+                cmdPayload.targetNodePath = ctx?.targetNodePath || this.state.currentNodePath;
                 if (ctx?.runId) cmdPayload.runId = ctx.runId;
 
                 this.postMessage({ type: 'run_command_recipe', payload: cmdPayload });
                 this.state.pipelineRun.running = true;
-                this.addLog(`▶ ${recipe.name || 'Command'}: ${recipe.command} ${recipe.options || ''}`.trim());
+                this.outputMessage(`▶ ${recipe.name || 'Command'}: ${recipe.command} ${recipe.options || ''}`.trim());
 
                 const opPath = this.getLogicalOpPath(this.state.currentNodePath);
                 const opNode = this.getNodeByPath(opPath);
@@ -5578,6 +5919,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                             steps: [{ input: input, output: '' }]
                         }),
                         nodeType: 'data',
+                        datetime: new Date().toISOString(),
                         inputAttachments: allInputAttachments,
                         _pending: true
                     });
@@ -5610,7 +5952,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             };
             // Phase A: Include requestId and targetNodePath for concurrent routing
             if (ctx?.requestId) payload.requestId = ctx.requestId;
-            if (ctx?.targetNodePath) payload.targetNodePath = ctx.targetNodePath;
+            payload.targetNodePath = ctx?.targetNodePath || this.state.currentNodePath;
             if (ctx?.runId) payload.runId = ctx.runId;
 
             this.postMessage({
@@ -5618,7 +5960,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 payload,
             });
             this.state.pipelineRun.running = true;
-            this.addLog(`▶ ${this.t('ProcessingPrompt').replace('{provider}', recipe.provider).replace('{model}', recipe.model || '(default)')}`);
+            this.outputMessage(`▶ ${this.t('ProcessingPrompt').replace('{provider}', recipe.provider).replace('{model}', recipe.model || '(default)')}`);
             // After execution starts, attachments are saved to pending node (input is retained)
             const pendingInputFiles = node.tempInputAttachments ? node.tempInputAttachments.files : (node.inputAttachments || []);
             this.saveCurrentTab();
@@ -5650,6 +5992,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                         steps: [{ input: input, output: '' }]
                     }),
                     nodeType: 'data',
+                    datetime: new Date().toISOString(),
                     inputAttachments: pendingInputFiles,
                     _pending: true
                 });
@@ -5679,7 +6022,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         node.children.push({ title: '', content: '', mimetype: 'text/plain', attachments: [], children: [], nodeType: 'assemble' });
         this.renderTree();
         this.renderList();
-        this.addLog('➕ ' + this.t('ChildAdded'));
+        this.outputMessage('➕ ' + this.t('ChildAdded'));
     },
 
     addRootNode() {
@@ -5694,7 +6037,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.renderList();
         this.loadEditor(newPath);
         this.saveCurrentTab();
-        this.addLog('➕ ' + this.t('RootNodeAdded'));
+        this.outputMessage('➕ ' + this.t('RootNodeAdded'));
     },
 
     removeNode() {
@@ -5712,7 +6055,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.renderTree();
         this.renderList();
         this.loadEditor(this.state.currentNodePath);
-        this.addLog('🗑 ' + this.t('NodeRemoved'));
+        this.outputMessage('🗑 ' + this.t('NodeRemoved'));
     },
 
     navRoot() {
@@ -5745,18 +6088,18 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     // Pipeline
     exportPipeline() {
         const pipelines = this.state.pipelines || [];
-        if (pipelines.length === 0) { this.addLog('⚠ ' + this.t('NoPipelinesToExport')); return; }
+        if (pipelines.length === 0) { this.outputMessage('⚠ ' + this.t('NoPipelinesToExport')); return; }
         const json = JSON.stringify(pipelines, null, 2);
         navigator.clipboard.writeText(json).then(() => {
-            this.addLog(`📤 ${this.t('ExportedPipelines').replace('{count}', pipelines.length)}`);
+            this.outputMessage(`📤 ${this.t('ExportedPipelines').replace('{count}', pipelines.length)}`);
         }).catch(() => {
-            this.addLog('⚠ ' + this.t('FailedToCopyClipboard'));
+            this.outputMessage('⚠ ' + this.t('FailedToCopyClipboard'));
         });
     },
 
     importPipeline() {
         this.postMessage({ type: 'open_file_dialog', payload: { filter: 'JSON|*.json', purpose: 'import_pipeline' } });
-        this.addLog('📥 ' + this.t('PipelineImportSelectFile'));
+        this.outputMessage('📥 ' + this.t('PipelineImportSelectFile'));
     },
 
     onImportPipelineResult(payload) {
@@ -5770,34 +6113,34 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 pipelines.forEach(p => {
                     this.postMessage({ type: 'save_pipeline', payload: p });
                 });
-                this.addLog(`📥 ${this.t('ImportedPipelines').replace('{count}', pipelines.length)}`);
+                this.outputMessage(`📥 ${this.t('ImportedPipelines').replace('{count}', pipelines.length)}`);
             } else if (pipelines && pipelines.name) {
                 this.postMessage({ type: 'save_pipeline', payload: pipelines });
-                this.addLog(`📥 ${this.t('ImportedPipeline').replace('{name}', pipelines.name)}`);
+                this.outputMessage(`📥 ${this.t('ImportedPipeline').replace('{name}', pipelines.name)}`);
             } else {
-                this.addLog('⚠ ' + this.t('InvalidPipelineFormat'));
+                this.outputMessage('⚠ ' + this.t('InvalidPipelineFormat'));
             }
         } catch (e) {
-            this.addLog(`Pipeline Import Error\nOperation: importPipeline\nError: ${e.message}\nAction: Verify the pipeline file is valid JSON and follows the expected format`);
+            this.outputMessage(`Pipeline Import Error\nOperation: importPipeline\nError: ${e.message}\nAction: Verify the pipeline file is valid JSON and follows the expected format`);
         }
     },
 
     runPipeline(pipelineName) {
-        if (this.state.pipelineRun.running) { this.addLog('⚠ ' + this.t('PipelineAlreadyRunning')); return; }
+        if (this.state.pipelineRun.running) { this.outputMessage('⚠ ' + this.t('PipelineAlreadyRunning')); return; }
         const node = this.getNodeByPath(this.state.currentNodePath);
-        if (!node) { this.addLog('⚠ Please select a node'); return; }
+        if (!node) { this.outputMessage('⚠ Please select a node'); return; }
         if (!pipelineName && node.pipelineMeta) {
             try {
                 const meta = JSON.parse(node.pipelineMeta);
                 if (meta && meta.pipelineName) {
                     pipelineName = meta.pipelineName;
                 }
-            } catch (e) {         this.addLog('⚠ ' + this.t('FailedToParsePipelineMeta').replace('{error}', e.message || '')); }
+            } catch (e) {         this.outputMessage('⚠ ' + this.t('FailedToParsePipelineMeta').replace('{error}', e.message || '')); }
         }
         if (!pipelineName && this.state.pipelines && this.state.pipelines.length > 0) {
             pipelineName = this.state.pipelines[0].name;
         }
-        if (!pipelineName) { this.addLog('⚠ ' + this.t('PipelineNotDefined')); return; }
+        if (!pipelineName) { this.outputMessage('⚠ ' + this.t('PipelineNotDefined')); return; }
         const content = node.content ? (() => { try { return decodeURIComponent(escape(atob(node.content))); } catch { return atob(node.content); } })() : '';
         const tab = this.state.tabs[this.state.activeTab];
         this.postMessage({ type: 'run_pipeline', payload: {
@@ -5809,23 +6152,28 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.state.pipelineRun.running = true;
         this.state.outputTab = 'run';
         this.renderOutput();
-        this.addLog(`▶ Pipeline "${pipelineName}" started`);
+        this.outputMessage(`▶ Pipeline "${pipelineName}" started`);
     },
 
     cancelPipeline() {
         this.postMessage({ type: 'cancel_pipeline' });
         this.state.pipelineRun.running = false;
-        this.addLog('✕ ' + this.t('PipelineCanceled'));
+        this.outputMessage('✕ ' + this.t('PipelineCanceled'));
     },
 
     toggleTestMode() {
         this.state.testMode = !this.state.testMode;
         document.getElementById('btn-test-mode').classList.toggle('active');
-        this.addLog(this.state.testMode ? '🧪 Test mode ON' : '🧪 Test mode OFF');
+        this.outputMessage(this.state.testMode ? '🧪 Test mode ON' : '🧪 Test mode OFF');
     },
 
     // Messages
-    addLog(text) {
+    outputTrace(text) {
+        this.outputDebug('[TRACE] ' + text);
+    },
+
+    outputMessage(text) {
+        if (text.startsWith('[TRACE]')) { this.outputTrace(text); return; }
         console.log('[Wend Log] ' + text);
         const el = document.getElementById('messages-content');
         if (!el) return;
@@ -5840,6 +6188,25 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         el.appendChild(div);
         el.scrollTop = el.scrollHeight;
     },
+
+    outputDebug(text) {
+        console.log('[Wend Debug] ' + text);
+        const el = document.getElementById('debuglog-content');
+        if (!el) return;
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        const ts = '[' + new Date().toLocaleTimeString() + '] ';
+        if (text.includes('<details')) {
+            div.innerHTML = ts + text.replace('<details', '<details open');
+        } else {
+            div.textContent = ts + text;
+        }
+        el.appendChild(div);
+        el.scrollTop = el.scrollHeight;
+    },
+
+    // Backward compat alias
+    addLog(text) { this.outputMessage(text); },
 
     addHttpLog(info) {
         const el = document.getElementById('http-log-content');
@@ -5935,7 +6302,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     },
 
     showError(msg) {
-        this.addLog(`Pipeline Error\nOperation: showError\nError: ${msg}\nAction: Review the error details and check provider/recipe configuration`);
+        this.outputMessage(`Pipeline Error\nOperation: showError\nError: ${msg}\nAction: Review the error details and check provider/recipe configuration`);
         this._stopRunTimer();
         this.state.pipelineRun.running = false;
         const si = this.state.pipelineRun.selectedStep;
@@ -5972,6 +6339,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             children: [],
             pipelineMeta: JSON.stringify({ status: 'error', error: errorMessage }),
             nodeType: 'data',
+            datetime: new Date().toISOString(),
             isError: true,
             originalOpNode: opNodeCopy,
             selectedRecipe: recipeUsed,
@@ -6007,7 +6375,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             } else {
                 target.children.unshift(errorNode);
             }
-            this.addLog(`⚠️ Error node saved: "${autoTitle || 'Error'}"`);
+            this.outputMessage(`⚠️ Error node saved: "${autoTitle || 'Error'}"`);
             this.renderTree();
             this.renderList();
             if (tab.file && tab.root) {
@@ -6019,7 +6387,8 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     },
 
     switchMsgTab(tab) {
-        document.getElementById('messages-content').style.display = tab === 'log' ? '' : 'none';
+        document.getElementById('messages-content').style.display = tab === 'messages' ? '' : 'none';
+        document.getElementById('debuglog-content').style.display = tab === 'debuglog' ? '' : 'none';
         document.getElementById('http-log-content').style.display = tab === 'http' ? '' : 'none';
         document.getElementById('task-manager-content').style.display = tab === 'manager' ? '' : 'none';
         document.getElementById('msg-log-actions').style.display = tab === 'manager' ? 'none' : '';
@@ -6087,13 +6456,13 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         if (tab && tab.file && tab.root) {
             this.postMessage({ type: 'save_node', payload: { tabFile: tab.file, root: tab.root } });
         }
-        this.addLog(`✏️ ${this.t('NodeRenamedTo').replace('{name}', trimmed)}`);
+        this.outputMessage(`✏️ ${this.t('NodeRenamedTo').replace('{name}', trimmed)}`);
     },
 
     copyLogEntry(text) {
         if (!text) return;
         navigator.clipboard.writeText(text).then(() => {
-            this.addLog('📋 ' + this.t('LineCopied'));
+            this.outputMessage('📋 ' + this.t('LineCopied'));
         });
     },
 
@@ -6101,12 +6470,15 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const text = this.getAllLogText();
         if (!text) return;
         navigator.clipboard.writeText(text).then(() => {
-            this.addLog('📋 ' + this.t('AllLogsCopied'));
+            this.outputMessage('📋 ' + this.t('AllLogsCopied'));
         });
     },
 
     getAllLogText() {
-        const el = document.getElementById('messages-content');
+        const activeTab = document.querySelector('.msg-tab-active');
+        const tab = activeTab ? activeTab.dataset.tab : 'messages';
+        const id = tab === 'debuglog' ? 'debuglog-content' : tab === 'http' ? 'http-log-content' : 'messages-content';
+        const el = document.getElementById(id);
         if (!el) return '';
         return Array.from(el.querySelectorAll('.log-entry'))
             .map(div => div.textContent)
@@ -6114,8 +6486,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     },
 
     clearLogs() {
-        const el = document.getElementById('messages-content');
-        if (el) el.innerHTML = '';
+        ['messages-content', 'debuglog-content'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = '';
+        });
     },
 
     // Search
@@ -6129,18 +6503,18 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     showSearchResults(results) {
         if (!results || results.length === 0) {
-            this.addLog('🔍 ' + this.t('NoMatchesFound'));
+            this.outputMessage('🔍 ' + this.t('NoMatchesFound'));
             return;
         }
-        this.addLog(`🔍 ${this.t('FoundMatches').replace('{count}', results.length)}`);
+        this.outputMessage(`🔍 ${this.t('FoundMatches').replace('{count}', results.length)}`);
         (results || []).slice(0, 10).forEach(r => {
-            this.addLog(`  ${r.title || r.excerpt || '(match)'}`);
+            this.outputMessage(`  ${r.title || r.excerpt || '(match)'}`);
         });
     },
 
     // Pipeline streaming
     appendStreamOutput(payload) {
-        this.addLog(`[Step ${payload.stepIndex}] ${payload.text || '...'}`);
+        this.outputMessage(`[Step ${payload.stepIndex}] ${payload.text || '...'}`);
         this.state.streamedOutput = (this.state.streamedOutput || '') + (payload.text || '');
 
         // Update pending node's received content in the history card
@@ -6203,7 +6577,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     },
 
     onStepDone(payload) {
-        this.addLog(`✅ Step ${payload.index} done` + (payload.tokens ? ` (${payload.tokens} tokens)` : ''));
+        this.outputMessage(`✅ Step ${payload.index} done` + (payload.tokens ? ` (${payload.tokens} tokens)` : ''));
         this._stopRunTimer();
         if (payload.status === 'completed') this.state.pipelineRun.running = false;
         // Store outputAttachments so next step's input pane can show them
@@ -6223,7 +6597,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     },
 
     highlightStep(payload) {
-        this.addLog(`▶ Step ${payload.index}: ${payload.name || ''}`);
+        this.outputMessage(`▶ Step ${payload.index}: ${payload.name || ''}`);
         this.state.pipelineRun.selectedStep = payload.index;
         // Record step start time
         const step = this.state.pipelineRun.steps[payload.index];
@@ -6358,7 +6732,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         }
         this.renderTree();
         this.renderList();
-        this.addLog('💾 ' + this.t('NodeProperties') + ' saved');
+        this.outputMessage('💾 ' + this.t('NodeProperties') + ' saved');
     },
 
     closeNodeProperties() {
@@ -6409,7 +6783,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         modal.classList.add('visible');
     },
 
-    log(msg) { this.addLog(msg); },
+    log(msg) { this.outputMessage(msg); },
 
     closeModal(id) {
         const modal = document.getElementById(id);
@@ -6453,7 +6827,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             this.renderTree();
         }
         this.renderMainContent();
-        this.addLog(`👁 View mode: ${mode}`);
+        this.outputMessage(`👁 View mode: ${mode}`);
     },
 
     renderPipelineSteps() {
@@ -6650,8 +7024,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                   '<div style="flex:1"><b>Run!</b><br><span style="font-size:11px;color:#aaa">Press <b>▶ Process</b> button in Operation pane<br>Results appear in Output pane, auto-saved as Data node</span></div>' +
                   '</div>' +
                   '</div>' +
-                  '<p style="font-size:11px;color:#888;margin-top:8px">💡 This runs a single AI. Use Pipeline feature for multi-step execution.</p>' +
-                  this._renderDemoSetupSection(),
+                  '<p style="font-size:11px;color:#888;margin-top:8px">💡 This runs a single AI. Use Pipeline feature for multi-step execution.</p>',
             tips: [
                 { icon: '⌨️', text: 'Press Ctrl+R to quickly open Recipe Manager.' },
                 { icon: '🆓', text: 'Ollama runs locally, no API key needed.' }
@@ -6726,11 +7099,11 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         try {
             this.wizardStep_ = forceStep || 0;
             const modal = document.getElementById('wizard-modal');
-            if (!modal) { this.addLog('⚠ wizard-modal not found in DOM'); return; }
+            if (!modal) { this.outputMessage('⚠ wizard-modal not found in DOM'); return; }
             modal.classList.add('visible');
             this.renderWizardStep();
         } catch (e) {
-            this.addLog(`Welcome Guide Error\nOperation: showWizard\nError: ${e.message || e}\nAction: Check wizard configuration and try restarting the app`);
+            this.outputMessage(`Welcome Guide Error\nOperation: showWizard\nError: ${e.message || e}\nAction: Check wizard configuration and try restarting the app`);
         }
     },
 
@@ -6741,15 +7114,15 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     resetWizard() {
         localStorage.removeItem('prompts_wizard_done');
-        this.addLog('🔄 Welcome Wizard reset — will show on next launch');
+        this.outputMessage('🔄 Welcome Wizard reset — will show on next launch');
     },
 
     renderWizardStep() {
         try {
             const steps = this.WIZARD_STEPS;
-            if (!steps || steps.length === 0) { this.addLog('⚠ Wizard steps empty'); return; }
+            if (!steps || steps.length === 0) { this.outputMessage('⚠ Wizard steps empty'); return; }
             const s = steps[this.wizardStep_];
-            if (!s) { this.addLog('⚠ Invalid wizard step: ' + this.wizardStep_); return; }
+            if (!s) { this.outputMessage('⚠ Invalid wizard step: ' + this.wizardStep_); return; }
             const total = steps.length;
             const cur = this.wizardStep_;
 
@@ -6788,7 +7161,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             const skipBtn = document.getElementById('wizard-skip');
             if (skipBtn) skipBtn.style.display = cur === total - 1 ? 'none' : '';
         } catch (e) {
-            this.addLog(`Wizard Render Error\nOperation: renderWizardStep\nStep: ${this.wizardStep_}\nError: ${e.message || e}\nAction: Check wizard step configuration and try restarting the app`);
+            this.outputMessage(`Wizard Render Error\nOperation: renderWizardStep\nStep: ${this.wizardStep_}\nError: ${e.message || e}\nAction: Check wizard step configuration and try restarting the app`);
         }
     },
 
@@ -6881,6 +7254,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 item('🤖 ' + t('MenuWelcomeWizard'), 'welcome_wizard', 'F1') +
                 item('🔄 Reset Welcome Wizard',      'reset_wizard') +
                 item('🚀 ' + t('MenuSetupWizard'),   'setup_wizard') +
+                item('📦 Sample Projects',            'sample_wizard') +
                 sep +
                 item(t('MenuKeyboardShortcuts'), 'shortcuts') +
                 item(t('MenuAbout'),             'about') +
@@ -6916,8 +7290,8 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             switch_project:   () => this.showProjectSwitcher(),
             projects_root:    () => this.showProjectsRootConfig(),
             about_project_lifecycle: () => this.showProjectLifecycleInfo(),
-            import_zip:       () => this.addLog('📦 Import ZIP — coming soon'),
-            export_node:      () => this.addLog('📤 Export Node — coming soon'),
+            import_zip:       () => this.outputMessage('📦 Import ZIP — coming soon'),
+            export_node:      () => this.outputMessage('📤 Export Node — coming soon'),
             run_pipeline:     () => this.runPipeline(),
             pipeline_manager: () => this.showPipelineManager(),
             pipeline_history: () => this.showHistory(),
@@ -6945,6 +7319,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             welcome_wizard:   () => this.showWizard(),
             reset_wizard:     () => this.resetWizard(),
             setup_wizard:     () => this.showSetupWizard(),
+            sample_wizard:    () => this.showSampleWizard(),
             recipe_test:      () => this.showRecipeTest(),
             add_child:        () => this.addChild(),
             remove_node:      () => this.removeNode(),
@@ -6979,7 +7354,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.loadLanguage(lang);
         this.postMessage({ type: 'set_language', payload: { language: lang } });
         this.closeSettings();
-        this.addLog(`🌐 Language set to: ${sel.options[sel.selectedIndex].text}`);
+        this.outputMessage(`🌐 Language set to: ${sel.options[sel.selectedIndex].text}`);
     },
 
     // ── Execution History ─────────────────────────────────────────
@@ -7121,7 +7496,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const pipelineSel = document.getElementById('opt-pipeline-select');
         const pipelines = this.state.pipelines || [];
         if (pipelines.length === 0) {
-            this.addLog('⚠ ' + this.t('NoPipelines'));
+            this.outputMessage('⚠ ' + this.t('NoPipelines'));
             return;
         }
         pipelineSel.innerHTML = pipelines.map(p =>
@@ -7201,7 +7576,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const model = document.getElementById('opt-model-select')?.value;
 
         if (!pipelineName || !provider || !model) {
-            this.addLog('⚠ ' + this.t('SelectPipelineProviderModel'));
+            this.outputMessage('⚠ ' + this.t('SelectPipelineProviderModel'));
             return;
         }
 
@@ -7284,7 +7659,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     },
 
     onOptimizeApplied(payload) {
-        this.addLog(`✅ ${this.t('OptimizationApplied').replace('{version}', payload.version).replace('{approved}', payload.approvedCount).replace('{rejected}', payload.rejectedCount)}`);
+        this.outputMessage(`✅ ${this.t('OptimizationApplied').replace('{version}', payload.version).replace('{approved}', payload.approvedCount).replace('{rejected}', payload.rejectedCount)}`);
         this._optimizeSession = null;
         // Refresh version list and switch to it
         const name = payload.pipelineName;
@@ -7303,7 +7678,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const redoBtn = document.getElementById('btn-redo-opt');
         if (undoBtn) undoBtn.disabled = !payload.canUndo;
         if (redoBtn) redoBtn.disabled = !payload.canRedo;
-        this.addLog(`🔄 ${payload.pipelineName} → v${payload.version}`);
+        this.outputMessage(`🔄 ${payload.pipelineName} → v${payload.version}`);
         // Refresh version list if modal is open
         const modal = document.getElementById('optimize-modal');
         if (modal && modal.classList.contains('visible')) {
@@ -7365,7 +7740,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     onOptimizeError(payload) {
         this._showOptView('config');
-        this.addLog(`Optimization Error\nOperation: onOptimizeError\nError: ${payload.message || 'unknown'}\nAction: Review pipeline configuration and provider settings`);
+        this.outputMessage(`Optimization Error\nOperation: onOptimizeError\nError: ${payload.message || 'unknown'}\nAction: Review pipeline configuration and provider settings`);
         this.showError(payload.message || this.t('OptimizationFailed'));
     },
 
@@ -7475,7 +7850,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     // ── Evaluate UI ────────────────────────────────────────────────
     showEvaluateResult(payload) {
         const { stepIndex, content, criteria, rubric } = payload;
-        this.addLog(`★ Step ${stepIndex + 1} evaluation: "${criteria}" (${rubric})`);
+        this.outputMessage(`★ Step ${stepIndex + 1} evaluation: "${criteria}" (${rubric})`);
         // Show in Output pane
         const outputEl = document.getElementById('output-run-container') || document.getElementById('output-content');
         if (!outputEl) return;
@@ -7598,7 +7973,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                     if (meta && meta.steps && meta.steps.length > 0) {
                         inputData = meta.steps[0].input || '';
                     }
-                } catch(e) {         this.addLog(`Pipeline Metadata Parse Error\nOperation: renderInput\nData Node: ${dataNode.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
+                } catch(e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: renderInput\nData Node: ${dataNode.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
             }
             if (!inputData && dataNode && dataNode.content) {
                 try { inputData = atob(dataNode.content); } catch { inputData = dataNode.content; }
@@ -7662,7 +8037,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         node.tempInputAttachments.files = [];
         this.saveCurrentTab();
         this.renderInput();
-        this.addLog('🗑 ' + this.t('InputCleared'));
+        this.outputMessage('🗑 ' + this.t('InputCleared'));
     },
 
     // ── Drag-and-drop file handling ──────────────────────────────
@@ -7788,7 +8163,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 node.pipelineMeta = JSON.stringify(meta);
                 this.saveCurrentTab();
             }
-        } catch (e) { this.addLog('⚠ Failed to save pipeline step attachments: ' + (e.message || '')); }
+        } catch (e) { this.outputMessage('⚠ Failed to save pipeline step attachments: ' + (e.message || '')); }
     },
 
     renderPrompt() {
@@ -7828,7 +8203,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
         let meta = {};
         if (node.pipelineMeta) {
-            try { meta = JSON.parse(node.pipelineMeta) || {}; } catch (e) {         this.addLog(`Pipeline Metadata Parse Error\nOperation: loadEditor\nNode: ${node.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
+            try { meta = JSON.parse(node.pipelineMeta) || {}; } catch (e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: loadEditor\nNode: ${node.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
         }
 
         // Recipe selector (compact: show selected + open dialog button)
@@ -7836,7 +8211,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const selRecipe = recipes.find(r => r.name === this.state.selectedRecipe);
         const selIcon = selRecipe ? (selRecipe.type === 'command' ? '⚙️' : '🤖') : '';
         const selLabel = selRecipe ? this.escapeHtml(selRecipe.name) : `<span style="color:#666">${this.t('NotSelected')}</span>`;
-        const recipeHtml = `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        const recipeHtml = `<div id="bt-recipe-section" style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
             <span style="font-size:10px;color:#888;flex-shrink:0">${this.t('Recipe')}</span>
             <span style="flex:1;font-size:11px;color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${selIcon} ${selLabel}</span>
             <button class="copy-btn" onclick="app.showRecipeSelectDialog()" ${this.state.viewOnlyMode ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''} style="font-size:10px;padding:2px 8px;flex-shrink:0">${this.t('SelectRecipe')}</button>
@@ -7855,9 +8230,23 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const btInputKey  = node.btInputKey  || '';
         const btInputType = node.btInputType || 'text';
         const btOutputKey = node.btOutputKey || '';
+        const btOutputType = node.btOutputType || 'text';
         const btAction = node.btAction || 'processPrompt';
         const btLocalFilePath = node.btLocalFilePath || '';
         const hasBtConfig = !!(btPromptText || btInputKey || btOutputKey || btAction !== 'processPrompt');
+
+        // Build dropdown options from registry
+        let actionOptions = `<option value="processPrompt" ${btAction === 'processPrompt' ? 'selected' : ''}>Process Prompt</option>`;
+        if (window.btActions) {
+            for (const [name, cfg] of window.btActions.getAll()) {
+                actionOptions += `<option value="${name}" ${btAction === name ? 'selected' : ''}>${cfg.label}</option>`;
+            }
+        }
+
+        const fields = this._getActionFields(btAction);
+        const isProcess = btAction === 'processPrompt';
+        const config = !isProcess ? window.btActions?.get(btAction) : null;
+        const description = config?.description || '';
 
         promptEl.innerHTML = `
             ${!this.state.viewOnlyMode ? `<button class="btn-primary prompt-editor-process-btn" onclick="app.processPrompt()" style="width:100%;padding:4px;font-size:11px;margin-bottom:6px">▶ ${this.t('Process')}</button>` : ''}
@@ -7880,38 +8269,47 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                     <div class="bt-field">
                         <div class="bt-field-label">${this.t('BTAction')}</div>
                         <select id="bt-action" class="bt-type-select" onchange="app.onBtActionChange()">
-                            <option value="processPrompt" ${btAction === 'processPrompt' ? 'selected' : ''}>Process Prompt</option>
-                            <option value="loadLocalFile" ${btAction === 'loadLocalFile' ? 'selected' : ''}>Load Local File</option>
+                            ${actionOptions}
                         </select>
                     </div>
-                    <div id="bt-local-file-field" style="display:${btAction === 'loadLocalFile' ? 'block' : 'none'}">
+                    <div id="bt-action-description" style="display:${description ? 'block' : 'none'};font-size:10px;color:#888;margin:4px 0">${this.escapeHtml(description)}</div>
+                    <div id="bt-local-file-field" style="display:${fields.includes('localFilePath') ? 'block' : 'none'}">
                         <div class="bt-field">
                             <div class="bt-field-label">${this.t('LocalFilePath')} <span class="bt-hint">${this.t('LocalFilePathHint')}</span></div>
                             <input id="bt-local-file-path" class="bt-key-input" value="${this.escapeHtml(btLocalFilePath)}" placeholder="music.mp3">
                         </div>
                     </div>
-                    <div id="bt-prompt-fields" style="display:${btAction === 'processPrompt' ? 'block' : 'none'}">
+                    <div class="bt-field-row" id="bt-input-fields" style="display:${fields.includes('inputKey') ? 'flex' : 'none'}">
+                        <div class="bt-field bt-field-key">
+                            <div class="bt-field-label">${this.t('InputKey')} <span class="bt-hint">${this.t('InputKeyHint')}</span></div>
+                            <input id="bt-input-key" class="bt-key-input" value="${this.escapeHtml(btInputKey)}" placeholder="${this.t('VariableName')}">
+                        </div>
+                        <div class="bt-field bt-field-type" id="bt-input-type-field" style="display:${fields.includes('inputKey') && !config?.defaults?.inputType ? 'block' : 'none'}">
+                            <div class="bt-field-label">${this.t('Type')}</div>
+                            <select id="bt-input-type" class="bt-type-select">
+                                <option value="text"  ${btInputType === 'text'  ? 'selected' : ''}>text</option>
+                                <option value="media" ${btInputType === 'media' ? 'selected' : ''}>media</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="bt-prompt-fields" style="display:${isProcess || fields.includes('prompt') ? 'block' : 'none'}">
                         <div class="bt-field">
                             <div class="bt-field-label">${this.t('BTPrompt')} <span class="bt-hint">${this.t('BTPromptHint')}</span></div>
                             <textarea id="bt-node-prompt" class="input-textarea bt-prompt-area" placeholder="${this.t('BTPromptPlaceholder')}">${this.escapeHtml(btPromptText)}</textarea>
                         </div>
-                        <div class="bt-field-row">
-                            <div class="bt-field bt-field-key">
-                                <div class="bt-field-label">${this.t('InputKey')} <span class="bt-hint">${this.t('InputKeyHint')}</span></div>
-                                <input id="bt-input-key" class="bt-key-input" value="${this.escapeHtml(btInputKey)}" placeholder="${this.t('VariableName')}">
-                            </div>
-                            <div class="bt-field bt-field-type">
-                                <div class="bt-field-label">${this.t('Type')}</div>
-                                <select id="bt-input-type" class="bt-type-select">
-                                    <option value="text"  ${btInputType === 'text'  ? 'selected' : ''}>text</option>
-                                    <option value="media" ${btInputType === 'media' ? 'selected' : ''}>media</option>
-                                </select>
-                            </div>
-                        </div>
                     </div>
-                    <div class="bt-field">
-                        <div class="bt-field-label">${this.t('OutputKey')} <span class="bt-hint">${this.t('OutputKeyHint')}</span></div>
-                        <input id="bt-output-key" class="bt-key-input" value="${this.escapeHtml(btOutputKey)}" placeholder="${this.t('VariableName')}">
+                    <div class="bt-field-row" id="bt-output-fields" style="display:${isProcess || fields.includes('outputKey') ? 'flex' : 'none'}">
+                        <div class="bt-field bt-field-key">
+                            <div class="bt-field-label">${this.t('OutputKey')} <span class="bt-hint">${this.t('OutputKeyHint')}</span></div>
+                            <input id="bt-output-key" class="bt-key-input" value="${this.escapeHtml(btOutputKey)}" placeholder="${this.t('VariableName')}">
+                        </div>
+                        <div class="bt-field bt-field-type" id="bt-output-type-field" style="display:${isProcess || !config?.defaults?.outputType ? 'block' : 'none'}">
+                            <div class="bt-field-label">${this.t('Type')}</div>
+                            <select id="bt-output-type" class="bt-type-select">
+                                <option value="text"  ${btOutputType === 'text'  ? 'selected' : ''}>text</option>
+                                <option value="media" ${btOutputType === 'media' ? 'selected' : ''}>media</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="bt-field-actions">
                         <button class="copy-btn" onclick="app.saveBtNodeConfig()">💾 ${this.t('SaveBtn')}</button>
@@ -7996,7 +8394,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const node = this.getNodeByPath(this.state.currentNodePath);
         if (!node || !node.pipelineMeta) return;
         let meta;
-        try { meta = JSON.parse(node.pipelineMeta); } catch (e) {         this.addLog(`Pipeline Metadata Parse Error\nOperation: saveNodePipelineMeta\nNode: ${node.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); return; }
+        try { meta = JSON.parse(node.pipelineMeta); } catch (e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: saveNodePipelineMeta\nNode: ${node.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); return; }
         const el = document.getElementById('prompt-content');
         if (!el) return;
 
@@ -8015,7 +8413,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             this.postMessage({ type: 'save_node', payload: { tabFile: tab.file, root: tab.root } });
         }
         document.querySelector('.prompt-apply-btn').style.display = 'none';
-        this.addLog('💾 Node pipeline meta updated');
+        this.outputMessage('💾 Node pipeline meta updated');
     },
 
     renderPipelinePrompt(el) {
@@ -8065,7 +8463,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             if (key) step.params[key] = field.value;
         });
         document.querySelector('.prompt-apply-btn').style.display = 'none';
-        this.addLog(`✏ Step ${stepIndex + 1} params updated`);
+        this.outputMessage(`✏ Step ${stepIndex + 1} params updated`);
         this.postMessage({ type: 'save_pipeline', payload: { name: this.state.pipelines?.[0]?.name || '', steps: this.state.pipelineRun.steps } });
     },
 
@@ -8081,7 +8479,11 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const t = key => this.t(key);
 
         // Render Result / History
-        if (this.state.selectedOpPath === '' && this.state.selectedDataPath === '') {
+        const currentPath = this.state.currentNodePath;
+        const currentNode = this.getNodeByPath(currentPath);
+        const isRootSelected = this.state.selectedOpPath === '' && this.state.selectedDataPath === '';
+
+        if (isRootSelected && (!currentNode || (currentNode.nodeType !== 'root' && currentPath !== ''))) {
             resultEl.innerHTML = `<div class="output-toolbar"><span class="output-label">${t('Output')}</span></div><div class="empty">${t('EmptyNode')}</div>`;
         } else {
             this._renderOutputHistory(resultEl, t);
@@ -8108,6 +8510,32 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const currentPath = this.state.currentNodePath;
         const selectedDataPath = this.state.selectedDataPath;
         const selectedOpPath = this.state.selectedOpPath;
+
+        const targetPath = selectedOpPath !== '' ? selectedOpPath : (selectedDataPath === '' ? currentPath : '');
+        const targetNode = targetPath !== '' ? this.getNodeByPath(targetPath) : null;
+
+        if (targetNode && this.isParentOrRootNode(targetNode)) {
+            const leafNodes = this._collectLeafAssembleNodes(targetNode, targetPath);
+            if (leafNodes.length > 0) {
+                let selectedLeafPath = this.state.selectedDescendantLeafPath;
+                const leafPaths = leafNodes.map(ln => ln.path);
+                if (!selectedLeafPath || !leafPaths.includes(selectedLeafPath)) {
+                    selectedLeafPath = leafPaths[0];
+                    this.state.selectedDescendantLeafPath = selectedLeafPath;
+                }
+                const leafNode = this.getNodeByPath(selectedLeafPath);
+                const linkedRuns = getRunResults(leafNode);
+                
+                const dropdownHtml = this._renderActionNodeDropdown(leafNodes, selectedLeafPath);
+                const historyHtml = this.renderLinkedRunHistory(linkedRuns);
+                
+                el.innerHTML = this._insertDropdownIntoHistoryHtml(historyHtml, dropdownHtml);
+                return;
+            } else {
+                el.innerHTML = `<div class="output-toolbar"><span class="output-label">${t('Output')}</span></div><div class="empty">${t('NoOutput')}</div>`;
+                return;
+            }
+        }
 
         let runs = [];
         let selectedIdx = 0;
@@ -8150,7 +8578,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                     artifacts = lastStep.artifacts || [];
                     outputAttachments = lastStep.outputAttachments || outputAttachments;
                 }
-            } catch(e) {         this.addLog(`Pipeline Metadata Parse Error\nOperation: _renderOutputHistory\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
+            } catch(e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: _renderOutputHistory\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
         }
         // Immediately after execution (unsaved): fallback outputAttachments from pipelineRun.steps
         if (outputAttachments.length === 0) {
@@ -8204,6 +8632,75 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.renderOutput();
     },
 
+    onActionNodeSelected(value) {
+        this.state.selectedDescendantLeafPath = value;
+        this.renderInput();
+        this.renderOutput();
+    },
+
+    isLeafAssembleNode(node) {
+        if (!node) return false;
+        if (node.nodeType !== 'assemble') return false;
+        const btType = node.btType || 'leaf';
+        const composites = ['sequence', 'selector', 'parallel', 'memSequence', 'memSelector'];
+        const decorators = ['invert', 'repeater', 'retry', 'alwaysSucceed', 'alwaysFail', 'guard', 'delay', 'maxTime'];
+        return !composites.includes(btType) && !decorators.includes(btType);
+    },
+
+    isParentOrRootNode(node) {
+        if (!node) return false;
+        if (node.nodeType === 'root') return true;
+        if (node.nodeType === 'assemble') {
+            return !this.isLeafAssembleNode(node);
+        }
+        return false;
+    },
+
+    _collectLeafAssembleNodes(node, path = '') {
+        let results = [];
+        if (!node) return results;
+
+        if (this.isLeafAssembleNode(node)) {
+            results.push({ path, node });
+        }
+        if (!this.isLeafAssembleNode(node) && node.children) {
+            node.children.forEach((child, idx) => {
+                const childPath = path === '' ? `${idx}` : `${path}/${idx}`;
+                if (child.nodeType === 'assemble' || child.nodeType === 'root' || (!child.nodeType && child.children)) {
+                    results = results.concat(this._collectLeafAssembleNodes(child, childPath));
+                }
+            });
+        }
+        return results;
+    },
+
+    _renderActionNodeDropdown(leafNodes, selectedLeafPath) {
+        const options = leafNodes.map(ln => {
+            const node = ln.node;
+            const path = ln.path;
+            const titleStr = node.title ? this.safeAtob(node.title) : (node.btAction || 'Action');
+            const btTypeStr = node.btType ? ` (${node.btType})` : '';
+            const displayTitle = `${titleStr}${btTypeStr} [${path}]`;
+            return `<option value="${this.escapeHtml(path)}" ${path === selectedLeafPath ? 'selected' : ''}>${this.escapeHtml(displayTitle)}</option>`;
+        }).join('');
+
+        return `
+            <div class="output-action-node-selector-row" style="margin: 8px; display: flex; align-items: center; gap: 8px; font-size: 11px;">
+                <label for="output-action-node-selector" style="font-weight: bold; color: #858585;">Action Node:</label>
+                <select id="output-action-node-selector" onchange="app.onActionNodeSelected(this.value)" style="background: #252526; color: #ccc; border: 1px solid #3c3c3c; padding: 2px; font-size: 11px; flex: 1;">
+                    ${options}
+                </select>
+            </div>`;
+    },
+
+    _insertDropdownIntoHistoryHtml(historyHtml, dropdownHtml) {
+        const toolbarEnd = historyHtml.indexOf('</div>');
+        if (toolbarEnd !== -1) {
+            return historyHtml.substring(0, toolbarEnd + 6) + dropdownHtml + historyHtml.substring(toolbarEnd + 6);
+        }
+        return dropdownHtml + historyHtml;
+    },
+
     // ── Linked mode run history card grid ──────────────────────────────
     renderLinkedRunHistory(runs) {
         const t = key => this.t(key);
@@ -8252,7 +8749,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                             }
                         });
                     }
-                } catch(e) {         this.addLog(`Pipeline Metadata Parse Error\nOperation: renderLinkedRunHistory\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
+                } catch(e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: renderLinkedRunHistory\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
             }
             if (!outputText && child.content) {
                 try { outputText = atob(child.content); } catch { outputText = child.content; }
@@ -8293,7 +8790,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                     if (att?.mimetype?.startsWith('image/')) icon = '🖼';
                     else if (att?.mimetype?.startsWith('video/')) icon = '🎬';
                     else if (att?.mimetype?.startsWith('audio/')) icon = '🎵';
-                } catch(e) {         this.addLog(`Pipeline Metadata Parse Error\nOperation: renderLinkedRunHistory (icon detection)\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
+                } catch(e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: renderLinkedRunHistory (icon detection)\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
             }
             let titleStr = child.title ? this.safeAtob(child.title) : `Run ${idx + 1}`;
             let isDateTitle = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(titleStr);
@@ -8309,7 +8806,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                     if (meta.startedAt) {
                         timeStr = this.formatRunDate(meta.startedAt);
                     }
-                } catch(e) {         this.addLog(`Pipeline Metadata Parse Error\nOperation: renderLinkedRunHistory (timestamp)\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
+                } catch(e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: renderLinkedRunHistory (timestamp)\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
             }
             const evalBadge = child.evaluation ? `<span class="linked-run-eval">★ ${this.escapeHtml(child.evaluation)}</span>` : '';
             const isSelected = idx === selectedIdx;
@@ -8441,7 +8938,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         let body = '';
         if (type === 'text') {
             body = `<pre class="media-viewer-text">${this.escapeHtml(src)}</pre>
-                    <button class="media-viewer-copy" onclick="navigator.clipboard.writeText(decodeURIComponent(encodeURIComponent(document.querySelector('.media-viewer-text').textContent))).then(()=>app.addLog('📋 ' + app.t('Copied')))">📋 ${this.t('CopyBtn')}</button>`;
+                    <button class="media-viewer-copy" onclick="navigator.clipboard.writeText(decodeURIComponent(encodeURIComponent(document.querySelector('.media-viewer-text').textContent))).then(()=>app.outputMessage('📋 ' + app.t('Copied')))">📋 ${this.t('CopyBtn')}</button>`;
         } else if (type === 'image') {
             body = `<div class="media-viewer-img-wrap" id="media-viewer-img-wrap">
                         <img src="${src}" class="media-viewer-img" id="media-viewer-img" alt="${this.escapeHtml(label)}">
@@ -8597,7 +9094,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 <button class="output-chest-btn" onclick="app.sendToChestDialog()">${t('SendToChest')}</button>` : ''}
             </div>
             <div ${outputClickable}><pre class="${preClass}" id="pipeline-output-${si}">${this.escapeHtml(outputText)}</pre></div>
-            <div style="padding:4px 8px">${this.renderOutputGrid('', outputAttachments, artifacts)}</div>
+            <div style="padding:4px 8px">${this.renderOutputGrid(outputText, outputAttachments, artifacts)}</div>
             <div id="pipeline-artifacts-${si}"></div>`;
     },
 
@@ -8692,6 +9189,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             if (!key || !this._bt) return;
             this._bt.bbSetMedia(key, attachments);
             this._btBbPendingMediaKey = null;
+            this.outputMessage(`📋 BB["${key}"].media ← ${attachments.length} item(s) (${attachments.map(a => a.file || a.mimetype).join(', ')})`);
             this._renderBbDialog();
         }
     },
@@ -8713,7 +9211,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.postMessage({ type: 'send_to_chest', payload: { content, chestName } });
         if (!this.state.chestList) this.state.chestList = [];
         if (!this.state.chestList.includes(chestName)) this.state.chestList.push(chestName);
-        this.addLog(`📦 ${t('SendToChest')} "${chestName}"`);
+        this.outputMessage(`📦 ${t('SendToChest')} "${chestName}"`);
         document.querySelectorAll('.output-chest-btn').forEach(el => {
             el.classList.add('chest-sent');
             setTimeout(() => el.classList.remove('chest-sent'), 600);
@@ -8721,7 +9219,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     },
 
     saveCurrentOutput() {
-        this.addLog(`✔ ${this.t('Save')}`);
+        this.outputMessage(`✔ ${this.t('Save')}`);
     },
 
     discardCurrentOutput(idx) {
@@ -8789,7 +9287,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             this.renderTree();
             this.renderList();
             this.renderOutput();
-            this.addLog(`🗑 Run history discarded: ${name}`);
+            this.outputMessage(`🗑 Run history discarded: ${name}`);
         } else {
             // Discarding the currently selected node (original behavior from toolbar button)
             const path = this.state.selectedDataPath || this.state.currentNodePath;
@@ -8822,12 +9320,12 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             this.renderTree();
             this.renderList();
             this.loadEditor(this.state.currentNodePath);
-            this.addLog(`🗑 Node discarded: ${name}`);
+            this.outputMessage(`🗑 Node discarded: ${name}`);
         }
     },
 
     savePipelineOutput(stepIndex) {
-        this.addLog(`✔ ${this.t('Step')} ${stepIndex + 1} ${this.t('Save')}`);
+        this.outputMessage(`✔ ${this.t('Step')} ${stepIndex + 1} ${this.t('Save')}`);
     },
 
     buildPromptHtml(meta) {
@@ -8852,27 +9350,44 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     },
 
     // ── Project Switcher ───────────────────────────────────────────
-    _renderDemoSetupSection() {
-        const demos = this.state.demos || [];
-        if (demos.length === 0) return '';
-        const buttons = demos.map(d =>
-            `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">` +
-            `<button id="btn-setup-demo-${d.sampleSubDir}" onclick="app.setupDemo('${d.sampleSubDir}')" ` +
-            `style="background:#2a5a2a;color:#cfc;border:1px solid #4a8a4a;border-radius:4px;padding:5px 14px;cursor:pointer;font-size:12px">🎬 Setup Demo</button>` +
-            `<span style="font-size:12px;color:#ccc">${d.displayName}</span>` +
-            `<span style="font-size:11px;color:#888">→ <code>${d.projectName}</code></span>` +
-            `</div>`
-        ).join('');
-        return '<div style="margin-top:16px;padding-top:14px;border-top:1px solid #2a3a2a">' +
-               '<p style="font-size:12px;color:#aaa;margin-bottom:10px">Want to try a working example? Click Setup Demo to copy sample data into a project:</p>' +
-               buttons +
-               '</div>';
-    },
-
     setupDemo(sampleSubDir) {
-        const btn = document.getElementById('btn-setup-demo-' + sampleSubDir);
+        const btn = document.getElementById('btn-setup-demo-' + sampleSubDir) || document.getElementById('btn-sample-setup-' + sampleSubDir);
         if (btn) { btn.textContent = '⏳ Setting up...'; btn.disabled = true; }
         this.postMessage({ type: 'setup_demo', payload: { sampleSubDir } });
+    },
+
+    showSampleWizard() {
+        const modal = document.getElementById('sample-wizard-modal');
+        if (!modal) return;
+        const list = document.getElementById('sample-wizard-list');
+        const demos = this.state.demos || [];
+        list.innerHTML = demos.length === 0
+            ? '<div style="padding:20px;text-align:center;color:#888">No sample projects available.</div>'
+            : '<div class="sw-templates">' +
+              demos.map(d =>
+                  `<div class="sw-template" style="cursor:default">
+                      <div class="sw-template-label">${d.displayName || d.sampleSubDir}</div>
+                      <div class="sw-template-desc">${this.escapeHtml(d.description || '')}</div>
+                      <div style="margin-top:8px">
+                          <button id="btn-sample-setup-${d.sampleSubDir}" class="wizard-action-btn" onclick="app.setupDemo('${d.sampleSubDir}')">🎬 Setup Demo</button>
+                          <span style="font-size:10px;color:#666;margin-left:8px">→ <code>${d.projectName || ''}</code></span>
+                      </div>
+                  </div>`
+              ).join('') +
+              '</div>' +
+              '<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--theme-bg3)">' +
+              '<div style="font-size:11px;color:#aaa;margin-bottom:8px">🔗 Download required tools</div>' +
+              '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
+              '<a href="https://ollama.com/" target="_blank" rel="noopener" class="wizard-action-btn" style="display:inline-flex;align-items:center;gap:4px;margin:0;font-size:11px;padding:4px 12px;text-decoration:none">🦙 Ollama</a>' +
+              '<a href="https://lmstudio.ai/" target="_blank" rel="noopener" class="wizard-action-btn" style="display:inline-flex;align-items:center;gap:4px;margin:0;font-size:11px;padding:4px 12px;text-decoration:none">🤖 LM Studio</a>' +
+              '<a href="https://voicebox.sh/" target="_blank" rel="noopener" class="wizard-action-btn" style="display:inline-flex;align-items:center;gap:4px;margin:0;font-size:11px;padding:4px 12px;text-decoration:none">🎵 Voicebox</a>' +
+'<a href="https://voicevox.hiroshiba.jp/" target="_blank" rel="noopener" class="wizard-action-btn" style="display:inline-flex;align-items:center;gap:4px;margin:0;font-size:11px;padding:4px 12px;text-decoration:none">🗣️ VoiceVox</a>' +
+              '</div></div>';
+        modal.classList.add('visible');
+    },
+
+    closeSampleWizard() {
+        document.getElementById('sample-wizard-modal')?.classList.remove('visible');
     },
 
     switchProject(name) {
@@ -9041,7 +9556,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     deleteProject(name) {
         if (name === this.state.activeProject) {
-            this.addLog(`Project Delete Error\nOperation: deleteProject\nProject: ${name}\nError: Cannot delete the currently active project\nAction: Switch to a different project first, then delete this one`);
+            this.outputMessage(`Project Delete Error\nOperation: deleteProject\nProject: ${name}\nError: Cannot delete the currently active project\nAction: Switch to a different project first, then delete this one`);
             return;
         }
         this.showProjectConfirmModal(
@@ -9176,7 +9691,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     showRecipeTest(preselectRecipeName) {
         const modal = document.getElementById('recipe-test-modal');
-        if (!modal) { this.addLog('⚠ recipe-test-modal not found in DOM'); return; }
+        if (!modal) { this.outputMessage('⚠ recipe-test-modal not found in DOM'); return; }
         this.rt_ = { requests: {}, preselect: preselectRecipeName || null };
         modal.classList.add('visible');
         this.rtRender();
@@ -9231,7 +9746,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const resultEl = document.getElementById('rt-result-' + usecase);
         if (!selEl) return;
         const recipe = (this.state.recipes || []).find(r => r.name === selEl.value);
-        if (!recipe) { this.addLog('⚠ ' + this.t('RtNoRecipe')); return; }
+        if (!recipe) { this.outputMessage('⚠ ' + this.t('RtNoRecipe')); return; }
 
         const requestId = 'rt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
         this.rt_.requests[requestId] = usecase;
@@ -9251,7 +9766,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
         if (runBtn) { runBtn.disabled = true; runBtn.textContent = '⏳ ' + this.t('RtRunning'); }
         if (resultEl) resultEl.innerHTML = `<div class="rt-running">⏳ ${this.t('RtRunning')}</div>`;
-        this.addLog(`🧪 ${this.t('RtRun')}: ${recipe.name} (${usecase})`);
+        this.outputMessage(`🧪 ${this.t('RtRun')}: ${recipe.name} (${usecase})`);
         this.postMessage({ type: 'test_recipe', payload });
     },
 
@@ -9674,7 +10189,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.renderList();
         this.loadEditor('');
         this.closeSetupWizard();
-        this.addLog(`🚀 ${this.t('ProjectCreated').replace('{name}', s.tabName)}`);
+        this.outputMessage(`🚀 ${this.t('ProjectCreated').replace('{name}', s.tabName)}`);
 
         // Run pipeline only if the selected one actually exists.
         if (s.pipelineName && this.swMatchPipeline(s.pipelineName)) {
@@ -9743,7 +10258,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.pmState_.dirty = true;
         this.pmRenderPipelineList();
         this.pmLoadEditor();
-        this.addLog('➕ New pipeline created');
+        this.outputMessage('➕ New pipeline created');
     },
 
     pmSwitchMode(mode, btn) {
@@ -9805,7 +10320,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         list[i].steps.push({ name: typeInfo.label, type, params: {} });
         this.pmState_.dirty = true;
         this.pmRenderSteps();
-        this.addLog(`➕ Step added: ${typeInfo.label}`);
+        this.outputMessage(`➕ Step added: ${typeInfo.label}`);
     },
 
     pmEditStep(index) {
@@ -9991,7 +10506,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.pmState_.dirty = true;
         this.pmCloseStepEdit();
         this.pmRenderSteps();
-        this.addLog(`✏ Step "${step.name}" updated`);
+        this.outputMessage(`✏ Step "${step.name}" updated`);
     },
 
     pmCloseStepEdit() {
@@ -10006,7 +10521,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         list[i].steps.splice(index, 1);
         this.pmState_.dirty = true;
         this.pmRenderSteps();
-        this.addLog('🗑 Step removed');
+        this.outputMessage('🗑 Step removed');
     },
 
     pmMoveStep(index, dir) {
@@ -10079,7 +10594,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.pmState_.dirty = false;
         // Send to C++
         this.postMessage({ type: 'save_pipeline', payload: pipeline });
-        this.addLog(`💾 Pipeline "${pipeline.name}" saved`);
+        this.outputMessage(`💾 Pipeline "${pipeline.name}" saved`);
     },
 
     pmDelete() {
@@ -10094,18 +10609,18 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.pmState_.dirty = false;
         this.pmRenderPipelineList();
         this.pmLoadEditor();
-        this.addLog(`🗑 Pipeline "${name}" deleted`);
+        this.outputMessage(`🗑 Pipeline "${name}" deleted`);
     },
 
     pmRunNow() {
         this.pmSave();
         const pipeline = this.pmGetCurrentPipeline();
         if (!pipeline || !pipeline.steps || pipeline.steps.length === 0) {
-            this.addLog('⚠ No steps in pipeline');
+            this.outputMessage('⚠ No steps in pipeline');
             return;
         }
         const node = this.getNodeByPath(this.state.currentNodePath);
-        if (!node) { this.addLog('⚠ Select a node first'); return; }
+        if (!node) { this.outputMessage('⚠ Select a node first'); return; }
         const content = node.content ? (() => { try { return decodeURIComponent(escape(atob(node.content))); } catch { return atob(node.content); } })() : '';
         const tab = this.state.tabs[this.state.activeTab];
         this.postMessage({ type: 'run_pipeline', payload: {
@@ -10116,7 +10631,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         }});
         this.state.pipelineRun.running = true;
         this.closePipelineManager();
-        this.addLog(`▶ Pipeline "${pipeline.name}" started`);
+        this.outputMessage(`▶ Pipeline "${pipeline.name}" started`);
     },
 
     pmDirty() {
@@ -10178,7 +10693,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     toggleVoiceInput(textareaId, buttonId) {
         if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-            this.addLog(`Voice Input Error\nOperation: toggleVoiceInput\nTextarea: ${textareaId}\nError: Voice input not supported in this browser\nAction: Use a browser that supports Web Speech API (Chrome, Edge)`);
+            this.outputMessage(`Voice Input Error\nOperation: toggleVoiceInput\nTextarea: ${textareaId}\nError: Voice input not supported in this browser\nAction: Use a browser that supports Web Speech API (Chrome, Edge)`);
             alert(this.t('VoiceInputNotSupportedAlert'));
             return;
         }
@@ -10208,7 +10723,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         rec.onstart = () => {
             button.classList.add('recording');
             button.title = this.t('StopVoiceInput');
-            this.addLog('🎙️ ' + this.t('VoiceInputStarted'));
+            this.outputMessage('🎙️ ' + this.t('VoiceInputStarted'));
         };
 
         rec.onresult = (event) => {
@@ -10239,13 +10754,13 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         };
 
         rec.onerror = (event) => {
-            this.addLog(`Speech Recognition Error\nOperation: toggleVoiceInput\nTextarea: ${textareaId}\nError: ${event.error}\nPossible causes: Microphone not available, permission denied, or network issue`);
+            this.outputMessage(`Speech Recognition Error\nOperation: toggleVoiceInput\nTextarea: ${textareaId}\nError: ${event.error}\nPossible causes: Microphone not available, permission denied, or network issue`);
             console.error('Speech recognition error:', event.error);
             cleanup();
         };
 
         rec.onend = () => {
-            this.addLog('🎙️ ' + this.t('VoiceInputStopped'));
+            this.outputMessage('🎙️ ' + this.t('VoiceInputStopped'));
             cleanup();
         };
 
@@ -10263,7 +10778,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     toggleSpeak(textareaId, buttonId) {
         if (!('speechSynthesis' in window)) {
-            this.addLog(`Speech Synthesis Error\nOperation: toggleSpeak\nTextarea: ${textareaId}\nError: Speech synthesis not supported in this browser\nAction: Use a browser that supports Web Speech API (Chrome, Edge, Safari)`);
+            this.outputMessage(`Speech Synthesis Error\nOperation: toggleSpeak\nTextarea: ${textareaId}\nError: Speech synthesis not supported in this browser\nAction: Use a browser that supports Web Speech API (Chrome, Edge, Safari)`);
             alert(this.t('SpeechNotSupportedAlert'));
             return;
         }
@@ -10275,13 +10790,13 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         if (window.speechSynthesis.speaking) {
             window.speechSynthesis.cancel();
             this.clearAllSpeakingStyles();
-            this.addLog('🔊 ' + this.t('SpeechStopped'));
+            this.outputMessage('🔊 ' + this.t('SpeechStopped'));
             return;
         }
 
         const text = textarea.value.trim();
         if (!text) {
-            this.addLog('⚠ ' + this.t('NoTextToSpeak'));
+            this.outputMessage('⚠ ' + this.t('NoTextToSpeak'));
             return;
         }
 
@@ -10291,17 +10806,17 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         utterance.onstart = () => {
             button.classList.add('speaking');
             button.title = this.t('StopSpeech');
-            this.addLog('🔊 ' + this.t('SpeechStarted'));
+            this.outputMessage('🔊 ' + this.t('SpeechStarted'));
         };
 
         utterance.onend = () => {
             button.classList.remove('speaking');
             button.title = this.t('TextToSpeech');
-            this.addLog('🔊 ' + this.t('SpeechCompleted'));
+            this.outputMessage('🔊 ' + this.t('SpeechCompleted'));
         };
 
         utterance.onerror = (event) => {
-            this.addLog(`Speech Synthesis Error\nOperation: toggleSpeak\nTextarea: ${textareaId}\nError: ${event.error}\nPossible causes: Audio output not available, voice not installed, or synthesis interrupted`);
+            this.outputMessage(`Speech Synthesis Error\nOperation: toggleSpeak\nTextarea: ${textareaId}\nError: ${event.error}\nPossible causes: Audio output not available, voice not installed, or synthesis interrupted`);
             console.error('Speech synthesis error:', event.error);
             button.classList.remove('speaking');
             button.title = this.t('TextToSpeech');
@@ -10777,13 +11292,13 @@ Object.assign(app, {
         try {
             const response = await fetch(`http://127.0.0.1:18765/runs/${runId}/stop`, { method: 'POST' });
             if (response.ok) {
-                this.addLog(`[Tasks] Cancelled run: ${runId}`);
+                this.outputMessage(`[Tasks] Cancelled run: ${runId}`);
                 this.updateTaskMetrics();
             } else {
-                this.addLog(`[Tasks] Failed to cancel run: ${runId}`);
+                this.outputMessage(`[Tasks] Failed to cancel run: ${runId}`);
             }
         } catch (e) {
-            this.addLog(`[Tasks] Error cancelling run: ${e.message}`);
+            this.outputMessage(`[Tasks] Error cancelling run: ${e.message}`);
         }
     },
 
@@ -10814,11 +11329,11 @@ Object.assign(app, {
                     body: JSON.stringify(body),
                 });
                 const data = await runResp.json();
-                this.addLog(`[Tasks] Retry node "${nodeTitle || nodePath}" → ${data.runId || 'queued'}`);
+                this.outputMessage(`[Tasks] Retry node "${nodeTitle || nodePath}" → ${data.runId || 'queued'}`);
                 this.updateTaskMetrics();
                 return;
             } catch (e) {
-                this.addLog(`[Tasks] Could not isolate node (${e.message}), retrying full BT`);
+                this.outputMessage(`[Tasks] Could not isolate node (${e.message}), retrying full BT`);
             }
         }
 
@@ -10832,10 +11347,10 @@ Object.assign(app, {
                 body: JSON.stringify(body),
             });
             const data = await resp.json();
-            this.addLog(`[Tasks] Retried (full): ${file.split('/').pop()} → ${data.runId || 'queued'}`);
+            this.outputMessage(`[Tasks] Retried (full): ${file.split('/').pop()} → ${data.runId || 'queued'}`);
             this.updateTaskMetrics();
         } catch (e) {
-            this.addLog(`[Tasks] Retry error: ${e.message}`);
+            this.outputMessage(`[Tasks] Retry error: ${e.message}`);
         }
     },
 
@@ -10859,21 +11374,21 @@ Object.assign(app, {
             });
             if (response.ok) {
                 const data = await response.json();
-                this.addLog(`[Tasks] Started: ${file ? file.split('/').pop() : 'BT'} → ${data.runId || 'ok'}`);
+                this.outputMessage(`[Tasks] Started: ${file ? file.split('/').pop() : 'BT'} → ${data.runId || 'ok'}`);
                 this.updateTaskMetrics();
             } else {
-                this.addLog(`[Tasks] Start failed: ${file}`);
+                this.outputMessage(`[Tasks] Start failed: ${file}`);
             }
         } catch (e) {
-            this.addLog(`[Tasks] Start error: ${e.message}`);
+            this.outputMessage(`[Tasks] Start error: ${e.message}`);
         }
     },
 
     showAIFix(runId, file, error) {
         const fname = file ? file.split('/').pop() : '(inline)';
         const msg = `🤖 AI Fix Request\nFile: ${fname}\nRun: ${runId}\nError: ${error || '(no error message)'}\n\nAsk your AI assistant: "Why did this BT fail and how can I fix it?"`;
-        this.addLog(msg);
-        this.switchMsgTab('log');
+        this.outputMessage(msg);
+        this.switchMsgTab('messages');
     },
 
     async editBT(file) {
@@ -10884,13 +11399,13 @@ Object.assign(app, {
                 body: JSON.stringify({ filePath: file }),
             });
             if (response.ok) {
-                this.addLog(`[Tasks] Loaded in editor: ${file.split('/').pop()}`);
+                this.outputMessage(`[Tasks] Loaded in editor: ${file.split('/').pop()}`);
                 this.switchTreeTab('pipeline');
             } else {
-                this.addLog(`[Tasks] Could not load: ${file}`);
+                this.outputMessage(`[Tasks] Could not load: ${file}`);
             }
         } catch (e) {
-            this.addLog(`[Tasks] Load error: ${e.message}`);
+            this.outputMessage(`[Tasks] Load error: ${e.message}`);
         }
     },
 

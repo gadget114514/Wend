@@ -88,6 +88,95 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    if (method === 'GET' && pathname === '/docs') {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(`<!DOCTYPE html>
+<html>
+<head>
+    <title>Mock AI Provider API Documentation</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 20px; line-height: 1.6; }
+        .container { max-width: 800px; margin: 0 auto; background: #1e1e1e; border: 1px solid #333; border-radius: 8px; padding: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        h1 { color: #fff; font-size: 24px; border-bottom: 1px solid #333; padding-bottom: 10px; margin-top: 0; }
+        h2 { color: #7ab0ff; font-size: 18px; margin-top: 24px; border-bottom: 1px solid #2d2d2d; padding-bottom: 5px; }
+        .endpoint { background: #151515; border-left: 4px solid #4caf50; border-radius: 4px; padding: 12px; margin-bottom: 14px; font-family: monospace; }
+        .method { font-weight: bold; padding: 2px 6px; border-radius: 3px; font-size: 12px; margin-right: 8px; color: #fff; }
+        .get { background: #007acc; }
+        .post { background: #2e7d32; }
+        .path { font-weight: bold; color: #fff; }
+        .desc { margin-top: 8px; font-family: sans-serif; color: #aaa; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛠 Mock AI Provider API Documentation</h1>
+        <p>This is a local mock server simulating multiple AI providers (OpenAI, Gemini, Replicate, Fal.ai, etc.) for testing workflows without requiring active API keys.</p>
+        
+        <h2>General endpoints</h2>
+        <div class="endpoint">
+            <span class="method get">GET</span><span class="path">/docs</span>
+            <div class="desc">Displays this API documentation page.</div>
+        </div>
+        <div class="endpoint">
+            <span class="method get">GET</span><span class="path">/files/:filename</span>
+            <div class="desc">Serves static assets (images, audio, video) located in the mock directory.</div>
+        </div>
+
+        <h2>Mock-HTTP endpoints</h2>
+        <div class="endpoint">
+            <span class="method post">POST</span><span class="path">/recipe/text-to-text</span>
+            <div class="desc">Mock text generation endpoint. Returns simulated text responses.</div>
+        </div>
+        <div class="endpoint">
+            <span class="method post">POST</span><span class="path">/recipe/image-to-image</span>
+            <div class="desc">Mock image-to-image processing endpoint. Returns base64 image data.</div>
+        </div>
+        
+        <h2>OpenAI-compatible endpoints</h2>
+        <div class="endpoint">
+            <span class="method post">POST</span><span class="path">/v1/chat/completions</span>
+            <div class="desc">Simulates OpenAI chat completions endpoint (GPT models).</div>
+        </div>
+        <div class="endpoint">
+            <span class="method post">POST</span><span class="path">/v1/audio/speech</span>
+            <div class="desc">Simulates OpenAI text-to-speech generation. Returns audio bytes.</div>
+        </div>
+        <div class="endpoint">
+            <span class="method post">POST</span><span class="path">/v1/images/generations</span>
+            <div class="desc">Simulates OpenAI DALL-E image generation. Returns base64 JSON payload.</div>
+        </div>
+
+        <h2>Google Gemini endpoints</h2>
+        <div class="endpoint">
+            <span class="method post">POST</span><span class="path">/v1beta/models/:model:generateContent</span>
+            <div class="desc">Simulates Gemini content generation. Supports both text and image output.</div>
+        </div>
+
+        <h2>Replicate endpoints</h2>
+        <div class="endpoint">
+            <span class="method post">POST</span><span class="path">/v1/predictions</span>
+            <div class="desc">Initiates a Replicate prediction process (returns processing status).</div>
+        </div>
+        <div class="endpoint">
+            <span class="method get">GET</span><span class="path">/v1/predictions/:id</span>
+            <div class="desc">Polls status of a Replicate prediction. Returns the succeeded static media URL.</div>
+        </div>
+
+        <h2>Fal.ai endpoints</h2>
+        <div class="endpoint">
+            <span class="method post">POST</span><span class="path">/:model</span>
+            <div class="desc">Initiates a Fal.ai generation request.</div>
+        </div>
+        <div class="endpoint">
+            <span class="method get">GET</span><span class="path">/requests/:id</span>
+            <div class="desc">Polls status of a Fal.ai generation job.</div>
+        </div>
+    </div>
+</body>
+</html>`);
+        return;
+    }
+
     // Serve static files from mock directory
     if (method === 'GET' && pathname.startsWith('/files/')) {
         const filename = pathname.replace('/files/', '');

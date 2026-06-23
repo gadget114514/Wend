@@ -23,7 +23,7 @@ class Behavior3Adapter {
 
         // Log to app message window
         if (this._app && this._app.addLog) {
-            this._app.addLog(fullMsg);
+            this._app.outputDebug(fullMsg);
         }
 
         // Log to browser/electron console
@@ -42,9 +42,9 @@ class Behavior3Adapter {
 
         // Log to app message window
         if (this._app && this._app.addLog) {
-            this._app.addLog(errorMsg);
+            this._app.outputDebug(errorMsg);
             if (errorDetail) {
-                this._app.addLog(`  Details: ${error.message}`);
+                this._app.outputDebug(`  Details: ${error.message}`);
             }
         }
 
@@ -76,7 +76,7 @@ class Behavior3Adapter {
         // Convert tree to b3 format
         this._log(`Converting tree to B3 format...`);
         try {
-            this._tree = B3TreeConverter.wendToB3(node, 'target-' + path);
+            this._tree = B3TreeConverter.wendToB3(node, 'target-' + path, path);
             this._log(`✅ Tree converted: ${Object.keys(this._tree.nodes).length} nodes`);
         } catch (e) {
             this._logError(`Conversion failed`, e);
@@ -228,8 +228,19 @@ class Behavior3Adapter {
         this._log(`notifyLeafComplete: error=${meta.error}, output="${String(meta.outputContent || '').slice(0, 30)}..."`);
 
         // Store result in blackboard for leaf to pick up
-        if (this._app.state.btRunContext) {
-            const nodeId = this._app.state.btRunContext.btActionNodeId;
+        const ctx = this._app.state.btRunContext;
+        if (ctx) {
+            // Write output to blackboard under outputKey before clearing context
+            if (!meta.error && ctx.outputKey) {
+                if (meta.outputContent != null) {
+                    this.bbWrite(ctx.outputKey, meta.outputContent, 'run', ctx.outputType || 'text');
+                }
+                const outMedia = Array.isArray(meta.outputAttachments) ? meta.outputAttachments : [];
+                if (outMedia.length > 0) {
+                    this.bbWrite(ctx.outputKey, outMedia, 'run', 'media');
+                }
+            }
+            const nodeId = ctx.btActionNodeId;
             this._log(`  Storing result for nodeId: ${nodeId}`);
             if (nodeId && this._blackboard) {
                 const resultStatus = !meta.error ? b3.Status.SUCCESS : b3.Status.FAILURE;
@@ -253,10 +264,61 @@ class Behavior3Adapter {
     /**
      * Get current blackboard state (copy for inspection)
      */
+    _bbNotifyChange() {
+        if (this._bbChangeCallback) this._bbChangeCallback();
+    }
+
+    _createB3Blackboard() {
+        const self = this;
+        const bb = new b3.Blackboard();
+        
+        return new Proxy(bb, {
+            get(target, prop, receiver) {
+                if (prop === 'get') {
+                    return function(key) {
+                        if (typeof key === 'string' && !key.startsWith('_')) {
+                            self._bbNotifyChange();
+                        }
+                        return target.get(key);
+                    };
+                }
+                if (prop === 'set') {
+                    return function(key, value) {
+                        const res = target.set(key, value);
+                        self._bbNotifyChange();
+                        return res;
+                    };
+                }
+                if (prop === 'clear') {
+                    return function() {
+                        const res = target.clear();
+                        self._bbNotifyChange();
+                        return res;
+                    };
+                }
+                const value = Reflect.get(target, prop, receiver);
+                return value;
+            },
+            set(target, prop, value, receiver) {
+                const res = Reflect.set(target, prop, value, receiver);
+                self._bbNotifyChange();
+                return res;
+            }
+        });
+    }
+
     getBlackboard() {
         const obj = {};
         if (this._blackboard) {
-            for (const [key, value] of Object.entries(this._blackboard)) {
+            let source = this._blackboard;
+            if (typeof this._blackboard.getAll === 'function') {
+                source = this._blackboard.getAll();
+            } else if (this._blackboard._values) {
+                source = this._blackboard._values;
+            } else if (this._blackboard._data) {
+                source = this._blackboard._data;
+            }
+            for (const [key, value] of Object.entries(source)) {
                 if (!key.startsWith('_')) {
                     obj[key] = value;
                 }
@@ -269,22 +331,37 @@ class Behavior3Adapter {
      * Manually set text in blackboard from UI dialog
      */
     bbSetText(key, value) {
-        if (!this._blackboard) this._blackboard = new b3.Blackboard();
+        if (!this._blackboard) this._blackboard = this._createB3Blackboard();
         const slot = this._blackboard.get(key) || {};
         slot.text = value;
         this._blackboard.set(key, slot);
         this._log(`bbSetText("${key}", "${String(value).slice(0, 20)}...")`);
+        this._bbNotifyChange();
     }
 
     /**
      * Manually set media in blackboard from UI dialog
      */
     bbSetMedia(key, mediaArray) {
-        if (!this._blackboard) this._blackboard = new b3.Blackboard();
+        if (!this._blackboard) this._blackboard = this._createB3Blackboard();
         const slot = this._blackboard.get(key) || {};
         slot.media = mediaArray;
         this._blackboard.set(key, slot);
         this._log(`bbSetMedia("${key}", ${mediaArray ? mediaArray.length : 0} items)`);
+        this._bbNotifyChange();
+    }
+
+    /**
+     * Write a value into a blackboard slot by key.
+     * Compatible with BehaviorTreeEngine.bbWrite signature.
+     */
+    bbWrite(key, value, scope = 'run', field = 'text') {
+        if (!this._blackboard) this._blackboard = this._createB3Blackboard();
+        const slot = this._blackboard.get(key) || {};
+        slot[field] = value;
+        this._blackboard.set(key, slot);
+        this._log(`bbWrite("${key}", "${String(value).slice(0, 30)}...", scope=${scope}, field=${field})`);
+        this._bbNotifyChange();
     }
 
     /**
@@ -304,6 +381,7 @@ class Behavior3Adapter {
         } else {
             this._blackboard.set(key, slot);
         }
+        this._bbNotifyChange();
     }
 
     /**
@@ -313,6 +391,7 @@ class Behavior3Adapter {
         if (this._blackboard) {
             this._blackboard.set(key, undefined);
         }
+        this._bbNotifyChange();
     }
 
     /**
@@ -355,7 +434,7 @@ class Behavior3Adapter {
     async _execute(path) {
         const app = this._app;
         if (app.state.pipelineRun.running) {
-            app.addLog('⚠ Pipeline is already running');
+            app.outputMessage('⚠ Pipeline is already running');
             if (this._ctrl) this._ctrl.mode = 'idle';
             this._updateToolbar();
             return;
@@ -368,7 +447,7 @@ class Behavior3Adapter {
             ? (cfg.count === 0 ? ' (infinite loop)' : ` (${cfg.count} repeats)`)
             : '';
 
-        app.addLog(`▶ BT execution started${cycleLabel}`);
+            app.outputDebug(`▶ BT execution started${cycleLabel}`);
 
         let iter = 0;
         try {
@@ -376,16 +455,16 @@ class Behavior3Adapter {
                 iter++;
 
                 // Reset blackboard for each cycle (non-persistent mode)
-                this._blackboard = new b3.Blackboard();
+                this._blackboard = this._createB3Blackboard();
                 app.state.btRunState = new Map();
                 this._executionTrace = [];
                 this._log(`🔄 Cycle ${iter}: Blackboard reset`);
                 app.renderTree();
 
                 if (isCycle && maxIter !== Infinity) {
-                    app.addLog(`🔁 Cycle ${iter}/${cfg.count}`);
+                    app.outputDebug(`🔁 Cycle ${iter}/${cfg.count}`);
                 } else if (isCycle) {
-                    app.addLog(`🔁 Cycle ${iter}`);
+                    app.outputDebug(`🔁 Cycle ${iter}`);
                 }
 
                 // Execute tree
@@ -393,11 +472,11 @@ class Behavior3Adapter {
                 const ctrl = this._ctrl;
 
                 if (ctrl && ctrl.mode === 'stopped') {
-                    app.addLog('⏹ BT stopped');
+                    app.outputDebug('⏹ BT stopped');
                     break;
                 }
 
-                app.addLog(success ? `✅ Cycle ${iter} succeeded` : `❌ Cycle ${iter} failed`);
+                app.outputMessage(success ? `✅ Cycle ${iter} succeeded` : `❌ Cycle ${iter} failed`);
 
                 // Check pause between cycles
                 if (iter < maxIter) {
@@ -408,7 +487,7 @@ class Behavior3Adapter {
                             this._updateToolbar();
                             const sig = await new Promise(r => { this._stepResolve = r; });
                             if (sig === 'stop') {
-                                app.addLog('⏹ BT stopped');
+                    app.outputDebug('⏹ BT stopped');
                                 break;
                             }
                             if (sig === 'run') {
@@ -416,7 +495,7 @@ class Behavior3Adapter {
                                 this._updateToolbar();
                             }
                         } else {
-                            app.addLog('⏹ BT stopped');
+                            app.outputDebug('⏹ BT stopped');
                             break;
                         }
                     }
@@ -424,9 +503,9 @@ class Behavior3Adapter {
             }
         } catch (e) {
             if (e && e.message === 'BT_STOPPED') {
-                app.addLog('⏹ BT stopped');
+                app.outputDebug('⏹ BT stopped');
             } else {
-                app.addLog('❌ BT error: ' + (e.message || e));
+                app.outputMessage('❌ BT error: ' + (e.message || e));
             }
         }
 

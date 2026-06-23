@@ -93,4 +93,19 @@ class FalAIProvider {
     async testConnection() { return ''; }
 }
 
-module.exports = FalAIProvider;
+const metadata = {
+    id: 'fal-ai',
+    label: 'Fal.ai',
+    icon: '⚡',
+    defaultUrl: 'https://queue.fal.run',
+    defaultApiPath: '/{model}',
+    defaultFormat: 'fal-ai',
+    formatLabel: 'Fal.ai (Image/Video)',
+    apiType: 'polling',
+    input: ['text'],
+    output: ['image', 'video'],
+    description: 'Image/Video generation',
+    defaultApiDescUrl: 'https://queue.fal.run/docs'
+};
+
+module.exports = { ProviderClass: FalAIProvider, metadata };

@@ -126,4 +126,19 @@ class LMStudioProvider {
     }
 }
 
-module.exports = LMStudioProvider;
+const metadata = {
+    id: 'lmstudio',
+    label: 'LM Studio',
+    icon: '🤖',
+    defaultUrl: 'http://localhost:1234/v1',
+    defaultApiPath: '/chat/completions',
+    defaultFormat: 'lmstudio',
+    formatLabel: 'LM Studio (Local)',
+    apiType: 'simple',
+    input: ['text', 'image'],
+    output: ['text'],
+    description: 'Local LLM via LM Studio',
+    defaultApiDescUrl: 'http://localhost:1234/docs'
+};
+
+module.exports = { ProviderClass: LMStudioProvider, metadata };

@@ -1,0 +1,30 @@
+[
+  {
+    "name": "VOICEVOX TTS",
+    "type": "ai",
+    "provider": "voicevox",
+    "model": "1",
+    "temperature": 1,
+    "systemPrompt": "",
+    "usecase": "tts",
+    "apiType": "simple",
+    "tool": [
+      "tts"
+    ],
+    "customParams": {}
+  },
+  {
+    "name": "VOICEVOX TTS (Zundamon)",
+    "type": "ai",
+    "provider": "voicevox",
+    "model": "3",
+    "temperature": 1,
+    "systemPrompt": "",
+    "usecase": "tts",
+    "apiType": "simple",
+    "tool": [
+      "tts"
+    ],
+    "customParams": {}
+  }
+]

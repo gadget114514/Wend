@@ -9,8 +9,11 @@
     "command": "",
     "useCustomApiPath": false,
     "apiPath": "/chat/completions",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "openai",
+    "customParams": {},
+    "tool": [
+      "t2t"
+    ]
   },
   {
     "name": "Code Reviewer (OpenCode)",
@@ -22,7 +25,10 @@
     "command": "",
     "useCustomApiPath": false,
     "apiPath": "/chat/completions",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "openai",
+    "customParams": {},
+    "tool": [
+      "t2t"
+    ]
   }
 ]

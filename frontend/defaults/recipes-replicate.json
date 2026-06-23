@@ -10,7 +10,10 @@
     "useCustomApiPath": false,
     "apiPath": "/v1/predictions",
     "apiType": "polling",
-    "customParams": {}
+    "customParams": {},
+    "tool": [
+      "t2a"
+    ]
   },
   {
     "name": "Replicate TTS",
@@ -23,6 +26,9 @@
     "useCustomApiPath": false,
     "apiPath": "/v1/predictions",
     "apiType": "polling",
-    "customParams": {}
+    "customParams": {},
+    "tool": [
+      "tts"
+    ]
   }
 ]

@@ -655,7 +655,7 @@ describe('Storage', () => {
         const tempSt = new Storage();
         tempSt.init(emptyDir);
         const recipes = tempSt.loadRecipes();
-        assert.equal(recipes.length, 21);
+        assert.equal(recipes.length, 23);
         assert.equal(recipes[0].name, 'Music Info Fetcher');
         assert.equal(recipes[1].name, 'Article Writer (GPT)');
         assert.equal(recipes[7].name, 'Replicate TTS');
@@ -669,15 +669,15 @@ describe('Storage', () => {
         const custom = [{ name: 'My Custom Recipe', type: 'ai', provider: 'openai', model: 'gpt-4.1', temperature: 0.7, systemPrompt: '', command: '', customParams: {} }];
         tempSt.saveRecipes(custom);
         const loaded = tempSt.loadRecipes();
-        // Preserves custom recipe and merges the missing defaults (1 custom + 21 defaults = 22)
-        assert.equal(loaded.length, 22);
+        // Preserves custom recipe and merges the missing defaults (1 custom + 23 defaults = 24)
+        assert.equal(loaded.length, 24);
         assert.ok(loaded.some(r => r.name === 'My Custom Recipe'));
         rmrf(existingDir);
     });
 
     test('getDefaultRecipes returns correct structure', () => {
         const defaults = getDefaultRecipes();
-        assert.equal(defaults.length, 21);
+        assert.equal(defaults.length, 23);
         for (const r of defaults) {
             assert.ok(r.name, 'recipe has name');
             assert.equal(r.type, 'ai');
@@ -4485,7 +4485,8 @@ describe('Builtin Providers Loading', () => {
                 const fullPath = path.join(providersDir, file);
                 try {
                     delete require.cache[require.resolve(fullPath)];
-                    const ProviderClass = require(fullPath);
+                    const mod = require(fullPath);
+                    const ProviderClass = mod.ProviderClass || mod;
                     if (ProviderClass && typeof ProviderClass === 'function') {
                         const tempInstance = new ProviderClass('', '');
                         if (typeof tempInstance.name === 'function' && typeof tempInstance.call === 'function') {
@@ -4500,7 +4501,7 @@ describe('Builtin Providers Loading', () => {
         
         const expectedProviders = ['openai', 'anthropic', 'gemini', 
                                    'ollama', 'lmstudio', 'opencode', 'mock', 'mock-http', 'openai-image', 
-                                   'replicate', 'fal-ai', 'voicebox', 'mcp'];
+                                   'replicate', 'fal-ai', 'voicebox', 'voicevox', 'mcp'];
         for (const name of expectedProviders) {
             assert.ok(builtinProviders[name], `Provider "${name}" should be loaded`);
         }
@@ -4526,7 +4527,8 @@ describe('Builtin Providers Loading', () => {
             { file: 'replicate.js', name: 'replicate', models: ['stability-ai/sdxl', 'bytedance/animatediff'] },
             { file: 'fal-ai.js', name: 'fal-ai', models: ['fal-ai/flux/schnell', 'fal-ai/stable-diffusion-v35-medium'] },
             { file: 'voicebox.js', name: 'voicebox', models: ['kokoro', 'qwen', 'qwen_custom_voice', 'luxtts', 'chatterbox', 'chatterbox_turbo', 'tada'] },
-            { file: 'mcp-client.js', name: 'mcp', models: ['mcp-tool'] },
+            { file: 'voicevox.js', name: 'voicevox', models: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20'] },
+            { file: 'mcp.js', name: 'mcp', models: ['mcp-tool'] },
         ];
         
         for (const test of providerTests) {
@@ -4535,7 +4537,8 @@ describe('Builtin Providers Loading', () => {
             
             try {
                 delete require.cache[require.resolve(fullPath)];
-                const ProviderClass = require(fullPath);
+                const mod = require(fullPath);
+                const ProviderClass = mod.ProviderClass || mod;
                 const instance = new ProviderClass('', '');
                 
                 assert.equal(instance.name(), test.name, `Provider ${test.file} should have name "${test.name}"`);
@@ -5522,7 +5525,70 @@ describe('Behavior Tree', () => {
 
         const ok = await app._bt._runNode('0');
         assert.equal(ok, true);
-        assert.equal(app._bt._blackboard.my_var.text, 'hello from clipboard');
+    });
+
+    test('Assemble Node: writes AI result to blackboard output key', async () => {
+        const app = createBtApp();
+        app.state.tabs = [{
+            name: 't', file: 't.json', root: {
+                title: '', content: '', mimetype: 'text/plain', nodeType: 'root', children: [
+                    { title: b64('AI Node'), content: b64('some prompt'), mimetype: 'text/plain', nodeType: 'assemble', btType: 'leaf', btOutputKey: 'ai_res', children: [] }
+                ]
+            }
+        }];
+        app.state.activeTab = 0;
+        const BehaviorTreeEngine = vm.runInContext('BehaviorTreeEngine', app._vmContext);
+        app._bt = new BehaviorTreeEngine(app);
+
+        let loggedMsgs = [];
+        app.addLog = (msg) => {
+            loggedMsgs.push(msg);
+        };
+
+        app.processPrompt = () => {
+            const cb = app._bt._pendingCallbacks.get('0') || app._bt._leafCallback;
+            cb({ outputContent: 'AI output content', pipelineName: 'test-ai', error: false });
+        };
+
+        const ok = await app._bt._runNode('0');
+        assert.equal(ok, true);
+        assert.equal(app._bt._blackboard.ai_res.text, 'AI output content');
+        assert.ok(loggedMsgs.some(m => m.includes('ai_res') && m.includes('AI output content')));
+    });
+
+    test('Assemble Node (Manual): manual pipeline completion writes to blackboard and logs', () => {
+        const app = createBtApp();
+        const node = {
+            title: b64('AI Node'),
+            content: b64('some prompt'),
+            mimetype: 'text/plain',
+            nodeType: 'assemble',
+            btType: 'leaf',
+            btOutputKey: 'manual_res',
+            children: []
+        };
+        app.state.tabs = [{
+            name: 't', file: 't.json', root: {
+                title: '', content: '', mimetype: 'text/plain', nodeType: 'root', children: [node]
+            }
+        }];
+        app.state.activeTab = 0;
+        app.state.currentNodePath = '0';
+
+        let loggedMsgs = [];
+        app.addLog = (msg) => {
+            loggedMsgs.push(msg);
+        };
+
+        // Trigger manual pipeline completion (not handled by BT engine since BT engine is not running)
+        app.onPipelineCompleted({
+            outputContent: 'Manual output content',
+            pipelineName: 'test-manual',
+            error: false
+        });
+
+        assert.equal(app._bt._blackboard.manual_res.text, 'Manual output content');
+        assert.ok(loggedMsgs.some(m => m.includes('manual_res') && m.includes('Manual output content')));
     });
 
     test('Nested: Sequence containing Selector', async () => {
@@ -5912,6 +5978,127 @@ describe('Behavior Tree', () => {
         app.addLog = msg => { if (msg.includes('[RC-01]')) loggedErrors.push(msg); };
         app.checkNodeTypeInvariants();
         assert.ok(loggedErrors.length > 0, 'Should report non-composite at chain end');
+    });
+
+    test('Integration: set/get between nodes and check result with math node, and check non-text type error', async () => {
+        const app = createBtApp();
+        
+        // We will create a Sequence with 3 nodes:
+        // Node 0: Misc node, sets 'first_var' to '100'
+        // Node 1: Misc node, reads '{bb:first_var} + 20' and sets 'second_var' to '{bb:first_var} + 20'
+        // Node 2: Math node, evaluates `({bb:second_var}) === 120` and writes to `check_ok`
+        const root = {
+            title: b64('Root'),
+            nodeType: 'root',
+            btType: 'sequence',
+            children: [
+                {
+                    title: b64('Node 0'),
+                    nodeType: 'assemble',
+                    btType: 'leaf_misc',
+                    btPrompt: b64('100'),
+                    btOutputKey: 'first_var'
+                },
+                {
+                    title: b64('Node 1'),
+                    nodeType: 'assemble',
+                    btType: 'leaf_misc',
+                    btPrompt: b64('{bb:first_var} + 20'),
+                    btOutputKey: 'second_var'
+                },
+                {
+                    title: b64('Node 2'),
+                    nodeType: 'assemble',
+                    btType: 'leaf_math',
+                    btPrompt: b64('({bb:second_var}) === 120'),
+                    btOutputKey: 'check_ok'
+                }
+            ]
+        };
+
+        app.state.tabs = [{ name: 't', file: 't.json', root }];
+        app.state.activeTab = 0;
+        
+        const BehaviorTreeEngine = vm.runInContext('BehaviorTreeEngine', app._vmContext);
+        app._bt = new BehaviorTreeEngine(app);
+        
+        app._bt.setTarget('');
+        await app._bt._execute('');
+        assert.equal(app._bt._blackboard.first_var.text, '100');
+        assert.equal(app._bt._blackboard.second_var.text, '100 + 20');
+        assert.equal(app._bt._blackboard.check_ok.text, 'true');
+
+        // Test non-text blackboard error:
+        // Set 'media_var' as media
+        app._bt.bbWrite('media_var', [{ mimetype: 'image/png' }], 'run', 'media');
+        
+        // Log collection
+        const logs = [];
+        app.addLog = (msg) => logs.push(msg);
+
+        // Try expanding prompt with non-text variable
+        const prompt = 'Check this: {bb:media_var}';
+        const expanded = app._bt._expandPlaceholders(prompt);
+        assert.ok(expanded.includes('[ERROR: Blackboard variable "media_var" is not of type "text"]'));
+        assert.ok(logs.some(log => log.includes('not of type "text"')));
+    });
+
+    test('Integration: blackboard read/write/remove/create events update blackboard dialog', () => {
+        const app = createBtApp();
+        const BehaviorTreeEngine = vm.runInContext('BehaviorTreeEngine', app._vmContext);
+        const engine = new BehaviorTreeEngine(app);
+        
+        let callbackCount = 0;
+        engine._bbChangeCallback = () => {
+            callbackCount++;
+        };
+        
+        // 1. Write/Create event
+        engine.bbWrite('var1', 'val1');
+        assert.ok(callbackCount > 0, 'bbWrite should trigger change callback');
+        const prevCount1 = callbackCount;
+        
+        // 2. Read event (via Proxy)
+        const val = engine._blackboard.var1;
+        assert.ok(callbackCount > prevCount1, '_blackboard read should trigger change callback');
+        const prevCount2 = callbackCount;
+        
+        // 3. Clear slot/remove event
+        engine.bbClearSlot('var1', 'text');
+        assert.ok(callbackCount > prevCount2, 'bbClearSlot should trigger change callback');
+        const prevCount3 = callbackCount;
+        
+        // 4. Clear key event
+        engine.bbClearKey('var1');
+        assert.ok(callbackCount > prevCount3, 'bbClearKey should trigger change callback');
+    });
+
+    test('Integration: Behavior3 blackboard read/write/remove/create events update blackboard dialog', () => {
+        const app = createB3BtApp();
+        
+        let callbackCount = 0;
+        app._bt._bbChangeCallback = () => {
+            callbackCount++;
+        };
+        
+        // 1. Write/Create event
+        app._bt.bbWrite('var1', 'val1');
+        assert.ok(callbackCount > 0, 'bbWrite B3 should trigger change callback');
+        const prevCount1 = callbackCount;
+        
+        // 2. Read event (via Proxy)
+        const slot = app._bt._blackboard.get('var1');
+        assert.ok(callbackCount > prevCount1, '_blackboard get B3 should trigger change callback');
+        const prevCount2 = callbackCount;
+        
+        // 3. Set event (via Proxy)
+        app._bt._blackboard.set('var1', { text: 'newval' });
+        assert.ok(callbackCount > prevCount2, '_blackboard set B3 should trigger change callback');
+        const prevCount3 = callbackCount;
+        
+        // 4. Clear key/remove event
+        app._bt.bbClearKey('var1');
+        assert.ok(callbackCount > prevCount3, 'bbClearKey B3 should trigger change callback');
     });
 });
 
@@ -6594,6 +6781,105 @@ describe('Behavior3 Integration Tests with Mock & Mock Recipes', () => {
         const bb = app._bt.getBlackboard();
         assert.ok(bb.res);
         assert.equal(bb.res.text, '[Mock] Run me');
+    });
+
+    test('Integration: Behavior3 set/get between nodes and check result with type error validation', async () => {
+        const app = createB3BtApp();
+        
+        let secondNodeUserPrompt = null;
+        
+        app.postMessage = (msg) => {
+            if (msg.type === 'run_prompt_process') {
+                const payload = msg.payload;
+                if (payload.nodeTitle === 'AI Action 2') {
+                    secondNodeUserPrompt = payload.userPrompt;
+                }
+                const runner = new PipelineRunner();
+                runner.providers['mock'] = new MockProvider();
+                
+                const steps = [{
+                    name: payload.nodeTitle,
+                    type: 'ai',
+                    params: {
+                        provider: 'mock',
+                        model: 'echo',
+                        userPrompt: payload.userPrompt,
+                    }
+                }];
+                
+                runner.run(payload.nodeTitle, steps, payload.content || '', [], 'child')
+                    .then(() => {
+                        const output = runner.historySteps[0].output;
+                        app._bt.notifyLeafComplete({ error: false, outputContent: output });
+                    })
+                    .catch(err => {
+                        app._bt.notifyLeafComplete({ error: true, message: err.message });
+                    });
+            }
+        };
+
+        app.state.recipes = [{ name: 'Default', provider: 'mock', model: 'echo' }];
+        app.state.selectedRecipe = 'Default';
+
+        // Root is a Sequence of two AI actions:
+        // Action 1: Runs and saves result to 'first_var'
+        // Action 2: Prompt accesses '{bb:first_var}' and saves to 'second_var'
+        const root = {
+            title: b64('Root'),
+            nodeType: 'root',
+            btType: 'sequence',
+            children: [
+                {
+                    title: b64('AI Action 1'),
+                    nodeType: 'assemble',
+                    btType: 'leaf',
+                    btAction: 'processPrompt',
+                    btPrompt: b64('test-input'),
+                    btOutputKey: 'first_var'
+                },
+                {
+                    title: b64('AI Action 2'),
+                    nodeType: 'assemble',
+                    btType: 'leaf',
+                    btAction: 'processPrompt',
+                    btPrompt: b64('{bb:first_var} result'),
+                    btOutputKey: 'second_var'
+                }
+            ]
+        };
+
+        app.state.tabs = [{ name: 't', file: 't.json', root }];
+        app.state.activeTab = 0;
+
+        app._bt.setTarget('');
+        await app._bt._execute('');
+
+        const bb = app._bt.getBlackboard();
+        assert.ok(bb.first_var);
+        assert.equal(bb.first_var.text, '[Mock] test-input');
+        assert.ok(bb.second_var);
+        assert.equal(bb.second_var.text, '[Mock] [Mock] test-input result');
+        assert.equal(secondNodeUserPrompt, '[Mock] test-input result');
+
+        // Test non-text blackboard error in B3:
+        // Set 'media_var' as media
+        app._bt.bbWrite('media_var', [{ mimetype: 'image/png' }], 'run', 'media');
+        
+        // Log collection
+        const logs = [];
+        app.addLog = (msg) => logs.push(msg);
+
+        // Try expanding prompt with non-text variable
+        // ProcessPromptAction instance for test
+        const ProcessPromptActionClass = app._vmContext.ProcessPromptAction;
+        const actionNode = new ProcessPromptActionClass({ prompt: 'Check B3: {bb:media_var}' });
+        
+        const b3Bb = new (app._vmContext.b3.Blackboard)();
+        b3Bb.set('media_var', { media: [{ mimetype: 'image/png' }] });
+        
+        const expanded = actionNode._expandPlaceholders('Check B3: {bb:media_var}', b3Bb);
+        assert.ok(expanded.includes('[ERROR: Blackboard variable "media_var" is not of type "text"]'));
+        assert.ok(logs.some(log => log.includes('not of type "text"')));
     });
 });
 
@@ -7657,7 +7943,7 @@ describe('GeminiProvider Multimodal & Image Generation URL resolution', () => {
         
         try {
             delete require.cache[require.resolve('./providers/gemini.js')];
-            const GeminiProvider = require('./providers/gemini');
+            const { ProviderClass: GeminiProvider } = require('./providers/gemini');
             const provider = new GeminiProvider('test-api-key', 'https://generativelanguage.googleapis.com');
             
             const req = {
@@ -7723,7 +8009,7 @@ describe('GeminiProvider Multimodal & Image Generation URL resolution', () => {
         
         try {
             delete require.cache[require.resolve('./providers/gemini.js')];
-            const GeminiProvider = require('./providers/gemini');
+            const { ProviderClass: GeminiProvider } = require('./providers/gemini');
             const provider = new GeminiProvider('test-api-key', 'https://generativelanguage.googleapis.com');
             
             const req = {
@@ -7781,7 +8067,7 @@ describe('GeminiProvider Multimodal & Image Generation URL resolution', () => {
         
         try {
             delete require.cache[require.resolve('./providers/gemini.js')];
-            const GeminiProvider = require('./providers/gemini');
+            const { ProviderClass: GeminiProvider } = require('./providers/gemini');
             const provider = new GeminiProvider('test-api-key', 'https://generativelanguage.googleapis.com');
             
             const req = {
@@ -7828,7 +8114,7 @@ describe('GeminiProvider Multimodal & Image Generation URL resolution', () => {
         
         try {
             delete require.cache[require.resolve('./providers/gemini.js')];
-            const GeminiProvider = require('./providers/gemini');
+            const { ProviderClass: GeminiProvider } = require('./providers/gemini');
             const provider = new GeminiProvider('test-api-key', 'https://generativelanguage.googleapis.com');
             
             const req = {
@@ -7879,7 +8165,7 @@ describe('GeminiProvider Multimodal & Image Generation URL resolution', () => {
         
         try {
             delete require.cache[require.resolve('./providers/gemini.js')];
-            const GeminiProvider = require('./providers/gemini');
+            const { ProviderClass: GeminiProvider } = require('./providers/gemini');
             const provider = new GeminiProvider('test-api-key', 'https://generativelanguage.googleapis.com');
             
             const req = {

@@ -9,8 +9,11 @@
     "command": "",
     "useCustomApiPath": false,
     "apiPath": "/v1beta/models/{model}:generateContent",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "gemini",
+    "customParams": {},
+    "tool": [
+      "t2t"
+    ]
   },
   {
     "name": "Gemini T2I (Text-to-Image) gemini-3-pro-image",
@@ -22,8 +25,11 @@
     "command": "",
     "useCustomApiPath": false,
     "apiPath": "/v1beta/models/{model}:generateContent",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "gemini",
+    "customParams": {},
+    "tool": [
+      "t2i"
+    ]
   },
   {
     "name": "Gemini T2I Flash (Text-to-Image) gemini-3.1-flash-image",
@@ -35,8 +41,11 @@
     "command": "",
     "useCustomApiPath": false,
     "apiPath": "/v1beta/models/{model}:generateContent",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "gemini",
+    "customParams": {},
+    "tool": [
+      "t2i"
+    ]
   },
   {
     "name": "Gemini I2I (Image-to-Image) gemini-3.1-flash-image",
@@ -48,8 +57,11 @@
     "command": "",
     "useCustomApiPath": false,
     "apiPath": "/v1beta/models/{model}:generateContent",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "gemini",
+    "customParams": {},
+    "tool": [
+      "i2i"
+    ]
   },
   {
     "name": "Gemini Imagen T2I (imagen-3.1-generate-001)",
@@ -61,8 +73,11 @@
     "command": "",
     "useCustomApiPath": true,
     "apiPath": "/v1beta/models/{model}:predict",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "gemini",
+    "customParams": {},
+    "tool": [
+      "t2i"
+    ]
   },
   {
     "name": "Gemini I2I Edit (gemini-3.1-flash-image)",
@@ -74,8 +89,11 @@
     "command": "",
     "useCustomApiPath": true,
     "apiPath": "/v1/models/{model}:generateContent",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "gemini",
+    "customParams": {},
+    "tool": [
+      "i2i"
+    ]
   },
   {
     "name": "Gemini I2I Multiple Reference (gemini-3.1-flash-image)",
@@ -87,13 +105,16 @@
     "command": "",
     "useCustomApiPath": true,
     "apiPath": "/v1/models/{model}:generateContent",
-    "apiType": "simple",
+    "apiType": "gemini",
     "customParams": {
       "responseModalities": [
         "TEXT",
         "IMAGE"
       ]
-    }
+    },
+    "tool": [
+      "i2i"
+    ]
   },
   {
     "name": "Gemini Grounding (gemini-3.1-flash-image)",
@@ -105,7 +126,7 @@
     "command": "",
     "useCustomApiPath": true,
     "apiPath": "/v1/models/{model}:generateContent",
-    "apiType": "simple",
+    "apiType": "gemini",
     "customParams": {
       "tools": [
         {
@@ -116,7 +137,10 @@
         "TEXT",
         "IMAGE"
       ]
-    }
+    },
+    "tool": [
+      "t2i"
+    ]
   },
   {
     "name": "Gemini V2I (gemini-3.1-flash-image)",
@@ -128,7 +152,7 @@
     "command": "",
     "useCustomApiPath": true,
     "apiPath": "/v1/models/{model}:generateContent",
-    "apiType": "simple",
+    "apiType": "gemini",
     "customParams": {
       "file_data": {
         "file_uri": "https://www.youtube.com/watch?v=UTdfxFyOQTI"
@@ -136,7 +160,10 @@
       "video_metadata": {
         "fps": 0.5
       }
-    }
+    },
+    "tool": [
+      "v2i"
+    ]
   },
   {
     "name": "Gemini Imagen 4 T2I (imagen-4.0-generate-001)",
@@ -148,8 +175,11 @@
     "command": "",
     "useCustomApiPath": true,
     "apiPath": "/v1beta/models/{model}:predict",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "gemini",
+    "customParams": {},
+    "tool": [
+      "t2i"
+    ]
   },
   {
     "name": "Gemini T2I Flash (gemini-2.5-flash-image)",
@@ -161,13 +191,16 @@
     "command": "",
     "useCustomApiPath": true,
     "apiPath": "/v1beta/models/{model}:generateContent",
-    "apiType": "simple",
+    "apiType": "gemini",
     "customParams": {
       "responseModalities": [
         "TEXT",
         "IMAGE"
       ]
-    }
+    },
+    "tool": [
+      "t2i"
+    ]
   },
   {
     "name": "Logical calculation tester (Gemini)",
@@ -179,7 +212,10 @@
     "command": "",
     "useCustomApiPath": false,
     "apiPath": "/v1beta/models/{model}:generateContent",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "gemini",
+    "customParams": {},
+    "tool": [
+      "t2t"
+    ]
   }
 ]

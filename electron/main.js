@@ -18,6 +18,44 @@ const FRONTEND_ROOT = app.isPackaged
     : path.join(__dirname, '..', 'frontend');
 
 // ============================================================
+// Mock Server Control
+// ============================================================
+let mockServerProcess = null;
+
+function startMockServer() {
+    if (mockServerProcess) return;
+    try {
+        const serverPath = path.join(__dirname, '..', 'mock', 'server.js');
+        mockServerProcess = spawn('node', [serverPath], {
+            stdio: 'ignore',
+            detached: false
+        });
+        console.log('[Mock Server] Started mock server process');
+        
+        mockServerProcess.on('error', (err) => {
+            console.error('[Mock Server] Process error:', err.message);
+        });
+        mockServerProcess.on('exit', (code, signal) => {
+            console.log(`[Mock Server] Process exited with code ${code} and signal ${signal}`);
+            mockServerProcess = null;
+        });
+    } catch (e) {
+        console.error('[Mock Server] Failed to start mock server:', e.message);
+    }
+}
+
+function stopMockServer() {
+    if (!mockServerProcess) return;
+    try {
+        mockServerProcess.kill();
+        mockServerProcess = null;
+        console.log('[Mock Server] Stopped mock server process');
+    } catch (e) {
+        console.error('[Mock Server] Failed to stop mock server:', e.message);
+    }
+}
+
+// ============================================================
 // Paths
 // ============================================================
 function getBootstrapConfigPath() {
@@ -121,7 +159,7 @@ function generateRunId() {
 // ============================================================
 // HTTP helper
 // ============================================================
-function httpRequest(url, method, headers, body, timeoutMs = 60000) {
+function httpRequest(url, method, headers, body, timeoutMs = 120000) {
     return new Promise((resolve, reject) => {
         const u = new URL(url);
         const mod = u.protocol === 'https:' ? https : http;
@@ -297,33 +335,29 @@ module.exports = CustomSampleProvider;
 // ============================================================
 const builtinProviders = {};
 
-// Load builtin providers individually — intentional fail-safe design.
-// A single try/catch around all requires would silently disable every provider
-// if any one of them throws (e.g. missing native dep, syntax error in a new provider).
-// Per-entry try/catch ensures the remaining providers stay available.
+// Auto-discover providers by scanning ./providers/ directory.
+// Each provider file exports { ProviderClass, metadata }.
+// A single try/catch per provider ensures one failure doesn't disable others.
 const providerLoadErrors = [];
-for (const [key, file] of [
-    ['openai',       './providers/openai'],
-    ['anthropic',    './providers/anthropic'],
-    ['gemini',       './providers/gemini'],
-    ['ollama',       './providers/ollama'],
-    ['lmstudio',     './providers/lmstudio'],
-    ['opencode',     './providers/opencode'],
-    ['mock',         './providers/mock'],
-    ['mock-http',    './providers/mock-http'],
-    ['openai-image', './providers/openai-image'],
-    ['gemini-image', './providers/gemini-image'],
-    ['replicate',    './providers/replicate'],
-    ['fal-ai',       './providers/fal-ai'],
-    ['voicebox',     './providers/voicebox'],
-    ['mcp',          './providers/mcp-client'],
-]) {
-    try {
-        builtinProviders[key] = require(file);
-    } catch (e) {
-        providerLoadErrors.push(`${key}: ${e.message}`);
-        console.error(`[ProviderLoader] Failed to load provider "${key}":`, e.message);
+const _appProviderDefs = [];
+const _providersDir = path.join(__dirname, 'providers');
+try {
+    const files = fs.readdirSync(_providersDir).filter(f => f.endsWith('.js') && f !== 'utils.js');
+    for (const file of files) {
+        try {
+            const mod = require(path.join(_providersDir, file));
+            if (mod && mod.ProviderClass && mod.metadata) {
+                builtinProviders[mod.metadata.id] = mod.ProviderClass;
+                _appProviderDefs.push(mod.metadata);
+            }
+        } catch (e) {
+            const name = file.replace('.js', '');
+            providerLoadErrors.push(`${name}: ${e.message}`);
+            console.error(`[ProviderLoader] Failed to load provider "${name}":`, e.message);
+        }
     }
+} catch (e) {
+    console.error('[ProviderLoader] Failed to scan providers directory:', e.message);
 }
 console.log('[ProviderLoader] Loaded providers:', Object.keys(builtinProviders).join(', ') || '(none)');
 
@@ -362,9 +396,8 @@ function createProvider(type, apiKey, baseUrl) {
 }
 
 const providerCapabilities = (() => {
-    const list = readJson(path.join(FRONTEND_ROOT, 'defaults', 'appproviders.json'), []);
     const map = {};
-    list.forEach(p => { map[p.id] = { input: p.input, output: p.output, description: p.description, ...(p.maxOutputs ? { maxOutputs: p.maxOutputs } : {}) }; });
+    _appProviderDefs.forEach(p => { map[p.id] = { input: p.input, output: p.output, description: p.description, ...(p.maxOutputs ? { maxOutputs: p.maxOutputs } : {}) }; });
     return map;
 })();
 
@@ -400,7 +433,7 @@ function saveDefaultRecipes(recipes) {
     const general = [];
     const grouped = {};
     
-    const knownProviders = ['openai', 'gemini', 'anthropic', 'replicate', 'opencode', 'voicebox'];
+    const knownProviders = _appProviderDefs.map(p => p.id);
     for (const r of recipes) {
         const prov = (r.provider || '').toLowerCase().trim();
         if (r.type === 'ai' && prov && knownProviders.includes(prov)) {
@@ -716,7 +749,7 @@ class Storage {
         const general = [];
         const grouped = {};
         
-        const knownProviders = ['openai', 'gemini', 'anthropic', 'replicate', 'opencode', 'mock', 'mcp'];
+        const knownProviders = _appProviderDefs.map(p => p.id);
         for (const r of recipes) {
             const prov = (r.provider || '').toLowerCase().trim();
             if (r.type === 'ai' && prov && knownProviders.includes(prov)) {
@@ -1271,12 +1304,15 @@ class PipelineRunner {
     }
 
     _buildMeta() {
+        const lastStep = this.historySteps[this.historySteps.length - 1];
         const meta = {
             id: this.runId,
             pipelineName: this.pipelineName,
             startedAt: this.startedAt,
             status: 'completed',
             outputMode: this.outputMode,
+            outputContent: lastStep ? lastStep.output : '',
+            outputAttachments: lastStep ? (lastStep.artifacts || []) : [],
             steps: this.historySteps.map(s => ({
                 index: s.index, name: s.name, type: s.type,
                 input: s.input, output: s.output, status: s.status,
@@ -1657,6 +1693,7 @@ function sendFullInit() {
         projectBlackboard,
         appIconDataUrl,
         demos: listDemos(),
+        defaultProviders: _appProviderDefs,
     });
 
     postToJS('log', JSON.stringify({ message: '[TRACE] SendFullInit: init posted' }));
@@ -2287,6 +2324,47 @@ function handleBtCapabilities(method, payload, res) {
             },
             nodePathFormat: 'Number path like "1/2/3" or empty string for root',
             placeholderDepth: 'Nested placeholders not supported',
+        },
+        registeredActions: {
+            loadLocalFile: {
+                description: 'Load a file from disk into blackboard as media. File path comes from node config (btLocalFilePath) — static, set at tree-authoring time.',
+                pathSource: 'node.btLocalFilePath (node property)',
+                outputType: 'Configurable via btOutputType field (defaults to "media"). Also supports btOutputScope.',
+                fields: ['localFilePath', 'outputKey', 'outputType'],
+                example: { btAction: 'loadLocalFile', btLocalFilePath: 'audio/music.mp3', btOutputKey: 'song', btOutputType: 'media' },
+            },
+            fileToMedia: {
+                description: 'Reads a file path from the blackboard (via inputKey) and loads it as media. File path is dynamic — set at runtime by a previous node.',
+                pathSource: 'blackboard[inputKey] (text value, dynamic)',
+                outputType: 'Always stores as "media" in "run" scope. Output type is not configurable from fields.',
+                fields: ['inputKey', 'outputKey'],
+                example: { btAction: 'fileToMedia', btInputKey: 'llmOutput', btOutputKey: 'mediaResult' },
+            },
+            mediaToFile: {
+                description: 'Writes media (audio/video/image) from blackboard to a temp file on disk and stores the resulting file path in blackboard as text. Reverse of fileToMedia.',
+                fields: ['inputKey', 'outputKey'],
+                note: 'Useful when an LLM generates media content that needs to be saved to disk for downstream processing.',
+            },
+            playAudio: {
+                description: 'Plays audio media from the blackboard (inputKey must contain media with audio mimetype).',
+                fields: ['inputKey'],
+            },
+            playVideo: {
+                description: 'Plays video media from the blackboard (inputKey must contain media with video mimetype).',
+                fields: ['inputKey'],
+            },
+            math: {
+                description: 'Evaluates a JavaScript expression. Expression comes from btPrompt (node config) or blackboard prompt. Result written to btOutputKey.',
+                fields: ['prompt', 'outputKey'],
+            },
+            web: {
+                description: 'Makes HTTP requests. URL and config come from btPrompt / blackboard. Response written to btOutputKey.',
+                fields: ['prompt', 'outputKey'],
+            },
+            misc: {
+                description: 'Miscellaneous operations: clipboard copy/paste, write a static value to blackboard, etc.',
+                fields: ['prompt', 'outputKey'],
+            },
         },
         features: {
             parallelExecution: 'Multiple independent BT runs via spawn_run, map_bt, run_parallel',
@@ -3450,6 +3528,15 @@ async function handleBridgeMessage(type, payload) {
             if (payload?.theme) cfg.theme = payload.theme;
             if (payload?.customThemeColors) cfg.customThemeColors = payload.customThemeColors;
             if (payload?.logHttpHeaders !== undefined) cfg.logHttpHeaders = payload.logHttpHeaders;
+            if (payload?.startMockServer !== undefined) {
+                const wasRunning = cfg.startMockServer;
+                cfg.startMockServer = payload.startMockServer;
+                if (cfg.startMockServer && !wasRunning) {
+                    startMockServer();
+                } else if (!cfg.startMockServer && wasRunning) {
+                    stopMockServer();
+                }
+            }
             storage.saveGeneralConfig(cfg);
             break;
         }
@@ -4043,6 +4130,21 @@ Return the updated JSON configuration.`;
             });
             break;
         }
+        case 'bt_media_to_file': {
+            const { content, filename } = payload || {};
+            if (!content) {
+                postToJS('bt_media_to_file_result', { error: 'No content provided' });
+                break;
+            }
+            const mediaDir = path.join(os.tmpdir(), 'wend_export');
+            if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
+            const safeName = (filename || 'media').replace(/[^a-zA-Z0-9._-]/g, '_');
+            const outPath = path.join(mediaDir, `${Date.now()}_${safeName}`);
+            fs.writeFileSync(outPath, Buffer.from(content, 'base64'));
+            const size = fs.statSync(outPath).size;
+            postToJS('bt_media_to_file_result', { path: outPath, file: safeName, size });
+            break;
+        }
         case 'bt_http_request': {
             const { url, method = 'GET', headers = {}, body = null } = payload || {};
             if (!url) {
@@ -4521,6 +4623,7 @@ function buildMenu() {
                 { label: 'Welcome Wizard', click: send('welcome_wizard') },
                 { label: 'Reset Welcome Wizard', click: send('reset_wizard') },
                 { label: 'Setup Wizard', click: send('setup_wizard') },
+                { label: 'Sample Projects', click: send('sample_wizard') },
                 { label: 'Recipe Test...', click: send('recipe_test') },
                 { label: 'Folder Structure...', click: send('folder_help') },
                 { label: 'Documentation', click: () => shell.openExternal('https://github.com/gadget114514/Wend') },
@@ -4667,6 +4770,17 @@ ipcMain.on('bridge', (_event, msg) => {
 app.whenReady().then(() => {
     appDataPath = getAppDataPath();
     storage.init(appDataPath);
+    
+    // Start mock server if configured
+    try {
+        const savedCfg = storage.loadGeneralConfig();
+        if (savedCfg.startMockServer) {
+            startMockServer();
+        }
+    } catch (e) {
+        console.error('[Mock Server] Failed to check start config:', e.message);
+    }
+
     loadCustomProviders(appDataPath);
 
     // Ensure a default project exists and is active
@@ -4712,5 +4826,6 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+    stopMockServer();
     if (process.platform !== 'darwin') app.quit();
 });

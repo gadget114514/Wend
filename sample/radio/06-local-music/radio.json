@@ -16,6 +16,16 @@
       "btOutputKey": "music_audio"
     },
     {
+      "title": "UGxheSBNdXNpYw==",
+      "content": "",
+      "mimetype": "text/plain",
+      "attachments": [],
+      "children": [],
+      "nodeType": "assemble",
+      "btAction": "playAudio",
+      "btInputKey": "music_audio"
+    },
+    {
       "title": "RGVzY3JpYmUgTXVzaWM=",
       "content": "",
       "mimetype": "text/plain",
@@ -39,7 +49,7 @@
       "btInputKey": "music_info",
       "btInputType": "text",
       "btOutputKey": "article",
-      "btPrompt": "V3JpdGUgYSAyMDAtd29yZCByYWRpbyBESiBhcnRpY2xlIGFib3V0OiB7YmI6bXVzaWNfaW5mb30="
+      "btPrompt": "V3JpdGUgYSAxMC13b3JkIHJhZGlvIERKIGFydGljbGUgYWJvdXQ6IHtiYjptdXNpY19pbmZvfQ=="
     }
   ],
   "nodeType": "root",

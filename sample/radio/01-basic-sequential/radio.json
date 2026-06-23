@@ -26,7 +26,7 @@
       "btInputKey": "music_info",
       "btInputType": "text",
       "btOutputKey": "article",
-      "btPrompt": "V3JpdGUgYSAyMDAtd29yZCByYWRpbyBESiBhcnRpY2xlIGFib3V0IHRoZSBmb2xsb3dpbmcgbXVzaWM6IHtiYjptdXNpY19pbmZvfS4gSW5jbHVkZSBiYWNrZ3JvdW5kIGNvbnRleHQsIHdoeSBpdCBpcyB3b3J0aCBsaXN0ZW5pbmcgdG8sIGFuZCBhbiBlbmdhZ2luZyBpbnRyb2R1Y3Rpb24gZm9yIHJhZGlvIHBsYXliYWNrLg=="
+      "btPrompt": "V3JpdGUgYSAxMC13b3JkIHJhZGlvIERKIGFydGljbGUgYWJvdXQgdGhlIGZvbGxvd2luZyBtdXNpYzoge2JiOm11c2ljX2luZm99LiBJbmNsdWRlIGJhY2tncm91bmQgY29udGV4dCwgd2h5IGl0IGlzIHdvcnRoIGxpc3RlbmluZyB0bywgYW5kIGFuIGVuZ2FnaW5nIGludHJvZHVjdGlvbiBmb3IgcmFkaW8gcGxheWJhY2su"
     }
   ],
   "nodeType": "root",

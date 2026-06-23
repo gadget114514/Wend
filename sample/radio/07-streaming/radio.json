@@ -26,7 +26,7 @@
       "btInputKey": "stream_info",
       "btInputType": "text",
       "btOutputKey": "article",
-      "btPrompt": "V3JpdGUgYSAyMDAtd29yZCByYWRpbyBESiBpbnRyb2R1Y3Rpb24gZm9yIHRoZSBjdXJyZW50bHkgcGxheWluZyB0cmFjazoge2JiOnN0cmVhbV9pbmZvfQ=="
+      "btPrompt": "V3JpdGUgYSAxMC13b3JkIHJhZGlvIERKIGludHJvZHVjdGlvbiBmb3IgdGhlIGN1cnJlbnRseSBwbGF5aW5nIHRyYWNrOiB7YmI6c3RyZWFtX2luZm99"
     },
     {
       "title": "TG9nIEJyb2FkY2FzdA==",

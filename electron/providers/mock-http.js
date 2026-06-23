@@ -104,4 +104,19 @@ class MockHTTPProvider {
     }
 }
 
-module.exports = MockHTTPProvider;
+const metadata = {
+    id: 'mock-http',
+    label: 'Mock HTTP',
+    icon: '🧪',
+    defaultUrl: '',
+    defaultApiPath: '',
+    defaultFormat: 'mock-http',
+    formatLabel: 'Mock HTTP',
+    apiType: 'simple',
+    input: ['text', 'image'],
+    output: ['text', 'image'],
+    description: 'HTTP test provider',
+    defaultApiDescUrl: 'http://localhost:8765/docs'
+};
+
+module.exports = { ProviderClass: MockHTTPProvider, metadata };

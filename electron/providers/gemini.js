@@ -221,4 +221,19 @@ class GeminiProvider {
     }
 }
 
-module.exports = GeminiProvider;
+const metadata = {
+    id: 'gemini',
+    label: 'Gemini',
+    icon: '♊',
+    defaultUrl: 'https://generativelanguage.googleapis.com',
+    defaultApiPath: '/v1beta/models/{model}:generateContent',
+    defaultFormat: 'gemini',
+    formatLabel: 'Google Gemini',
+    apiType: 'simple',
+    input: ['text', 'image', 'audio', 'video'],
+    output: ['text', 'image'],
+    description: 'Text & Image generation (Gemini / Imagen)',
+    defaultApiDescUrl: 'https://generativelanguage.googleapis.com/docs'
+};
+
+module.exports = { ProviderClass: GeminiProvider, metadata };

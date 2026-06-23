@@ -12,7 +12,7 @@ function b64(str) {
     return Buffer.from(binary, 'binary').toString('base64');
 }
 
-function leafNode(title, prompt, recipe, inputKey, inputType, outputKey, btPrompt) {
+function leafNode(title, prompt, recipe, inputKey, inputType, outputKey, outputType, btPrompt) {
     const node = {
         title: b64(title),
         content: b64(prompt),
@@ -25,6 +25,7 @@ function leafNode(title, prompt, recipe, inputKey, inputType, outputKey, btPromp
     if (inputKey) node.btInputKey = inputKey;
     if (inputType) node.btInputType = inputType;
     if (outputKey) node.btOutputKey = outputKey;
+    if (outputType) node.btOutputType = outputType;
     if (btPrompt) node.btPrompt = b64(btPrompt);
     return node;
 }
@@ -40,6 +41,19 @@ function loadLocalFileNode(title, localFilePath, outputKey) {
         btAction: 'loadLocalFile',
         btLocalFilePath: localFilePath,
         btOutputKey: outputKey,
+    };
+}
+
+function playAudioNode(title, inputKey) {
+    return {
+        title: b64(title),
+        content: '',
+        mimetype: 'text/plain',
+        attachments: [],
+        children: [],
+        nodeType: 'assemble',
+        btAction: 'playAudio',
+        btInputKey: inputKey,
     };
 }
 
@@ -208,7 +222,7 @@ samples['01-basic-sequential'] = rootTree('sequence', [
     leafNode('Fetch Music Info', '', 'Radio Music Fetcher', null, null, 'music_info',
         'Search for a trending music track. Return the title, artist, genre, and a brief description of the mood and style.'),
     leafNode('Write Article', '', 'Radio Article Writer', 'music_info', 'text', 'article',
-        'Write a 200-word radio DJ article about the following music: {bb:music_info}. Include background context, why it is worth listening to, and an engaging introduction for radio playback.'),
+        'Write a 10-word radio DJ article about the following music: {bb:music_info}. Include background context, why it is worth listening to, and an engaging introduction for radio playback.'),
 ]);
 
 // 02: Parallel (Load Local MP3 -> Theme -> [Describe || Write])
@@ -220,7 +234,7 @@ samples['02-parallel'] = rootTree('sequence', [
         leafNode('Describe Music', '', 'Radio Music Fetcher', 'music_audio', 'media', 'music_info',
             'Describe the attached audio file. Identify the genre, mood, tempo, instruments, and overall style.'),
         leafNode('Write Article', '', 'Radio Article Writer', 'topic', 'text', 'article',
-            'Write a 200-word radio DJ introduction for a show with theme: {bb:topic}'),
+            'Write a 10-word radio DJ introduction for a show with theme: {bb:topic}'),
     ]),
 ]);
 
@@ -229,7 +243,7 @@ samples['03-simple-flow'] = rootTree('sequence', [
     leafNode('Fetch Music Info', '', 'Radio Music Fetcher', null, null, 'music_info',
         'Search for a trending music track. Return the title, artist, genre, and a brief description.'),
     leafNode('Write Article', '', 'Radio Article Writer', 'music_info', 'text', 'article',
-        'Write a 200-word radio DJ article about: {bb:music_info}'),
+        'Write a 10-word radio DJ article about: {bb:music_info}'),
 ]);
 
 // 04: Article Writing (Fetch -> Write)
@@ -237,7 +251,7 @@ samples['04-article-writing'] = rootTree('sequence', [
     leafNode('Fetch Music Info', '', 'Radio Music Fetcher', null, null, 'music_info',
         'Search for a trending music track. Return the title, artist, genre, and a brief description.'),
     leafNode('Write Article', '', 'Radio Article Writer', 'music_info', 'text', 'article',
-        'Write a 200-word radio DJ article about: {bb:music_info}'),
+        'Write a 10-word radio DJ article about: {bb:music_info}'),
 ]);
 
 // 05: Validate and Write (Fetch -> Validate -> Write)
@@ -247,7 +261,7 @@ samples['05-validate-and-write'] = rootTree('sequence', [
     leafNode('Validate Info', '', 'Radio Music Fetcher', 'music_info', 'text', 'music_info',
         'Validate and clean the following music information. Ensure it contains title, artist, and genre: {bb:music_info}'),
     leafNode('Write Article', '', 'Radio Article Writer', 'music_info', 'text', 'article',
-        'Write a 200-word radio DJ article about: {bb:music_info}'),
+        'Write a 10-word radio DJ article about: {bb:music_info}'),
 ]);
 
 // 06: Local Music (Load Local MP3 -> Describe -> Write)
@@ -256,7 +270,7 @@ samples['06-local-music'] = rootTree('sequence', [
     leafNode('Describe Music', '', 'Radio Music Fetcher', 'music_audio', 'media', 'music_info',
         'Describe the attached audio file. Identify the genre, mood, tempo, instruments, and overall style. Provide a concise summary suitable for a radio DJ introduction.'),
     leafNode('Write Article', '', 'Radio Article Writer', 'music_info', 'text', 'article',
-        'Write a 200-word radio DJ article about: {bb:music_info}'),
+        'Write a 10-word radio DJ article about: {bb:music_info}'),
 ]);
 
 // 07: Streaming with Log (Fetch -> Write -> Log)
@@ -264,7 +278,7 @@ samples['07-streaming'] = rootTree('sequence', [
     leafNode('Fetch Stream Info', '', 'Radio Music Fetcher', null, null, 'stream_info',
         'Simulate fetching now-playing information from an online radio stream API. Return the current track title, artist, album, and any relevant metadata.'),
     leafNode('Write Article', '', 'Radio Article Writer', 'stream_info', 'text', 'article',
-        'Write a 200-word radio DJ introduction for the currently playing track: {bb:stream_info}'),
+        'Write a 10-word radio DJ introduction for the currently playing track: {bb:stream_info}'),
     leafNode('Log Broadcast', '', 'Radio Log Writer', 'article', 'text', 'log',
         'Log this broadcast segment. Summarize what was presented: {bb:article}'),
 ]);
@@ -275,7 +289,7 @@ function trackSequence(trackNum) {
         leafNode(`Fetch Info ${trackNum}`, '', 'Radio Music Fetcher', null, null, 'music_info',
             `Search for music track #${trackNum} for a radio station playlist. Return the title, artist, genre, and a brief description.`),
         leafNode(`Write Article ${trackNum}`, '', 'Radio Article Writer', 'music_info', 'text', 'article',
-            'Write a 200-word radio DJ article about: {bb:music_info}'),
+        'Write a 5-word radio DJ article about: {bb:music_info}'),
     ]);
 }
 
@@ -285,14 +299,13 @@ samples['08-continuous-station'] = rootTree('sequence', [
     trackSequence(3),
 ]);
 
-// 09: TTS Playback (Fetch -> Write -> TTS -> Play)
+// 09: TTS Playback (Generate Article -> Text to Speech -> Play Audio)
 samples['09-tts-playback'] = rootTree('sequence', [
-    leafNode('Fetch Music Info', '', 'Radio Music Fetcher', null, null, 'music_info',
-        'Search for a trending music track. Return the title, artist, genre, and a brief description.'),
-    leafNode('Write Article', '', 'Radio Article Writer', 'music_info', 'text', 'article',
-        'Write a 200-word radio DJ article about: {bb:music_info}'),
-    leafNode('Text to Speech', '', 'Radio TTS', 'article', 'text', 'tts_audio',
+    leafNode('Generate Article', '', 'Radio Article Writer', null, null, 'article',
+        'Write a 5-word radio DJ article about a trending music track.'),
+    leafNode('Text to Speech', '', 'Radio TTS', 'article', 'text', 'tts_audio', 'media',
         'Convert the following radio DJ article to speech: {bb:article}'),
+    playAudioNode('Play Audio', 'tts_audio'),
 ]);
 
 // Output directory

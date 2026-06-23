@@ -103,4 +103,19 @@ class VoiceboxProvider {
     }
 }
 
-module.exports = VoiceboxProvider;
+const metadata = {
+    id: 'voicebox',
+    label: 'Voicebox',
+    icon: '🎵',
+    defaultUrl: 'http://127.0.0.1:17493',
+    defaultApiPath: '/speak',
+    defaultFormat: 'voicebox',
+    formatLabel: 'Voicebox TTS',
+    apiType: 'simple',
+    input: ['text'],
+    output: ['audio'],
+    description: 'Local TTS via Voicebox',
+    defaultApiDescUrl: 'http://127.0.0.1:17493/docs'
+};
+
+module.exports = { ProviderClass: VoiceboxProvider, metadata };

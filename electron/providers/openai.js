@@ -81,4 +81,19 @@ class OpenAIProvider {
     }
 }
 
-module.exports = OpenAIProvider;
+const metadata = {
+    id: 'openai',
+    label: 'OpenAI',
+    icon: '🧠',
+    defaultUrl: 'https://api.openai.com/v1',
+    defaultApiPath: '/chat/completions',
+    defaultFormat: 'openai',
+    formatLabel: 'OpenAI Chat',
+    apiType: 'simple',
+    input: ['text'],
+    output: ['text'],
+    description: 'Text generation',
+    defaultApiDescUrl: 'https://api.openai.com/docs'
+};
+
+module.exports = { ProviderClass: OpenAIProvider, metadata };

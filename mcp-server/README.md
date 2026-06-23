@@ -36,6 +36,20 @@ The Wend BT MCP Server exposes the complete Behavior Tree execution engine as MC
 
 **Total: 30 MCP tools**
 
+## BT Actions
+
+Leaf nodes use `btAction` to control behavior. Key actions:
+
+| `btAction` | Path Source | Output | Use Case |
+|---|---|---|---|
+| `loadLocalFile` | `btLocalFilePath` (node config — **static**) | Configurable `btOutputType` (default `media`) | Load a known file at tree-authoring time |
+| `fileToMedia` | `btInputKey` (blackboard — **dynamic**) | Always `media` in `run` scope | Load a file whose path was computed at runtime |
+| `mediaToFile` | `btInputKey` (blackboard media) | Text (temp file path) | Save media to disk |
+| `playAudio` | `btInputKey` (blackboard media) | — | Play audio |
+| `playVideo` | `btInputKey` (blackboard media) | — | Play video |
+
+**Load local file vs File → Media:** `loadLocalFile` reads the file path from the node's own `btLocalFilePath` property (you type it on the node). `fileToMedia` reads the path from a blackboard key — it was written by a prior node. Use `loadLocalFile` for static assets, `fileToMedia` when the path is determined at runtime (e.g., an LLM decides which file to load).
+
 ## Key Features
 
 ### Blackboard Scopes (Part 3)

@@ -1,15 +1,19 @@
 [
-    {
-        "name": "Voicebox TTS",
-        "type": "ai",
-        "provider": "voicebox",
-        "model": "kokoro",
-        "temperature": 0.7,
-        "systemPrompt": "",
-        "usecase": "tts",
-        "customParams": {
-            "profile_name": "",
-            "language": ""
-        }
+  {
+    "name": "Voicebox TTS",
+    "type": "ai",
+    "provider": "voicebox",
+    "model": "kokoro",
+    "temperature": 0.7,
+    "systemPrompt": "",
+    "usecase": "tts",
+    "apiType": "simple",
+    "tool": [
+      "tts"
+    ],
+    "customParams": {
+      "profile_name": "",
+      "language": ""
     }
+  }
 ]

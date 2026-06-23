@@ -268,4 +268,19 @@ class MCPClientProvider {
     }
 }
 
-module.exports = MCPClientProvider;
+const metadata = {
+    id: 'mcp',
+    label: 'MCP',
+    icon: '🔌',
+    defaultUrl: '',
+    defaultApiPath: '/message',
+    defaultFormat: 'mcp',
+    formatLabel: 'MCP Client',
+    apiType: 'mcp',
+    input: ['text'],
+    output: ['text', 'image', 'audio'],
+    description: 'Generic MCP Server Tool',
+    defaultApiDescUrl: 'mcp://'
+};
+
+module.exports = { ProviderClass: MCPClientProvider, metadata };

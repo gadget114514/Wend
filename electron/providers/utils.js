@@ -47,7 +47,7 @@ function tryLogHttp(info) {
     try { if (_httpLogCallback) _httpLogCallback(redacted); } catch(e) { reportError(`HTTP Log Callback Error\nOperation: tryLogHttp\nError: ${e.message}\nAction: Check HTTP log callback implementation`); }
 }
 
-function httpRequest(url, method, headers, body, timeoutMs = 60000) {
+function httpRequest(url, method, headers, body, timeoutMs = 120000) {
     return new Promise((resolve, reject) => {
         const u = new URL(url);
         const mod = u.protocol === 'https:' ? https : http;

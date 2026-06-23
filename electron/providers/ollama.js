@@ -55,4 +55,19 @@ class OllamaProvider {
     }
 }
 
-module.exports = OllamaProvider;
+const metadata = {
+    id: 'ollama',
+    label: 'Ollama',
+    icon: '🦙',
+    defaultUrl: 'http://localhost:11434',
+    defaultApiPath: '/api/generate',
+    defaultFormat: 'ollama',
+    formatLabel: 'Ollama',
+    apiType: 'simple',
+    input: ['text'],
+    output: ['text'],
+    description: 'Text generation',
+    defaultApiDescUrl: 'http://localhost:11434/docs'
+};
+
+module.exports = { ProviderClass: OllamaProvider, metadata };

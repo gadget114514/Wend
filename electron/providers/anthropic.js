@@ -83,4 +83,19 @@ class AnthropicProvider {
     }
 }
 
-module.exports = AnthropicProvider;
+const metadata = {
+    id: 'anthropic',
+    label: 'Anthropic',
+    icon: '✉️',
+    defaultUrl: 'https://api.anthropic.com',
+    defaultApiPath: '/v1/messages',
+    defaultFormat: 'anthropic',
+    formatLabel: 'Anthropic Claude',
+    apiType: 'simple',
+    input: ['text'],
+    output: ['text'],
+    description: 'Text generation',
+    defaultApiDescUrl: 'https://api.anthropic.com/docs'
+};
+
+module.exports = { ProviderClass: AnthropicProvider, metadata };

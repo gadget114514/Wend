@@ -9,8 +9,11 @@
     "command": "",
     "useCustomApiPath": false,
     "apiPath": "/chat/completions",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "openai",
+    "customParams": {},
+    "tool": [
+      "t2t"
+    ]
   },
   {
     "name": "Article Writer (GPT)",
@@ -22,8 +25,11 @@
     "command": "",
     "useCustomApiPath": false,
     "apiPath": "/chat/completions",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "openai",
+    "customParams": {},
+    "tool": [
+      "t2t"
+    ]
   },
   {
     "name": "OpenAI TTS HD",
@@ -35,8 +41,11 @@
     "command": "",
     "useCustomApiPath": false,
     "apiPath": "/chat/completions",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "openai",
+    "customParams": {},
+    "tool": [
+      "tts"
+    ]
   },
   {
     "name": "OpenAI TTS",
@@ -48,8 +57,11 @@
     "command": "",
     "useCustomApiPath": false,
     "apiPath": "/chat/completions",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "openai",
+    "customParams": {},
+    "tool": [
+      "tts"
+    ]
   },
   {
     "name": "Logical calculation tester (GPT)",
@@ -61,8 +73,11 @@
     "command": "",
     "useCustomApiPath": false,
     "apiPath": "/chat/completions",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "openai",
+    "customParams": {},
+    "tool": [
+      "t2t"
+    ]
   },
   {
     "name": "QA Content Tester (GPT)",
@@ -74,7 +89,10 @@
     "command": "",
     "useCustomApiPath": false,
     "apiPath": "/chat/completions",
-    "apiType": "simple",
-    "customParams": {}
+    "apiType": "openai",
+    "customParams": {},
+    "tool": [
+      "t2t"
+    ]
   }
 ]

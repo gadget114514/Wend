@@ -5,28 +5,15 @@
   "attachments": [],
   "children": [
     {
-      "title": "RmV0Y2ggTXVzaWMgSW5mbw==",
-      "content": "",
-      "mimetype": "text/plain",
-      "attachments": [],
-      "children": [],
-      "nodeType": "assemble",
-      "selectedRecipe": "Radio Music Fetcher",
-      "btOutputKey": "music_info",
-      "btPrompt": "U2VhcmNoIGZvciBhIHRyZW5kaW5nIG11c2ljIHRyYWNrLiBSZXR1cm4gdGhlIHRpdGxlLCBhcnRpc3QsIGdlbnJlLCBhbmQgYSBicmllZiBkZXNjcmlwdGlvbi4="
-    },
-    {
-      "title": "V3JpdGUgQXJ0aWNsZQ==",
+      "title": "R2VuZXJhdGUgQXJ0aWNsZQ==",
       "content": "",
       "mimetype": "text/plain",
       "attachments": [],
       "children": [],
       "nodeType": "assemble",
       "selectedRecipe": "Radio Article Writer",
-      "btInputKey": "music_info",
-      "btInputType": "text",
       "btOutputKey": "article",
-      "btPrompt": "V3JpdGUgYSAyMDAtd29yZCByYWRpbyBESiBhcnRpY2xlIGFib3V0OiB7YmI6bXVzaWNfaW5mb30="
+      "btPrompt": "V3JpdGUgYSA1LXdvcmQgcmFkaW8gREogYXJ0aWNsZSBhYm91dCBhIHRyZW5kaW5nIG11c2ljIHRyYWNrLg=="
     },
     {
       "title": "VGV4dCB0byBTcGVlY2g=",
@@ -40,6 +27,16 @@
       "btInputType": "text",
       "btOutputKey": "tts_audio",
       "btPrompt": "Q29udmVydCB0aGUgZm9sbG93aW5nIHJhZGlvIERKIGFydGljbGUgdG8gc3BlZWNoOiB7YmI6YXJ0aWNsZX0="
+    },
+    {
+      "title": "UGxheSBBdWRpbw==",
+      "content": "",
+      "mimetype": "text/plain",
+      "attachments": [],
+      "children": [],
+      "nodeType": "assemble",
+      "btAction": "playAudio",
+      "btInputKey": "tts_audio"
     }
   ],
   "nodeType": "root",

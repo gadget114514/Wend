@@ -10,12 +10,16 @@ class B3TreeConverter {
      * @param {String} treeId - Optional tree ID for b3 format
      * @returns {Object} behavior3js tree definition (flat with node registry)
      */
-    static wendToB3(promptsNode, treeId = 'tree-' + Date.now()) {
+    static wendToB3(promptsNode, treeId = 'tree-' + Date.now(), basePath = '') {
         const nodes = {};
         let nodeCounter = 0;
 
         const _decoNames = ['invert', 'repeater', 'retry', 'alwaysSucceed', 'alwaysFail', 'guard', 'delay', 'maxTime'];
         const _compNames = ['sequence', 'selector', 'parallel', 'memSequence', 'memSelector'];
+
+        const _fullPath = (relPath) => {
+            return basePath ? (relPath ? basePath + '/' + relPath : basePath) : relPath;
+        };
 
         const traverseAndCreateNodes = (node, path = '') => {
             const btType = node.btType || '';
@@ -65,7 +69,8 @@ class B3TreeConverter {
             }
 
             const nodeId = `n-${nodeCounter++}`;
-            const b3Node = this._promptsNodeToB3Node(node, nodeId);
+            const origPath = _fullPath(path);
+            const b3Node = this._promptsNodeToB3Node(node, nodeId, origPath);
             nodes[nodeId] = b3Node;
 
             if (node.children && node.children.length > 0) {
@@ -95,7 +100,7 @@ class B3TreeConverter {
      * Convert single Wend node to b3 node definition
      * @private
      */
-    static _promptsNodeToB3Node(promptsNode, nodeId) {
+    static _promptsNodeToB3Node(promptsNode, nodeId, origPath = '') {
         const btType = promptsNode.btType || 'leaf';
 
         // Determine node type name
@@ -115,6 +120,9 @@ class B3TreeConverter {
         // Map Wend properties to b3 properties
         const properties = {};
 
+        // Store original tree path for result routing
+        if (origPath) properties._origPath = origPath;
+
         if (nodeName === 'ProcessPromptAction') {
             properties.prompt = promptsNode.btPrompt
                 ? this._decodeBase64(promptsNode.btPrompt)
@@ -122,9 +130,11 @@ class B3TreeConverter {
             if (promptsNode.btInputKey) properties.inputKey = promptsNode.btInputKey;
             if (promptsNode.btInputType) properties.inputType = promptsNode.btInputType;
             if (promptsNode.btOutputKey) properties.outputKey = promptsNode.btOutputKey;
+            if (promptsNode.btOutputType) properties.outputType = promptsNode.btOutputType;
         } else if (nodeName === 'LoadLocalFileAction') {
             if (promptsNode.btLocalFilePath) properties.filePath = promptsNode.btLocalFilePath;
             if (promptsNode.btOutputKey) properties.outputKey = promptsNode.btOutputKey;
+            if (promptsNode.btOutputType) properties.outputType = promptsNode.btOutputType;
         } else if (nodeName.startsWith('Repeat')) {
             // Pre-composed decorator+composite: inherit repeater configuration
             if (promptsNode.btRepeatCount) {
@@ -241,6 +251,9 @@ class B3TreeConverter {
                 }
                 if (b3Node.properties.outputKey) {
                     promptsNode.btOutputKey = b3Node.properties.outputKey;
+                }
+                if (b3Node.properties.outputType) {
+                    promptsNode.btOutputType = b3Node.properties.outputType;
                 }
                 if (b3Node.properties.filePath) {
                     promptsNode.btLocalFilePath = b3Node.properties.filePath;

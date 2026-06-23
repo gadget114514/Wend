@@ -311,6 +311,25 @@ Decorators can be chained with `+`: e.g. `btType: "invert+retry+sequence"` means
 | `leaf_misc` | Miscellaneous operations: write a value to the blackboard, copy/paste clipboard text. |
 | `leaf_next` | **FSM state transition.** Writes the target state to the project blackboard (`fsm.<name>`) and immediately starts the tab whose name matches `btFsmState`. Fire-and-forget — always returns success. |
 
+### `btAction` — explicit action dispatch
+
+Leaf nodes can set `btAction` to override the default `btType`-based behavior. When `btAction` is specified (and matches a registered action), it takes priority over the legacy `btType` mapping.
+
+| `btAction` | Source of input | Writes to | Description |
+|---|---|---|---|
+| `loadLocalFile` | `btLocalFilePath` (node property, **static**) | `btOutputKey` as `btOutputType` (default `media`) | Load a file from a known path. Path is set when authoring the tree. |
+| `fileToMedia` | `btInputKey` (blackboard, **dynamic**) | `btOutputKey` as `media` | Load a file whose path was produced at runtime by another node. |
+| `mediaToFile` | `btInputKey` (blackboard media) | `btOutputKey` as `text` (temp file path) | Save blackboard media to disk; stores the resulting file path. |
+| `playAudio` | `btInputKey` (blackboard media) | — | Play audio from blackboard media content. |
+| `playVideo` | `btInputKey` (blackboard media) | — | Play video from blackboard media content. |
+| `math` | `btPrompt` (expression) | `btOutputKey` | Evaluate a JavaScript expression. |
+| `web` | `btPrompt` (HTTP config) | `btOutputKey` | Make an HTTP request. |
+| `misc` | `btPrompt` / `btInputKey` | `btOutputKey` | Clipboard copy/paste, write to blackboard, etc. |
+
+**Key distinction between `loadLocalFile` and `fileToMedia`:**
+- `loadLocalFile` gets the file path from the node's own `btLocalFilePath` — you type the path directly on the node. Output type is configurable via `btOutputType`.
+- `fileToMedia` reads the file path from the blackboard key named by `btInputKey` — the path was written there by a previous node at runtime. Output is always `media` in `run` scope.
+
 #### `leaf_next` properties
 
 | Property | Default | Description |
