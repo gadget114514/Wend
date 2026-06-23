@@ -424,8 +424,25 @@ const app = {
                 } else {
                     this.state.collapsedPaths = new Set();
                 }
+                // Reset per-project selection/run state so the output pane does not
+                // carry over the previous project's node selection or run results.
+                this.state.activeTab = 0;
+                this.state.currentNode = null;
+                this.state.currentNodePath = '';
+                this.state.selectedOpPath = '';
+                this.state.selectedDataPath = '';
+                this.state.selectedDataPaths = [];
+                this.state.selectedDescendantLeafPath = '';
+                this.state.currentRunId = '';
+                this.state.pipelineRun = { running: false, steps: [], selectedStep: -1 };
+                this.state.navHistory = [];
+                this.state.navFuture = [];
+                if (this._bt) this._bt.setTarget('');
                 this.renderTabs();
                 this.renderTree();
+                this.renderInput();
+                this.renderPrompt();
+                this.renderOutput();
                 this.outputMessage(`📁 Switched to project: ${msg.payload.projectName}`);
                 break;
             case 'setup_demo_result': {
