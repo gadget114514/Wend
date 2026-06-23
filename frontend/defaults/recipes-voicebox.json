@@ -14,6 +14,9 @@
     "customParams": {
       "profile_name": "",
       "language": ""
-    }
+    },
+    "verified": true,
+    "verifiedAt": 1782221794638,
+    "verifiedModel": "kokoro"
   }
 ]

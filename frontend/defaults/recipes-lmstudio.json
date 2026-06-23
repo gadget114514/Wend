@@ -9,7 +9,10 @@
     "apiType": "openai",
     "tool": [
       "t2t"
-    ]
+    ],
+    "verified": true,
+    "verifiedAt": 1782221879035,
+    "verifiedModel": "llama-3.2-8b-instruct"
   },
   {
     "name": "LM Studio - Summarize",
@@ -71,7 +74,10 @@
     "tool": [
       "t2t",
       "translate"
-    ]
+    ],
+    "verified": true,
+    "verifiedAt": 1782221911557,
+    "verifiedModel": "google/gemma-4-e4b"
   },
   {
     "name": "LM Studio - Llama 3.1 8B Chat",

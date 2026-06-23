@@ -1,4 +1,8 @@
 ﻿{
+ "TestRecipeBtn": "Tester",
+ "RecipeVerified": "Vérifié",
+ "RecipeUnverified": "Non vérifié",
+ "RecipeVerifiedOldModel": "Vérifié (ancien modèle)",
  "AppName": "Wend",
  "VideoGen": "Video Generation (T2V)",
  "VideoGenDesc": "Generate a short video clip from a text prompt",

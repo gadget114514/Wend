@@ -13,7 +13,10 @@
     "customParams": {},
     "tool": [
       "t2t"
-    ]
+    ],
+    "verified": true,
+    "verifiedAt": 1782221863363,
+    "verifiedModel": "gemini-3.1-pro-preview"
   },
   {
     "name": "Gemini T2I (Text-to-Image) gemini-3-pro-image",

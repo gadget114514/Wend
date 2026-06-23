@@ -1,4 +1,8 @@
 {
+  "TestRecipeBtn": "Test",
+  "RecipeVerified": "Verified",
+  "RecipeUnverified": "Unverified",
+  "RecipeVerifiedOldModel": "Verified (old model)",
   "AppName": "Wend",
   "New": "New",
   "Open": "Open",

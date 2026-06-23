@@ -1,4 +1,8 @@
 {
+  "TestRecipeBtn": "テスト",
+  "RecipeVerified": "検証済み",
+  "RecipeUnverified": "未検証",
+  "RecipeVerifiedOldModel": "検証済み(旧モデル)",
   "AppName": "Wend",
   "New": "新規",
   "Open": "開く",

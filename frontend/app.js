@@ -2534,7 +2534,6 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     _renderRecipeCard(r, i, isFirstInFilter, isLastInFilter) {
         const typeIcon = r.type === 'command' ? '⚙️' : '🤖';
-        const verifiedBadge = r.verified ? `<span style="color:#4caf50;font-size:10px;margin-left:6px" title="Verified">✅</span>` : '';
         let detail = '';
         if (r.type === 'command') {
             detail = `<span class="recipe-mgr-item-detail-text">⚙️ ${this.escapeHtml(r.command || '')}</span>`;
@@ -2544,22 +2543,43 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             const pathInfo = (r.useCustomApiPath && r.apiPath) ? ` [${this.escapeHtml(r.apiPath)}]` : '';
             detail = `<span class="recipe-mgr-item-detail-text">${this.escapeHtml(r.provider)}${r.model ? ' / ' + this.escapeHtml(r.model) : ''}${urlInfo}${pathInfo}${capBadge}</span>`;
         }
+
+        // Verified badge (AI recipes only — command recipes have no test path).
+        let verifiedBadge = '';
+        if (r.type !== 'command') {
+            if (r.verified && r.verifiedModel && r.model && r.verifiedModel !== r.model) {
+                verifiedBadge = `<span class="recipe-verified-badge verified-warn" title="${this.escapeHtml(r.verifiedModel)}">⚠ ${this.t('RecipeVerifiedOldModel')}</span>`;
+            } else if (r.verified) {
+                verifiedBadge = `<span class="recipe-verified-badge verified-ok">✓ ${this.t('RecipeVerified')}</span>`;
+            } else {
+                verifiedBadge = `<span class="recipe-verified-badge verified-none">${this.t('RecipeUnverified')}</span>`;
+            }
+        }
+
+        // Inline test button + result panel (AI recipes only).
+        const testBtn = r.type === 'command' ? '' :
+            `<button class="recipe-btn" id="rm-test-btn-${i}" onclick="app.runRecipeTestForCard(${i})">▶ ${this.t('TestRecipeBtn')}</button>`;
+        const resultPanel = r.type === 'command' ? '' :
+            `<div id="rm-test-result-${i}" class="rt-result"></div>`;
+
         return `
             <div class="recipe-mgr-item">
                 <div class="recipe-mgr-item-header">
-                    <span class="recipe-mgr-item-name">${typeIcon} ${this.escapeHtml(r.name)}${verifiedBadge}</span>
+                    <span class="recipe-mgr-item-name">${typeIcon} ${this.escapeHtml(r.name)}</span>
+                    ${verifiedBadge}
                     <span class="recipe-mgr-item-type-badge ${r.type === 'command' ? 'type-command' : 'type-ai'}">${r.type === 'command' ? '⚙️ CMD' : '🤖 AI'}</span>
                 </div>
                 <div class="recipe-mgr-item-detail">${detail}</div>
                 <div class="recipe-mgr-item-actions">
+                    ${testBtn}
                     <button class="recipe-btn" onclick="app.editRecipe(${i})">✏️ Edit</button>
-                    <button class="recipe-btn" onclick="app.testRecipeFromManager('${this.escapeHtml(r.name)}')">✅ Test</button>
                     <button class="recipe-btn recipe-btn-danger" onclick="app.deleteRecipe(${i});app.renderRecipeManager()">🗑 Delete</button>
                     <span class="recipe-mgr-item-reorder">
                         <button class="recipe-btn recipe-btn-sm" onclick="app.moveRecipeUp(${i});app.renderRecipeManager()" ${isFirstInFilter ? 'disabled' : ''}>▲</button>
                         <button class="recipe-btn recipe-btn-sm" onclick="app.moveRecipeDown(${i});app.renderRecipeManager()" ${isLastInFilter ? 'disabled' : ''}>▼</button>
                     </span>
                 </div>
+                ${resultPanel}
             </div>`;
     },
 
@@ -2856,6 +2876,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             }
             this.saveCurrentTab();
         }
+        // Config is changing → any prior verification is no longer trustworthy.
+        recipe.verified = false;
+        recipe.verifiedAt = 0;
+        recipe.verifiedModel = '';
         if (recipe.type === 'command') {
             recipe.command = document.getElementById('edit-command')?.value?.trim() || '';
             recipe.options = document.getElementById('edit-cmd-options')?.value?.trim() || '';
@@ -3921,7 +3945,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             case 'reset_wizard':    this.resetWizard(); break;
             case 'setup_wizard':    this.showSetupWizard(); break;
             case 'sample_wizard':   this.showSampleWizard(); break;
-            case 'recipe_test':     this.showRecipeTest(); break;
+            case 'recipe_test':     this.showRecipeManager(); break;
             default: this.outputMessage('⚠ ' + this.t('UnknownMenuCommand').replace('{action}', cmd.action));
         }
     },
@@ -7320,7 +7344,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             reset_wizard:     () => this.resetWizard(),
             setup_wizard:     () => this.showSetupWizard(),
             sample_wizard:    () => this.showSampleWizard(),
-            recipe_test:      () => this.showRecipeTest(),
+            recipe_test:      () => this.showRecipeManager(),
             add_child:        () => this.addChild(),
             remove_node:      () => this.removeNode(),
             settings:         () => this.showSettings(),
@@ -9689,74 +9713,31 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     rt_: { requests: {} },
 
-    showRecipeTest(preselectRecipeName) {
-        const modal = document.getElementById('recipe-test-modal');
-        if (!modal) { this.outputMessage('⚠ recipe-test-modal not found in DOM'); return; }
-        this.rt_ = { requests: {}, preselect: preselectRecipeName || null };
-        modal.classList.add('visible');
-        this.rtRender();
-    },
-
-    closeRecipeTest() {
-        const modal = document.getElementById('recipe-test-modal');
-        if (modal) modal.classList.remove('visible');
-        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-    },
-
-    testRecipeFromManager(recipeName) {
-        this.showRecipeTest(recipeName);
-    },
-
-    // Recipes (excluding command/CLI recipes) matching the given modality target.
-    rtRecipesFor(target) {
-        return (this.state.recipes || []).filter(r =>
-            r.type !== 'command' && this._classifyRecipeUsecase(r) === target);
-    },
-
-    rtRender() {
-        const body = document.getElementById('rt-body');
-        if (!body) return;
-        body.innerHTML = this.RT_MODALITIES.map(m => {
-            const recipes = this.rtRecipesFor(m.target);
-            const has = recipes.length > 0;
-            const sample = this.t(m.sampleKey);
-            const options = recipes.map(r => {
-                const optSel = r.name === this.rt_.preselect ? 'selected' : '';
-                return `<option value="${this.escapeHtml(r.name)}" ${optSel}>${this.escapeHtml(r.name)} — ${this.escapeHtml(r.provider || '')} / ${this.escapeHtml(r.model || '')}</option>`;
-            }).join('');
-            return `
-            <div class="rt-section" data-usecase="${m.usecase}">
-                <div class="rt-section-head">${m.icon} ${this.t(m.labelKey)}</div>
-                ${has ? `
-                <div class="rt-row">
-                    <select id="rt-recipe-${m.usecase}" class="recipe-select" style="flex:1">${options}</select>
-                    <button id="rt-run-${m.usecase}" class="btn-primary" onclick="app.runRecipeTest('${m.usecase}')">▶ ${this.t('RtRun')}</button>
-                </div>
-                <textarea id="rt-prompt-${m.usecase}" class="sw-textarea rt-prompt">${this.escapeHtml(sample)}</textarea>
-                <div id="rt-result-${m.usecase}" class="rt-result"></div>
-                ` : `<div class="sw-hint">⚠ ${this.t('RtNoRecipe')}</div>`}
-            </div>`;
-        }).join('');
-    },
-
-    runRecipeTest(usecase) {
-        const selEl = document.getElementById('rt-recipe-' + usecase);
-        const promptEl = document.getElementById('rt-prompt-' + usecase);
-        const runBtn = document.getElementById('rt-run-' + usecase);
-        const resultEl = document.getElementById('rt-result-' + usecase);
-        if (!selEl) return;
-        const recipe = (this.state.recipes || []).find(r => r.name === selEl.value);
+    // Run a single recipe inline from its Recipe Manager card. `i` is the
+    // index into state.recipes (matches the card's other index-based handlers).
+    // Command/CLI recipes have no test_recipe path and are skipped.
+    runRecipeTestForCard(i) {
+        const recipe = (this.state.recipes || [])[i];
         if (!recipe) { this.outputMessage('⚠ ' + this.t('RtNoRecipe')); return; }
+        if (recipe.type === 'command') return;
+
+        const runBtn = document.getElementById('rm-test-btn-' + i);
+        const resultEl = document.getElementById('rm-test-result-' + i);
+
+        // Derive a sample prompt from the recipe's classified usecase.
+        const target = this._classifyRecipeUsecase(recipe);
+        const modality = this.RT_MODALITIES.find(m => m.target === target);
+        const sample = this.t(modality ? modality.sampleKey : 'RtSampleT2T');
 
         const requestId = 'rt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-        this.rt_.requests[requestId] = usecase;
+        this.rt_.requests[requestId] = recipe.name;
 
         const payload = {
             requestId,
             provider: recipe.provider || 'openai',
             model: recipe.model || '',
             systemPrompt: recipe.systemPrompt || '',
-            userPrompt: promptEl ? promptEl.value : '',
+            userPrompt: sample,
             temperature: recipe.temperature ?? 0.7,
             maxTokens: recipe.maxTokens || '',
             baseUrl: recipe.baseUrl || '',
@@ -9766,37 +9747,38 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
         if (runBtn) { runBtn.disabled = true; runBtn.textContent = '⏳ ' + this.t('RtRunning'); }
         if (resultEl) resultEl.innerHTML = `<div class="rt-running">⏳ ${this.t('RtRunning')}</div>`;
-        this.outputMessage(`🧪 ${this.t('RtRun')}: ${recipe.name} (${usecase})`);
+        this.outputMessage(`🧪 ${this.t('RtRun')}: ${recipe.name}`);
         this.postMessage({ type: 'test_recipe', payload });
+    },
+
+    // Mark a recipe as verified (test passed), persist to its source array,
+    // and re-render the manager so the badge updates.
+    _markRecipeVerified(recipe) {
+        recipe.verified = true;
+        recipe.verifiedAt = Date.now();
+        recipe.verifiedModel = recipe.model || '';
+        const inDefaults = (this.state.defaultRecipes || []).indexOf(recipe) >= 0;
+        if (inDefaults) this.saveDefaultRecipes(); else this.saveProjectRecipes();
+        this.renderRecipeManager();
+        this.outputMessage(`✓ ${this.t('RecipeVerified')}: ${recipe.name}`);
     },
 
     onTestRecipeResult(payload) {
         if (!payload) return;
-        const usecase = this.rt_.requests[payload.requestId];
-        if (!usecase) return;
+        const recipeName = this.rt_.requests[payload.requestId];
+        if (!recipeName) return;
         delete this.rt_.requests[payload.requestId];
 
-        const runBtn = document.getElementById('rt-run-' + usecase);
-        const resultEl = document.getElementById('rt-result-' + usecase);
-        if (runBtn) { runBtn.disabled = false; runBtn.textContent = '▶ ' + this.t('RtRun'); }
-        if (!resultEl) return;
+        const recipes = this.state.recipes || [];
+        const recipe = recipes.find(r => r.name === recipeName);
+        const i = recipes.indexOf(recipe);
 
         if (!payload.success) {
-            resultEl.innerHTML = `<div class="rt-error">❌ ${this.escapeHtml(payload.error || 'Unknown error')}</div>`;
+            const runBtn = document.getElementById('rm-test-btn-' + i);
+            const resultEl = document.getElementById('rm-test-result-' + i);
+            if (runBtn) { runBtn.disabled = false; runBtn.textContent = '▶ ' + this.t('TestRecipeBtn'); }
+            if (resultEl) resultEl.innerHTML = `<div class="rt-error">❌ ${this.escapeHtml(payload.error || 'Unknown error')}</div>`;
             return;
-        }
-
-        // Mark recipe as verified on success
-        const selEl = document.getElementById('rt-recipe-' + usecase);
-        if (selEl) {
-            const recipeName = selEl.value;
-            let recipe = this.state.projectRecipes.find(r => r.name === recipeName);
-            if (recipe) {
-                if (!recipe.verified) { recipe.verified = true; this.saveProjectRecipes(); }
-            } else {
-                recipe = this.state.defaultRecipes.find(r => r.name === recipeName);
-                if (recipe && !recipe.verified) { recipe.verified = true; this.saveDefaultRecipes(); }
-            }
         }
 
         let html = '';
@@ -9819,7 +9801,12 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
         if (!html) html = `<div class="rt-running">✅ ${this.t('RtDone')}</div>`;
         else html = `<div class="rt-ok">✅ ${this.t('RtDone')}</div>` + html;
-        resultEl.innerHTML = html;
+
+        // Success → mark verified (re-renders the manager), then re-inject the
+        // result HTML into the freshly-rendered card so the output stays visible.
+        if (recipe) this._markRecipeVerified(recipe);
+        const finalResultEl = document.getElementById('rm-test-result-' + recipes.indexOf(recipe));
+        if (finalResultEl) finalResultEl.innerHTML = html;
     },
 
     // ── Setup Wizard ──────────────────────────────────────────────
@@ -10032,7 +10019,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 </div>
                 <div class="sw-hint" style="margin-top:12px">
                     🧪 ${this.t('SwTestHint')}
-                    <button class="sw-test-link" onclick="app.showRecipeTest()">${this.t('RecipeTestTitle')} →</button>
+                    <button class="sw-test-link" onclick="app.showRecipeManager()">${this.t('RecipeTestTitle')} →</button>
                 </div>`;
             nextBtn.textContent = '🚀 ' + this.t('Create');
             nextBtn.onclick = () => this.swCreate();
