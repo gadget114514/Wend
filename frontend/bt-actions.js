@@ -107,6 +107,13 @@
                     container.remove();
                 });
 
+                // Logs each time playback actually begins (not just when
+                // playAudio is invoked) — two of these for one run means
+                // overlapping playback (the "reverb"/echo).
+                audio.onplay = () => {
+                    app.outputMessage(`▶️ Audio playback started for "${inputKey}" (${safeId})`);
+                };
+
                 audio.onended = () => {
                     app.outputMessage(`🔊 Play Audio: Finished playback from "${inputKey}"`);
                     audio.remove();

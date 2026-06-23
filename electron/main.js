@@ -1046,13 +1046,33 @@ class PipelineRunner {
             userPrompt = userPrompt.replace(/\{content\}/g, this.inputContent)
                                    .replace(/\{result\}/g, this._currentContent());
 
+            // Provider-capability filter: feed only the input modalities the
+            // provider declares it supports (provider metadata `input`). This
+            // lets nodes hand over everything (text+audio+video) while each
+            // provider consumes what it can and the rest is dropped with a log.
+            let reqAttachments = this.inputAttachments || [];
+            const inputCaps = providerCapabilities[providerName]?.input;
+            if (Array.isArray(inputCaps) && reqAttachments.length > 0) {
+                const before = reqAttachments.length;
+                reqAttachments = reqAttachments.filter(a => {
+                    const m = a.mimetype || '';
+                    const mod = m.startsWith('image/') ? 'image'
+                        : m.startsWith('audio/') ? 'audio'
+                        : m.startsWith('video/') ? 'video' : 'text';
+                    return mod === 'text' || inputCaps.includes(mod);
+                });
+                if (reqAttachments.length < before) {
+                    postToJS('log', JSON.stringify({ message: `[Backend] ${providerName}: dropped ${before - reqAttachments.length} attachment(s) — unsupported input (accepts: ${inputCaps.join(', ')})` }));
+                }
+            }
+
             const req = {
                 model: step.params?.model || 'gpt-4.1',
                 systemPrompt: step.params?.systemPrompt || '',
                 userPrompt,
                 temperature: parseFloat(step.params?.temperature || '0.7'),
                 maxTokens: parseInt(step.params?.maxTokens || '4096'),
-                attachments: this.inputAttachments || [],
+                attachments: reqAttachments,
                 apiPath: step.params?.apiPath || '',
                 customParams: step.params?.customParams || {},
             };
@@ -1063,6 +1083,9 @@ class PipelineRunner {
                 this.historySteps[idx].status = 'completed';
                 if (resp.outputAttachments && resp.outputAttachments.length > 0) {
                     this.historySteps[idx].artifacts = resp.outputAttachments;
+                }
+                if (resp.reasoning) {
+                    this.historySteps[idx].reasoning = resp.reasoning;
                 }
                 if (resp.requestUrl) {
                     this.historySteps[idx].requestUrl = resp.requestUrl;
@@ -1313,9 +1336,13 @@ class PipelineRunner {
             outputMode: this.outputMode,
             outputContent: lastStep ? lastStep.output : '',
             outputAttachments: lastStep ? (lastStep.artifacts || []) : [],
+            // AI comment = the model's internal reasoning; carried separately so
+            // the frontend can show it without treating it as output.
+            reasoning: lastStep ? (lastStep.reasoning || '') : '',
             steps: this.historySteps.map(s => ({
                 index: s.index, name: s.name, type: s.type,
                 input: s.input, output: s.output, status: s.status,
+                reasoning: s.reasoning || '',
                 promptTokens: s.promptTokens, completionTokens: s.completionTokens,
                 parallelBranches: s.parallelBranches,
                 requestUrl: s.requestUrl,

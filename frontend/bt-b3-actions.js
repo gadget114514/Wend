@@ -42,16 +42,19 @@ class ProcessPromptAction extends b3.Action {
         console.log(`[ProcessPromptAction] FIRST TICK: Initiating prompt execution`);
         blackboard.set(executionKey, true);
 
-        // Get input from blackboard if specified
+        // Get input from blackboard if specified. Input modality is auto-
+        // detected from what the slot holds: media (audio/image/video) is fed
+        // as media, otherwise text. An explicit inputType still forces one.
         const inputKey = this.properties?.inputKey;
-        const inputType = this.properties?.inputType || 'text';
-        let inputValue = null;
+        const forcedType = this.properties?.inputType;
+        let bbTextInput = null, bbMediaInput = null;
 
         if (inputKey) {
             const slot = blackboard.get(inputKey);
             if (slot) {
-                inputValue = inputType === 'media' ? slot.media : slot.text;
-                console.log(`[ProcessPromptAction] Got input from "${inputKey}": ${inputType}=${typeof inputValue}`);
+                if (forcedType !== 'text' && slot.media && slot.media.length) bbMediaInput = slot.media;
+                if (forcedType !== 'media') bbTextInput = slot.text;
+                console.log(`[ProcessPromptAction] Input "${inputKey}": media=${!!bbMediaInput}, text=${bbTextInput != null}`);
             }
         }
 
@@ -70,8 +73,8 @@ class ProcessPromptAction extends b3.Action {
         if (window.app) {
             window.app.state.btRunContext = {
                 prompt: resolvedPrompt,
-                bbTextInput: inputType === 'text' ? inputValue : null,
-                bbMediaInput: inputType === 'media' ? inputValue : null,
+                bbTextInput,
+                bbMediaInput,
                 outputKey: outputKey || null,
                 outputType: outputType,
                 btActionNodeId: nodeId,
@@ -112,6 +115,11 @@ class ProcessPromptAction extends b3.Action {
                 const slot = blackboard.get(k);
                 const d = slot ? slot.data : null;
                 return d != null ? JSON.stringify(d) : '';
+            })
+            .replace(/\{bb:([^}:]+):reasoning\}/g, (_, k) => {
+                const slot = blackboard.get(k);
+                const r = slot ? slot.reasoning : null;
+                return r != null ? r : '';
             })
             .replace(/\{bb:([^}]+)\}/g, (_, k) => {
                 const slot = blackboard.get(k);

@@ -1030,15 +1030,34 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         // If not handled by BT (e.g. manual execution in UI), and it's an assemble node with outputKey:
         if (!handledByBt && opNode && opNode.nodeType === 'assemble' && opNode.btOutputKey) {
             const outputKey = opNode.btOutputKey;
-            const outputType = opNode.btOutputType || 'text';
+            let outputType = opNode.btOutputType || 'text';
+            // Auto-derive audio (t2a) from the recipe usecase (see _runAI).
+            if (outputType === 'text' && opNode.selectedRecipe) {
+                const rec = (this.state.recipes || []).find(r => r.name === opNode.selectedRecipe);
+                if (rec && this._classifyRecipeUsecase(rec) === 'Text-to-Audio (T2A)') outputType = 't2a';
+            }
             const outputScope = opNode.btOutputScope || 'run';
             if (!meta.error && this._bt) {
-                if (meta.outputContent != null) {
-                    this._bt.bbWrite(outputKey, meta.outputContent, outputScope, outputType);
-                }
                 const outMedia = Array.isArray(meta.outputAttachments) ? meta.outputAttachments : [];
-                if (outMedia.length > 0) {
-                    this._bt.bbWrite(outputKey, outMedia, outputScope, 'media');
+                if (outputType === 't2a' || outputType === 'media') {
+                    // Audio/media output (t2a): store media only, no text dual-write.
+                    if (outMedia.length > 0) {
+                        this._bt.bbWrite(outputKey, outMedia, outputScope, 'media');
+                    } else if (meta.outputContent != null) {
+                        this._bt.bbWrite(outputKey, meta.outputContent, outputScope, 'text');
+                    }
+                } else {
+                    if (meta.outputContent != null) {
+                        this._bt.bbWrite(outputKey, meta.outputContent, outputScope, outputType);
+                    }
+                    if (outMedia.length > 0) {
+                        this._bt.bbWrite(outputKey, outMedia, outputScope, 'media');
+                    }
+                }
+                // Reasoning is a separate channel: stored on the slot's
+                // .reasoning sub-field, referenceable via {bb:key:reasoning}.
+                if (meta.reasoning) {
+                    this._bt.bbWrite(outputKey, meta.reasoning, outputScope, 'reasoning');
                 }
             }
         }
@@ -1942,8 +1961,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             'i2i-multiref': 'Image-to-Image (Multi-Ref)',
             'grounding': 'Grounding / Search',
             'v2i': 'Video understanding to Image (V2I)',
-            'tts': 'Text-to-Speech (TTS)',
-            'music': 'Audio / Music Gen',
+            // Text-to-Audio (T2A) is canonical; 'tts' and 'music' are aliases.
+            't2a': 'Text-to-Audio (T2A)',
+            'tts': 'Text-to-Audio (T2A)',
+            'music': 'Text-to-Audio (T2A)',
             'others': 'Others'
         };
         if (recipe.usecase && usecaseMap[recipe.usecase]) {
@@ -1983,14 +2004,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             return 'Text-to-Image (T2I)';
         }
 
-        // TTS / Audio
-        if (name.includes('tts') || name.includes('text-to-speech') || name.includes('audio') || model.includes('tts')) {
-            return 'Text-to-Speech (TTS)';
-        }
-        
-        // Music Gen
-        if (name.includes('music') || name.includes('sound') || model.includes('musicgen')) {
-            return 'Audio / Music Gen';
+        // Text-to-Audio (T2A): TTS, speech, and music/sound generation
+        if (name.includes('t2a') || name.includes('tts') || name.includes('text-to-speech') || name.includes('audio') || model.includes('tts') ||
+            name.includes('music') || name.includes('sound') || model.includes('musicgen')) {
+            return 'Text-to-Audio (T2A)';
         }
 
         // Default to T2T
@@ -2105,8 +2122,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             'Image-to-Image (Multi-Ref)',
             'Grounding / Search',
             'Video understanding to Image (V2I)',
-            'Text-to-Speech (TTS)',
-            'Audio / Music Gen',
+            'Text-to-Audio (T2A)',
             'Command / CLI',
             'Others'
         ];
@@ -2475,8 +2491,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             'Image-to-Image (Multi-Ref)',
             'Grounding / Search',
             'Video understanding to Image (V2I)',
-            'Text-to-Speech (TTS)',
-            'Audio / Music Gen',
+            'Text-to-Audio (T2A)',
             'Command / CLI',
             'Others'
         ];
@@ -2625,8 +2640,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                             <option value="i2i-multiref" ${r.usecase === 'i2i-multiref' ? 'selected' : ''}>🖼️🎨 Multi-Ref Image-to-Image</option>
                             <option value="grounding" ${r.usecase === 'grounding' ? 'selected' : ''}>🔍 Grounding / Search</option>
                             <option value="v2i" ${r.usecase === 'v2i' ? 'selected' : ''}>🎬 Video-to-Image (V2I)</option>
-                            <option value="tts" ${r.usecase === 'tts' ? 'selected' : ''}>🎵 Text-to-Speech (TTS)</option>
-                            <option value="music" ${r.usecase === 'music' ? 'selected' : ''}>🎶 Audio / Music Gen</option>
+                            <option value="t2a" ${(r.usecase === 't2a' || r.usecase === 'tts' || r.usecase === 'music') ? 'selected' : ''}>🎵 Text-to-Audio (T2A)</option>
                             <option value="others" ${r.usecase === 'others' ? 'selected' : ''}>📦 Others</option>
                         </select>
                     </label>
@@ -2709,8 +2723,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                                 <option value="i2i-multiref">🖼️🎨 Multi-Ref Image-to-Image</option>
                                 <option value="grounding">🔍 Grounding / Search</option>
                                 <option value="v2i">🎬 Video-to-Image (V2I)</option>
-                                <option value="tts">🎵 Text-to-Speech (TTS)</option>
-                                <option value="music">🎶 Audio / Music Gen</option>
+                                <option value="t2a">🎵 Text-to-Audio (T2A)</option>
                                 <option value="others">📦 Others</option>
                             </select>
                         </label>
@@ -8331,6 +8344,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                             <div class="bt-field-label">${this.t('Type')}</div>
                             <select id="bt-output-type" class="bt-type-select">
                                 <option value="text"  ${btOutputType === 'text'  ? 'selected' : ''}>text</option>
+                                <option value="t2a"   ${btOutputType === 't2a'   ? 'selected' : ''}>t2a (audio)</option>
                                 <option value="media" ${btOutputType === 'media' ? 'selected' : ''}>media</option>
                             </select>
                         </div>
@@ -8591,6 +8605,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const child = runs[selectedIdx];
         let receivedText = child.content ? (() => { try { return atob(child.content); } catch { return child.content; } })() : '';
         let artifacts = [];
+        let aiComment = '';
 
         let outputAttachments = child.attachments || [];
         if (child.pipelineMeta) {
@@ -8601,6 +8616,8 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                     receivedText = lastStep.output || receivedText;
                     artifacts = lastStep.artifacts || [];
                     outputAttachments = lastStep.outputAttachments || outputAttachments;
+                    // AI comment (model reasoning) — shown separately, never as output.
+                    aiComment = lastStep.reasoning || meta.reasoning || '';
                 }
             } catch(e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: _renderOutputHistory\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
         }
@@ -8643,8 +8660,12 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             html += `<div class="eval-badge" style="margin: 0 8px 8px 8px;">★ ${this.escapeHtml(child.evaluation)}</div>`;
         }
 
+        let aiCommentHtml = '';
+        if (aiComment && aiComment.trim()) {
+            aiCommentHtml = `<div class="ai-comment"><div class="ai-comment-label">🧠 ${t('Reasoning')}</div><pre class="ai-comment-body">${this.escapeHtml(aiComment.trim())}</pre></div>`;
+        }
         const contentHtml = this.renderOutputGrid(receivedText, outputAttachments, artifacts);
-        html += `<div style="padding:8px;height:calc(100% - 75px);overflow-y:auto;">${contentHtml}</div>`;
+        html += `<div style="padding:8px;height:calc(100% - 75px);overflow-y:auto;">${aiCommentHtml}${contentHtml}</div>`;
         el.innerHTML = html;
     },
 
@@ -9708,7 +9729,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         { usecase: 't2t', icon: '📝', labelKey: 'RtModT2T', target: 'Text-to-Text (T2T)',  sampleKey: 'RtSampleT2T' },
         { usecase: 't2i', icon: '🖼️', labelKey: 'RtModT2I', target: 'Text-to-Image (T2I)', sampleKey: 'RtSampleT2I' },
         { usecase: 't2v', icon: '🎬', labelKey: 'RtModT2V', target: 'Text-to-Video (T2V)', sampleKey: 'RtSampleT2V' },
-        { usecase: 'tts', icon: '🎵', labelKey: 'RtModTTS', target: 'Text-to-Speech (TTS)', sampleKey: 'RtSampleTTS' },
+        { usecase: 't2a', icon: '🎵', labelKey: 'RtModTTS', target: 'Text-to-Audio (T2A)', sampleKey: 'RtSampleTTS' },
     ],
 
     rt_: { requests: {} },
