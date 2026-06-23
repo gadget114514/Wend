@@ -151,6 +151,10 @@ button.btn-pressed { animation: btn-press 0.12s ease-out; }
 .recipe-verified-badge.verified-none { color: #888; background: #2d2d2d; }
 .rt-result { margin-top: 8px; }
 .rt-result:empty { display: none; }
+/* AI comment (model reasoning shown separately from the output) */
+.ai-comment { border-left: 3px solid var(--theme-accent, #094771); background: rgba(255,255,255,0.03); border-radius: 4px; padding: 6px 10px; margin-bottom: 10px; }
+.ai-comment-label { font-size: 10px; font-weight: bold; color: var(--theme-accent, #4f91ff); letter-spacing: 0.04em; margin-bottom: 4px; }
+.ai-comment-body { white-space: pre-wrap; word-break: break-word; font-size: 11px; color: var(--theme-text2, #aaa); margin: 0; max-height: 160px; overflow-y: auto; }
 .rt-text { white-space: pre-wrap; word-break: break-word; background: var(--theme-bg3); border-radius: 4px; padding: 8px; font-size: 12px; color: var(--theme-text); max-height: 180px; overflow-y: auto; margin: 6px 0; }
 .rt-media { max-width: 100%; max-height: 240px; border-radius: 4px; margin: 6px 0; display: block; }
 .rt-ok { color: #4caf50; font-size: 12px; margin-bottom: 4px; }

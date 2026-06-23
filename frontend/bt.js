@@ -155,6 +155,15 @@ class BehaviorTreeEngine {
         return null;
     }
 
+    /** Read a slot's .reasoning (AI comment) by key, run → tab → project. */
+    _bbReadReasoning(key) {
+        for (const store of [this._blackboard, this._tabBlackboard, this._projScope()]) {
+            const slot = store[key];
+            if (slot && slot.reasoning != null) return slot.reasoning;
+        }
+        return null;
+    }
+
     /** Read a slot's .media by key, run → tab → project. */
     _bbReadMedia(key) {
         for (const store of [this._blackboard, this._tabBlackboard, this._projScope()]) {
@@ -217,6 +226,11 @@ class BehaviorTreeEngine {
                 const d = this._bbReadData(k);
                 if (d != null && app?.outputDebug) app.outputDebug(`📖 BB["${k}"].data → ${JSON.stringify(d).slice(0, 80)}`);
                 return d != null ? JSON.stringify(d) : '';
+            })
+            .replace(/\{bb:([^}:]+):reasoning\}/g, (_, k) => {
+                const r = this._bbReadReasoning(k);
+                if (r != null && app?.outputDebug) app.outputDebug(`📖 BB["${k}"].reasoning → "${String(r).slice(0, 80)}…"`);
+                return r != null ? r : '';
             })
             .replace(/\{bb:([^}]+)\}/g, (_, k) => {
                 const slot = this._findSlot(k);
@@ -1025,7 +1039,13 @@ class BehaviorTreeEngine {
         const inputKey   = node?.btInputKey  || '';
         const inputType  = node?.btInputType || 'text';
         const outputKey  = node?.btOutputKey || '';
-        const outputType = node?.btOutputType || 'text';
+        let   outputType = node?.btOutputType || 'text';
+        // Auto-derive audio (t2a) from the recipe usecase so a Text-to-Audio
+        // recipe never produces a text/t2t-typed node with a wav attached.
+        if (outputType === 'text' && node?.selectedRecipe && typeof app._classifyRecipeUsecase === 'function') {
+            const rec = (app.state.recipes || []).find(r => r.name === node.selectedRecipe);
+            if (rec && app._classifyRecipeUsecase(rec) === 'Text-to-Audio (T2A)') outputType = 't2a';
+        }
         const btPromptRaw = node?.btPrompt   || '';
         const btPromptDecoded = btPromptRaw
             ? (() => { try { return atob(btPromptRaw); } catch { return btPromptRaw; } })()
@@ -1038,9 +1058,18 @@ class BehaviorTreeEngine {
             ? this._expandPlaceholders(btPromptDecoded)
             : null;
 
-        // Resolve input from blackboard (run→tab→project fallback) based on type
-        const bbTextInput  = (inputKey && inputType === 'text')  ? this._bbReadText(inputKey)  : null;
-        const bbMediaInput = (inputKey && inputType === 'media') ? this._bbReadMedia(inputKey) : null;
+        // Resolve input from blackboard (run→tab→project fallback). Input
+        // modality is auto-detected from what the slot actually holds: if it
+        // carries media (audio/image/video) we feed it as media, otherwise as
+        // text. This makes a2t/v2t/i2t "just work" as ordinary t2*-looking
+        // recipes — the engine switches on the real input, not a fixed type.
+        // An explicit btInputType still forces a single modality when set.
+        // Feed every modality the slot actually holds (text AND media together
+        // when both are present) so multimodal services receive everything;
+        // the provider drops what it can't consume (provider-capability filter).
+        const forcedType = node?.btInputType;
+        const bbMediaInput = (inputKey && forcedType !== 'text')  ? this._bbReadMedia(inputKey) : null;
+        const bbTextInput  = (inputKey && forcedType !== 'media') ? this._bbReadText(inputKey)  : null;
 
         // Phase A: Generate unique requestId for concurrent LLM calls
         const requestId = String(this._nextRequestId++);
@@ -1073,23 +1102,30 @@ class BehaviorTreeEngine {
                 }
                 if (meta?._stopped) { resolve(false); return; }
                 
-                 app.outputTrace(`bt.js:997`);
                 if (!meta.error && outputKey) {
-                    app.outputTrace(`bt.js:999`);
-                
-                    if (meta.outputContent != null) {
-                        app.outputTrace(`bt.js:1002`);
-                        this.bbWrite(outputKey, meta.outputContent, outputScope, outputType);
-                    } else {
-                       app.outputTrace(`bt.js:962`);
-                     
-                    }
                     const outMedia = Array.isArray(meta.outputAttachments) ? meta.outputAttachments : [];
-                    if (outMedia.length > 0) {
-                        this.bbWrite(outputKey, outMedia, outputScope, 'media');
+                    if (outputType === 't2a' || outputType === 'media') {
+                        // Audio/media output (t2a): store the media payload only.
+                        // Do NOT also write a text slot — that dual write mis-typed
+                        // the data node as t2t with an attached wav.
+                        if (outMedia.length > 0) {
+                            this.bbWrite(outputKey, outMedia, outputScope, 'media');
+                        } else if (meta.outputContent != null) {
+                            this.bbWrite(outputKey, meta.outputContent, outputScope, 'text');
+                        }
+                    } else {
+                        if (meta.outputContent != null) {
+                            this.bbWrite(outputKey, meta.outputContent, outputScope, outputType);
+                        }
+                        if (outMedia.length > 0) {
+                            this.bbWrite(outputKey, outMedia, outputScope, 'media');
+                        }
                     }
-                } else {
-                
+                    // Reasoning is a separate channel: stored on the slot's
+                    // .reasoning sub-field, referenceable via {bb:key:reasoning}.
+                    if (meta.reasoning) {
+                        this.bbWrite(outputKey, meta.reasoning, outputScope, 'reasoning');
+                    }
                 }
                 const outText = (meta && meta.outputContent) ? String(meta.outputContent).trim() : '';
                 let isSuccess = !meta.error;

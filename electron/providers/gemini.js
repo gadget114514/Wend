@@ -149,6 +149,7 @@ class GeminiProvider {
 
         const outputAttachments = [];
         let textContent = '';
+        let reasoning = '';
 
         const isPredict = url.includes(':predict');
         if (isPredict) {
@@ -170,7 +171,10 @@ class GeminiProvider {
             const responseParts = j.candidates?.[0]?.content?.parts || [];
             for (const part of responseParts) {
                 if (part.text) {
-                    textContent += part.text;
+                    // Gemini "thinking" parts carry the internal reasoning — keep
+                    // them out of the output and surface as an AI comment.
+                    if (part.thought) reasoning += part.text;
+                    else textContent += part.text;
                 } else if (part.inlineData) {
                     const b64 = part.inlineData.data;
                     const mime = part.inlineData.mimeType || 'image/png';
@@ -189,6 +193,7 @@ class GeminiProvider {
         return {
             content: textContent || (outputAttachments.length > 0 ? `[Gemini: ${outputAttachments.length} image(s)]` : '[Gemini: no content]'),
             model: model,
+            reasoning,
             requestUrl: url,
             requestBody: body,
             outputAttachments,

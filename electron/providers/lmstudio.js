@@ -86,8 +86,10 @@ class LMStudioProvider {
             );
         }
 
+        const msg = j.choices?.[0]?.message || {};
         return {
-            content: j.choices?.[0]?.message?.content ?? '[LM Studio: no content]',
+            content: msg.content ?? '[LM Studio: no content]',
+            reasoning: msg.reasoning_content || msg.reasoning || '',
             model: req.model,
             requestUrl: url,
             requestBody: body

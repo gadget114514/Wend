@@ -54,7 +54,11 @@ class OpenAIProvider {
         if (!raw) throw new Error(`OpenAI API Error\nProvider: openai\nModel: ${req.model}\nURL: ${url}\nError: Empty response received\nPossible causes: Invalid API key, network connectivity issue, or API endpoint unavailable`);
         const j = JSON.parse(raw);
         if (j.error) throw new Error(`OpenAI API Error\nProvider: openai\nModel: ${req.model}\nURL: ${url}\nError: ${j.error.message}\nError type: ${j.error.type || 'unknown'}\nError code: ${j.error.code || 'unknown'}`);
-        return { content: j.choices?.[0]?.message?.content ?? '[OpenAI: no content]', model: req.model, requestUrl: url, requestBody: body };
+        const msg = j.choices?.[0]?.message || {};
+        // Reasoning models expose their internal chain separately; surface it as
+        // `reasoning` so the app can show it as an AI comment (not as output).
+        const reasoning = msg.reasoning_content || msg.reasoning || '';
+        return { content: msg.content ?? '[OpenAI: no content]', reasoning, model: req.model, requestUrl: url, requestBody: body };
     }
 
     async listModels() {
