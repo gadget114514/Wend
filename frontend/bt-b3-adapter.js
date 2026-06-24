@@ -130,21 +130,6 @@ class Behavior3Adapter {
         } catch (e) {
             this._logError('Failed to register LoadLocalFileAction', e);
         }
-
-        // Register PlayAudioAction if available
-        try {
-            if (typeof PlayAudioAction !== 'undefined') {
-                b3NodeRegistry.register('PlayAudioAction', PlayAudioAction);
-                this._log('✅ PlayAudioAction registered');
-            } else if (window.PlayAudioAction) {
-                b3NodeRegistry.register('PlayAudioAction', window.PlayAudioAction);
-                this._log('✅ PlayAudioAction registered (from window)');
-            } else {
-                this._log('⚠️ PlayAudioAction not found');
-            }
-        } catch (e) {
-            this._logError('Failed to register PlayAudioAction', e);
-        }
     }
 
     /**

@@ -108,9 +108,7 @@ class B3TreeConverter {
         if (btType === 'leaf' || !btType) {
             // Determine action type based on btAction
             const btAction = promptsNode.btAction || 'processPrompt';
-            nodeName = btAction === 'loadLocalFile' ? 'LoadLocalFileAction'
-                : btAction === 'playAudio' ? 'PlayAudioAction'
-                : 'ProcessPromptAction';
+            nodeName = btAction === 'loadLocalFile' ? 'LoadLocalFileAction' : 'ProcessPromptAction';
         } else if (btType.startsWith('repeat')) {
             // Handle pre-composed nodes like 'repeatSequence' → 'RepeatSequence'
             nodeName = btType.charAt(0).toUpperCase() + btType.slice(1);
@@ -137,8 +135,6 @@ class B3TreeConverter {
             if (promptsNode.btLocalFilePath) properties.filePath = promptsNode.btLocalFilePath;
             if (promptsNode.btOutputKey) properties.outputKey = promptsNode.btOutputKey;
             if (promptsNode.btOutputType) properties.outputType = promptsNode.btOutputType;
-        } else if (nodeName === 'PlayAudioAction') {
-            if (promptsNode.btInputKey) properties.inputKey = promptsNode.btInputKey;
         } else if (nodeName.startsWith('Repeat')) {
             // Pre-composed decorator+composite: inherit repeater configuration
             if (promptsNode.btRepeatCount) {
@@ -241,8 +237,6 @@ class B3TreeConverter {
                 promptsNode.btAction = 'processPrompt';
             } else if (b3Node.name === 'LoadLocalFileAction') {
                 promptsNode.btAction = 'loadLocalFile';
-            } else if (b3Node.name === 'PlayAudioAction') {
-                promptsNode.btAction = 'playAudio';
             }
 
             if (b3Node.properties) {

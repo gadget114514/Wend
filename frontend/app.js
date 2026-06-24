@@ -6321,7 +6321,6 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     addHttpLog(info) {
         const el = document.getElementById('http-log-content');
         if (!el) return;
-        // Auto-switch to HTTP tab on first log entry
         const logContent = document.getElementById('messages-content');
         if (logContent && logContent.style.display !== 'none') {
             this.switchMsgTab('http');
@@ -6333,65 +6332,52 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const methodColor = info.method === 'POST' ? '#f0c040' : '#4ec9b0';
         const statusColor = info.statusCode >= 200 && info.statusCode < 300 ? '#4caf50' : '#f44';
         const isError = !info.statusCode || info.statusCode >= 400;
-        
+
         div.innerHTML = `${ts} <span style="color:${methodColor}">${info.method}</span> <span style="color:#888">${this.escapeHtml(info.url)}</span> → <span style="color:${statusColor}">${statusText}</span>`;
-        
-        // Always create combined report for copying
-        const aiReport = this._buildAIReport(info);
-        const reportLabel = isError ? '⚠ Error' : '✓ Success';
-        const reportColor = isError ? '#f88' : '#4caf50';
-        
+
         div.innerHTML += `
             <div style="margin:4px 0 0 12px;padding:6px;background:#1a1a1a;border:1px solid #444;border-radius:3px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <details style="margin:0;flex:1;">
-                        <summary style="cursor:pointer;display:flex;align-items:center;gap:6px;">
-                            <span style="font-size:10px;color:${reportColor};font-weight:bold;">${reportLabel}</span>
-                            <span style="font-size:9px;color:#666">▶ Show details</span>
-                        </summary>
-                        <pre style="margin:4px 0 0 0;padding:4px;background:#0a0a0a;border:1px solid #333;white-space:pre-wrap;font-size:10px;max-height:300px;overflow-y:auto;color:#ccc;">${this.escapeHtml(aiReport)}</pre>
-                    </details>
-                    <button onclick="app.copyForAI(this)" style="font-size:9px;padding:2px 6px;background:#2a2a2a;border:1px solid #555;border-radius:2px;color:#aaa;cursor:pointer;flex-shrink:0;margin-left:6px;" data-ai-report="${this.escapeHtml(aiReport)}">📋 Copy</button>
-                </div>
+                <details style="margin:0;">
+                    <summary style="cursor:pointer;display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:10px;color:${isError ? '#f88' : '#4caf50'};font-weight:bold;">${isError ? '⚠ Error' : '✓ Success'}</span>
+                        <span style="font-size:9px;color:#666">▶ Detail</span>
+                    </summary>
+                    <pre style="margin:4px 0 0 0;padding:4px;background:#0a0a0a;border:1px solid #333;white-space:pre-wrap;font-size:10px;max-height:300px;overflow-y:auto;color:#ccc;">${this.escapeHtml(this._buildDetailReport(info))}</pre>
+                </details>
             </div>`;
-        
+
         el.appendChild(div);
         el.scrollTop = el.scrollHeight;
     },
 
-    _buildAIReport(info) {
+    _buildDetailReport(info) {
         let report = '';
-        report += `${info.method} ${info.url}\n`;
+        report += `Request Line: ${info.method} ${info.url}\n`;
         if (info.elapsedMs) report += `Elapsed: ${info.elapsedMs}ms\n`;
-        report += `Status: ${info.statusCode || 'Error'}\n`;
         if (info.error) report += `Error: ${info.error}\n`;
         
-        if (this.state.logHttpHeaders) {
-            report += '\n--- Request Headers ---\n';
-            if (info.requestHeaders) {
-                for (const [key, value] of Object.entries(info.requestHeaders)) {
-                    report += `${key}: ${value}\n`;
-                }
-            } else {
-                report += '(none)\n';
+        report += '\n--- Request Headers ---\n';
+        if (info.requestHeaders) {
+            for (const [key, value] of Object.entries(info.requestHeaders)) {
+                report += `${key}: ${value}\n`;
             }
+        } else {
+            report += '(none)\n';
         }
         
-        report += '\n--- Request Body ---\n';
+        report += '\n--- Request Body (b64 emitted) ---\n';
         report += info.requestBody || '(empty)';
         
-        if (this.state.logHttpHeaders) {
-            report += '\n\n--- Response Headers ---\n';
-            if (info.responseHeaders) {
-                for (const [key, value] of Object.entries(info.responseHeaders)) {
-                    report += `${key}: ${value}\n`;
-                }
-            } else {
-                report += '(none)\n';
+        report += '\n\n--- Response Headers ---\n';
+        if (info.responseHeaders) {
+            for (const [key, value] of Object.entries(info.responseHeaders)) {
+                report += `${key}: ${value}\n`;
             }
+        } else {
+            report += '(none)\n';
         }
         
-        report += '\n\n--- Response Body ---\n';
+        report += '\n\n--- Response Body (b64 emitted) ---\n';
         report += info.responsePreview || '(empty)';
         return report;
     },
@@ -8702,20 +8688,6 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 }
             } catch(e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: _renderOutputHistory\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
         }
-        // Immediately after execution (unsaved): fallback outputAttachments from pipelineRun.steps
-        if (outputAttachments.length === 0) {
-            const runSteps = this.state.pipelineRun && this.state.pipelineRun.steps;
-            if (runSteps && runSteps.length > 0) {
-                for (const s of runSteps) {
-                    if (s && s.outputAttachments) outputAttachments = outputAttachments.concat(s.outputAttachments);
-                }
-                if (!receivedText) {
-                    const last = runSteps[runSteps.length - 1];
-                    if (last && last.output) receivedText = last.output;
-                }
-            }
-        }
-
         let html;
         {
             const runOptions = runs.map((c, idx) => {
@@ -8878,16 +8850,6 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             }
             if (!outputText && child.content) {
                 try { outputText = atob(child.content); } catch { outputText = child.content; }
-            }
-            // Immediately after execution (unsaved): fallback outputAttachments from pipelineRun.steps
-            if (outputAttachments.length === 0 && child._pending) {
-                const runSteps = this.state.pipelineRun && this.state.pipelineRun.steps;
-                if (runSteps && runSteps.length > 0) {
-                    const last = runSteps[runSteps.length - 1];
-                    if (last && last.outputAttachments && last.outputAttachments.length > 0)
-                        outputAttachments = last.outputAttachments;
-                    if (!outputText && last && last.output) outputText = last.output;
-                }
             }
             const inputTextId = inputText ? this._cacheText(inputText) : 0;
             const outputTextId = outputText ? this._cacheText(outputText) : 0;
