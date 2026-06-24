@@ -12,7 +12,7 @@
       "children": [],
       "nodeType": "assemble",
       "btAction": "loadLocalFile",
-      "btLocalFilePath": "speech.txt",
+      "btLocalFilePath": "/full/path/to/speech.txt",
       "btOutputKey": "file_content",
       "btOutputType": "text"
     },

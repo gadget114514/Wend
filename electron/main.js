@@ -4199,6 +4199,16 @@ Return the updated JSON configuration.`;
             else if (action === 'discard') storage.discardRun(runId);
             break;
         }
+        case 'browse_file': {
+            const bfFilters = [
+                { name: 'All Files', extensions: ['*'] },
+            ];
+            dialog.showOpenDialog(mainWindow, { filters: bfFilters, properties: ['openFile'] }).then(result => {
+                if (result.canceled || result.filePaths.length === 0) return;
+                postToJS('browse_file_result', { filePath: result.filePaths[0] });
+            });
+            break;
+        }
         case 'open_file_dialog': {
             const filter = payload?.filter || 'all';
             const purpose = payload?.purpose || '';

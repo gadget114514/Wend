@@ -253,6 +253,12 @@ const app = {
                     this.onMediaFileDialogResult(msg.payload);
                 }
                 break;
+            case 'browse_file_result':
+                if (msg.payload?.filePath) {
+                    const el = document.getElementById('bt-local-file-path');
+                    if (el) el.value = msg.payload.filePath;
+                }
+                break;
             case 'create_parallel_tab':
                 // Phase C-D: Backend requests tab creation for parallel debug view
                 this.createParallelTab(msg.payload.runId, msg.payload.btFile);
@@ -8345,7 +8351,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                     <div id="bt-local-file-field" style="display:${fields.includes('localFilePath') ? 'block' : 'none'}">
                         <div class="bt-field">
                             <div class="bt-field-label">${this.t('LocalFilePath')} <span class="bt-hint">${this.t('LocalFilePathHint')}</span></div>
-                            <input id="bt-local-file-path" class="bt-key-input" value="${this.escapeHtml(btLocalFilePath)}" placeholder="music.mp3">
+                            <div style="display:flex;gap:4px">
+                                <input id="bt-local-file-path" class="bt-key-input" value="${this.escapeHtml(btLocalFilePath)}" placeholder="music.mp3" style="flex:1">
+                                <button class="copy-btn" onclick="app.browseLocalFilePath()" title="${this.t('Browse')}" style="font-size:12px;padding:2px 8px">📂</button>
+                            </div>
                         </div>
                     </div>
                     <div class="bt-field-row" id="bt-input-fields" style="display:${fields.includes('inputKey') ? 'flex' : 'none'}">
@@ -8390,6 +8399,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
         // Render pipeline meta if available
         this.renderPipelineMeta(node);
+    },
+
+    browseLocalFilePath() {
+        this.postMessage({ type: 'browse_file' });
     },
 
     addMachineAttachment() {

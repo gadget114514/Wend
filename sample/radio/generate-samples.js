@@ -344,7 +344,7 @@ samples['10-tts-from-input-pane'] = rootTree('sequence', [
 
 // 11: TTS from Local File (load a text file from disk, convert to speech)
 samples['11-tts-from-local-file'] = rootTree('sequence', [
-    loadLocalFileNode('Load Text File', 'speech.txt', 'file_content', 'text'),
+    loadLocalFileNode('Load Text File', '/full/path/to/speech.txt', 'file_content', 'text'),
     leafNode('Text to Speech', '', 'Radio TTS', 'file_content', 'text', 'tts_audio', 'media',
         'Read the following text aloud: {bb:file_content}'),
     playAudioNode('Play Audio', 'tts_audio'),
