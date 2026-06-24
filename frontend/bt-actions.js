@@ -161,9 +161,10 @@
                 return false;
             }
 
-            const data = mediaArr && mediaArr.length > 0 ? mediaArr : textInput;
-            if (data) {
-                app.setPipelineFinalOutput(data);
+            const media = mediaArr && mediaArr.length > 0 ? mediaArr : null;
+            const text = textInput || null;
+            if (media || text) {
+                app.setPipelineFinalOutput(media, text);
                 app.outputMessage(`📋 Pipeline output displayed from blackboard key "${inputKey}"`);
             } else {
                 app.outputMessage(`⚠️ Pipeline Output: No data found in blackboard key "${inputKey}"`);

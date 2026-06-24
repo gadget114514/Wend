@@ -1066,16 +1066,17 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             if (!meta.error && this._bt) {
                 const lastStepMeta = meta.steps && meta.steps.length > 0 ? meta.steps[meta.steps.length - 1] : null;
                 const outMedia = lastStepMeta && Array.isArray(lastStepMeta.outputAttachments) ? lastStepMeta.outputAttachments : [];
+                const outContent = lastStepMeta ? lastStepMeta.output : null;
                 if (outputType === 't2a' || outputType === 'media') {
                     // Audio/media output (t2a): store media only, no text dual-write.
                     if (outMedia.length > 0) {
                         this._bt.bbWrite(outputKey, outMedia, outputScope, 'media');
-                    } else if (meta.outputContent != null) {
-                        this._bt.bbWrite(outputKey, meta.outputContent, outputScope, 'text');
+                    } else if (outContent != null) {
+                        this._bt.bbWrite(outputKey, outContent, outputScope, 'text');
                     }
                 } else {
-                    if (meta.outputContent != null) {
-                        this._bt.bbWrite(outputKey, meta.outputContent, outputScope, outputType);
+                    if (outContent != null) {
+                        this._bt.bbWrite(outputKey, outContent, outputScope, outputType);
                     }
                     if (outMedia.length > 0) {
                         this._bt.bbWrite(outputKey, outMedia, outputScope, 'media');
@@ -6331,23 +6332,15 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     // Backward compat alias
     addLog(text) { this.outputMessage(text); },
 
-    setPipelineFinalOutput(data) {
+    setPipelineFinalOutput(attachments, textContent) {
         const opNodePath = this.state.selectedOpPath || this.state.currentNodePath;
         const opNode = this.getNodeByPath(opNodePath);
         if (!opNode || !opNode.children) return;
         const dataNodes = opNode.children.filter(c => c.nodeType === 'data');
         if (dataNodes.length === 0) return;
         const latest = dataNodes[0];
-        if (Array.isArray(data)) {
-            latest.attachments = data;
-            if (data.length > 0 && data[0].mimetype && data[0].content) {
-                // Media attachment — don't overwrite content
-            } else if (typeof data[0] === 'string') {
-                latest.content = this.safeB64(data[0]);
-            }
-        } else if (typeof data === 'string') {
-            latest.content = this.safeB64(data);
-        }
+        if (attachments) latest.attachments = Array.isArray(attachments) ? attachments : [attachments];
+        if (textContent) latest.content = this.safeB64(textContent);
         this.renderOutput();
     },
 
@@ -8714,7 +8707,6 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 const meta = JSON.parse(child.pipelineMeta);
                 if (meta && meta.steps && meta.steps.length > 0) {
                     const lastStep = meta.steps[meta.steps.length - 1];
-                    receivedText = lastStep.output || receivedText;
                     artifacts = lastStep.artifacts || [];
                     aiComment = lastStep.reasoning || meta.reasoning || '';
                 }

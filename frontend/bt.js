@@ -1105,18 +1105,19 @@ class BehaviorTreeEngine {
                 if (!meta.error && outputKey) {
                     const lastStepMeta = meta.steps && meta.steps.length > 0 ? meta.steps[meta.steps.length - 1] : null;
                     const outMedia = lastStepMeta && Array.isArray(lastStepMeta.outputAttachments) ? lastStepMeta.outputAttachments : [];
+                    const outContent = lastStepMeta ? lastStepMeta.output : null;
                     if (outputType === 't2a' || outputType === 'media') {
                         // Audio/media output (t2a): store the media payload only.
                         // Do NOT also write a text slot — that dual write mis-typed
                         // the data node as t2t with an attached wav.
                         if (outMedia.length > 0) {
                             this.bbWrite(outputKey, outMedia, outputScope, 'media');
-                        } else if (meta.outputContent != null) {
-                            this.bbWrite(outputKey, meta.outputContent, outputScope, 'text');
+                        } else if (outContent != null) {
+                            this.bbWrite(outputKey, outContent, outputScope, 'text');
                         }
                     } else {
-                        if (meta.outputContent != null) {
-                            this.bbWrite(outputKey, meta.outputContent, outputScope, outputType);
+                        if (outContent != null) {
+                            this.bbWrite(outputKey, outContent, outputScope, outputType);
                         }
                         if (outMedia.length > 0) {
                             this.bbWrite(outputKey, outMedia, outputScope, 'media');

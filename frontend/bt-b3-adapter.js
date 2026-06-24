@@ -232,10 +232,11 @@ class Behavior3Adapter {
         if (ctx) {
             // Write output to blackboard under outputKey before clearing context
             if (!meta.error && ctx.outputKey) {
-                if (meta.outputContent != null) {
-                    this.bbWrite(ctx.outputKey, meta.outputContent, 'run', ctx.outputType || 'text');
-                }
                 const lastStepMeta = meta.steps && meta.steps.length > 0 ? meta.steps[meta.steps.length - 1] : null;
+                const outContent = lastStepMeta ? lastStepMeta.output : null;
+                if (outContent != null) {
+                    this.bbWrite(ctx.outputKey, outContent, 'run', ctx.outputType || 'text');
+                }
                 const outMedia = lastStepMeta && Array.isArray(lastStepMeta.outputAttachments) ? lastStepMeta.outputAttachments : [];
                 if (outMedia.length > 0) {
                     this.bbWrite(ctx.outputKey, outMedia, 'run', 'media');
