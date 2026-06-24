@@ -91,7 +91,7 @@ class Behavior3Adapter {
         const label = node.title ? this._app.safeAtob(node.title) : path;
         const el = document.getElementById('bt-target-label');
         if (el) el.textContent = label;
-        this._log(`🎯 BT target set: ${label}`);
+        this._log(`BT Target: ${label}`);
     }
 
     /**

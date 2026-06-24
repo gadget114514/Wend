@@ -306,7 +306,7 @@ class BehaviorTreeEngine {
         const el = document.getElementById('bt-target-label');
         if (el) el.textContent = label;
         this._updateCycleBadge();
-        app.outputMessage(`🎯 BT target: ${label}`);
+        app.outputDebug(`BT Target: ${label}`);
     }
 
     run() {

@@ -5561,7 +5561,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     selectNode(path, event) {
         this.updateNode();
-       this.outputMessage("Select Node" + path);
+        this.outputDebug("Select Node" + path);
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
             this.clearAllSpeakingStyles();
