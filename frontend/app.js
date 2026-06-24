@@ -5915,8 +5915,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             // If node has a non-default btAction, route to action handler
             const actionName = node?.btAction || 'processPrompt';
             if (actionName !== 'processPrompt' && window.btActions?.has(actionName)) {
-                if (!ctx) this._runBtNodeAction(actionName, node);
-                return;
+                if (!ctx) {
+                    this._runBtNodeAction(actionName, node);
+                    return;
+                }
             }
 
             // Prioritize BT execution context if available
