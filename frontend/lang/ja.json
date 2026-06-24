@@ -96,6 +96,7 @@
   "ViewMode": "表示モード",
   "NodeView": "ノード",
   "PipelineView": "パイプライン",
+  "PipelineOutput": "パイプライン出力",
   "Step": "ステップ",
   "HistoryRetention": "履歴保持数",
   "HistoryRetentionDesc": "プロジェクトごとに保持する最大実行履歴数です。古い履歴は自動的に削除されます。",

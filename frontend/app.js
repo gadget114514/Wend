@@ -1064,9 +1064,8 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             }
             const outputScope = opNode.btOutputScope || 'run';
             if (!meta.error && this._bt) {
-                const lastStepMeta = meta.steps && meta.steps.length > 0 ? meta.steps[meta.steps.length - 1] : null;
-                const outMedia = lastStepMeta && Array.isArray(lastStepMeta.outputAttachments) ? lastStepMeta.outputAttachments : [];
-                const outContent = lastStepMeta ? lastStepMeta.output : null;
+                const outMedia = Array.isArray(meta.outputAttachments) ? meta.outputAttachments : [];
+                const outContent = meta.outputContent || null;
                 if (outputType === 't2a' || outputType === 'media') {
                     // Audio/media output (t2a): store media only, no text dual-write.
                     if (outMedia.length > 0) {
@@ -9198,7 +9197,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
         el.innerHTML = `
             <div class="output-toolbar">
-                <span class="output-label">${t('Step')} ${si + 1} ${t('Output')}</span>
+                <span class="output-label">${t('PipelineOutput')}</span>
                 ${statusBadge}
                 ${step.completed ? `<button class="output-save-btn" onclick="app.savePipelineOutput(${si})">${t('Save')}</button>
                 <button class="output-chest-btn" onclick="app.sendToChestDialog()">${t('SendToChest')}</button>` : ''}

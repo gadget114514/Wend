@@ -1103,9 +1103,8 @@ class BehaviorTreeEngine {
                 if (meta?._stopped) { resolve(false); return; }
                 
                 if (!meta.error && outputKey) {
-                    const lastStepMeta = meta.steps && meta.steps.length > 0 ? meta.steps[meta.steps.length - 1] : null;
-                    const outMedia = lastStepMeta && Array.isArray(lastStepMeta.outputAttachments) ? lastStepMeta.outputAttachments : [];
-                    const outContent = lastStepMeta ? lastStepMeta.output : null;
+                    const outMedia = Array.isArray(meta.outputAttachments) ? meta.outputAttachments : [];
+                    const outContent = meta.outputContent || null;
                     if (outputType === 't2a' || outputType === 'media') {
                         // Audio/media output (t2a): store the media payload only.
                         // Do NOT also write a text slot — that dual write mis-typed

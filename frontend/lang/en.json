@@ -96,6 +96,7 @@
   "ViewMode": "View Mode",
   "NodeView": "Node",
   "PipelineView": "Pipeline",
+  "PipelineOutput": "Pipeline Output",
   "Step": "Step",
   "HistoryRetention": "History Retention (runs)",
   "HistoryRetentionDesc": "Number of execution histories to keep per project. Excess runs are moved to Storage Chest.",
