@@ -1042,6 +1042,8 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         }
 
         const outputContent = meta.outputContent || '';
+        const onlyReasoning = !outputContent && meta.reasoning && !meta.error;
+        if (onlyReasoning) return;
         const autoTitle = outputContent.replace(/\s+/g, ' ').trim().substring(0, 50) + (outputContent.length > 50 ? '...' : '');
         const tab = this.state.tabs[this.state.activeTab];
         // Phase A: Use targetNodePath from meta if available (from BT requestId correlation),
@@ -8661,7 +8663,6 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                     receivedText = lastStep.output || receivedText;
                     artifacts = lastStep.artifacts || [];
                     outputAttachments = lastStep.outputAttachments || outputAttachments;
-                    // AI comment (model reasoning) — shown separately, never as output.
                     aiComment = lastStep.reasoning || meta.reasoning || '';
                 }
             } catch(e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: _renderOutputHistory\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
@@ -8705,12 +8706,11 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             html += `<div class="eval-badge" style="margin: 0 8px 8px 8px;">★ ${this.escapeHtml(child.evaluation)}</div>`;
         }
 
-        let aiCommentHtml = '';
         if (aiComment && aiComment.trim()) {
-            aiCommentHtml = `<div class="ai-comment"><div class="ai-comment-label">🧠 ${t('Reasoning')}</div><pre class="ai-comment-body">${this.escapeHtml(aiComment.trim())}</pre></div>`;
+            receivedText = '🧠 Reasoning:\n' + aiComment.trim() + '\n\n' + receivedText;
         }
         const contentHtml = this.renderOutputGrid(receivedText, outputAttachments, artifacts);
-        html += `<div style="padding:8px;height:calc(100% - 75px);overflow-y:auto;">${aiCommentHtml}${contentHtml}</div>`;
+        html += `<div style="padding:8px;height:calc(100% - 75px);overflow-y:auto;">${contentHtml}</div>`;
         el.innerHTML = html;
     },
 
