@@ -5912,6 +5912,13 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 return;
             }
 
+            // If node has a non-default btAction, route to action handler
+            const actionName = node?.btAction || 'processPrompt';
+            if (actionName !== 'processPrompt' && window.btActions?.has(actionName)) {
+                if (!ctx) this._runBtNodeAction(actionName, node);
+                return;
+            }
+
             // Prioritize BT execution context if available
 
             const prompt = (ctx?.prompt != null)
@@ -6091,7 +6098,30 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         }
     },
 
-
+    _runBtNodeAction(actionName, node) {
+        const config = window.btActions.get(actionName);
+        if (!config) {
+            this.outputMessage(`❌ Unknown action "${actionName}"`);
+            return;
+        }
+        const path = this.state.currentNodePath || '';
+        const inputKey = node?.btInputKey || '';
+        const outputKey = node?.btOutputKey || '';
+        const outputType = node?.btOutputType || 'text';
+        const bt = this._bt || null;
+        let mediaArr = null;
+        let textInput = null;
+        if (bt && inputKey) {
+            mediaArr = bt._bbReadMedia(inputKey);
+            textInput = bt._bbReadText(inputKey);
+        }
+        const ctx = { bt, app: this, path, node, inputKey, outputKey, outputType, mediaArr, textInput, setCleanup: () => {} };
+        config.handler(ctx).then(ok => {
+            if (ok) this.outputMessage(`✅ Action "${config.label}" completed`);
+        }).catch(e => {
+            this.outputMessage(`❌ Action "${config.label}" error: ${e.message}`);
+        });
+    },
 
     addChild() {
         const node = this.getNodeByPath(this.state.currentNodePath);
