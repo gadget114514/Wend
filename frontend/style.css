@@ -696,7 +696,7 @@ details.bt-node-accordion[open] .bt-node-accordion-summary::before { transform: 
     user-select: none;
 }
 .log-entry summary:hover { background: #2a3a5a; }
-.log-entry details[open] summary {
+.log-entry details[open] > summary {
     border-bottom: 1px solid var(--theme-bg3);
     margin-bottom: 4px;
 }

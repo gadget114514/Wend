@@ -6311,14 +6311,16 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         
         div.innerHTML += `
             <div style="margin:4px 0 0 12px;padding:6px;background:#1a1a1a;border:1px solid #444;border-radius:3px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                    <span style="font-size:10px;color:${reportColor};font-weight:bold;">${reportLabel}</span>
-                    <button onclick="app.copyForAI(this)" style="font-size:9px;padding:2px 6px;background:#2a2a2a;border:1px solid #555;border-radius:2px;color:#aaa;cursor:pointer;" data-ai-report="${this.escapeHtml(aiReport)}">📋 Copy</button>
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <details style="margin:0;flex:1;">
+                        <summary style="cursor:pointer;display:flex;align-items:center;gap:6px;">
+                            <span style="font-size:10px;color:${reportColor};font-weight:bold;">${reportLabel}</span>
+                            <span style="font-size:9px;color:#666">▶ Show details</span>
+                        </summary>
+                        <pre style="margin:4px 0 0 0;padding:4px;background:#0a0a0a;border:1px solid #333;white-space:pre-wrap;font-size:10px;max-height:300px;overflow-y:auto;color:#ccc;">${this.escapeHtml(aiReport)}</pre>
+                    </details>
+                    <button onclick="app.copyForAI(this)" style="font-size:9px;padding:2px 6px;background:#2a2a2a;border:1px solid #555;border-radius:2px;color:#aaa;cursor:pointer;flex-shrink:0;margin-left:6px;" data-ai-report="${this.escapeHtml(aiReport)}">📋 Copy</button>
                 </div>
-                <details style="margin:0;">
-                    <summary style="cursor:pointer;color:#666;font-size:9px;padding:2px 0;">Show details</summary>
-                    <pre style="margin:4px 0 0 0;padding:4px;background:#0a0a0a;border:1px solid #333;white-space:pre-wrap;font-size:10px;max-height:300px;overflow-y:auto;color:#ccc;">${this.escapeHtml(aiReport)}</pre>
-                </details>
             </div>`;
         
         el.appendChild(div);
