@@ -5890,7 +5890,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         if (tab && tab.file && tab.root) {
             this.postMessage({ type: 'save_node', payload: { tabFile: tab.file, root: tab.root } });
         }
-        this.outputMessage('💾 ' + this.t('NodeUpdated'));
+        this.outputDebug('💾 ' + this.t('NodeUpdated'));
     },
 
     processPrompt() {
@@ -8549,7 +8549,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             if (key) step.params[key] = field.value;
         });
         document.querySelector('.prompt-apply-btn').style.display = 'none';
-        this.outputMessage(`✏ Step ${stepIndex + 1} params updated`);
+        this.outputDebug(`✏ Step ${stepIndex + 1} params updated`);
         this.postMessage({ type: 'save_pipeline', payload: { name: this.state.pipelines?.[0]?.name || '', steps: this.state.pipelineRun.steps } });
     },
 
@@ -9416,7 +9416,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     },
 
     savePipelineOutput(stepIndex) {
-        this.outputMessage(`✔ ${this.t('Step')} ${stepIndex + 1} ${this.t('Save')}`);
+        this.outputDebug(`✔ ${this.t('Step')} ${stepIndex + 1} ${this.t('Save')}`);
     },
 
     buildPromptHtml(meta) {
@@ -9814,7 +9814,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
         if (runBtn) { runBtn.disabled = true; runBtn.textContent = '⏳ ' + this.t('RtRunning'); }
         if (resultEl) resultEl.innerHTML = `<div class="rt-running">⏳ ${this.t('RtRunning')}</div>`;
-        this.outputMessage(`🧪 ${this.t('RtRun')}: ${recipe.name}`);
+        this.outputDebug(`🧪 ${this.t('RtRun')}: ${recipe.name}`);
         this.postMessage({ type: 'test_recipe', payload });
     },
 
