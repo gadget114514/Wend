@@ -148,25 +148,25 @@
         }
     });
 
-    // ── outputDisplay ──────────────────────────────────────────
-    R.register('outputDisplay', {
-        label: 'Output Display',
+    // ── pipelineOutput ─────────────────────────────────────────
+    R.register('pipelineOutput', {
+        label: 'Pipeline Output',
         fields: ['inputKey'],
         defaults: { inputType: 'media' },
         handler: async (ctx) => {
             const { bt, app, inputKey, mediaArr, textInput } = ctx;
 
             if (!inputKey) {
-                app.outputMessage('❌ Output Display: No input key specified');
+                app.outputMessage('❌ Pipeline Output: No input key specified');
                 return false;
             }
 
             const data = mediaArr && mediaArr.length > 0 ? mediaArr : textInput;
             if (data) {
                 app.setPipelineFinalOutput(data);
-                app.outputMessage(`📋 Output displayed from blackboard key "${inputKey}"`);
+                app.outputMessage(`📋 Pipeline output displayed from blackboard key "${inputKey}"`);
             } else {
-                app.outputMessage(`⚠️ Output Display: No data found in blackboard key "${inputKey}"`);
+                app.outputMessage(`⚠️ Pipeline Output: No data found in blackboard key "${inputKey}"`);
             }
             return true;
         }

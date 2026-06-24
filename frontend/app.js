@@ -1596,7 +1596,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     _getDataNodeMediaType(node) {
         if (!node) return '';
-        // Check saved attachments first (set by outputDisplay or from meta)
+        // Check saved attachments first (set by pipelineOutput or from meta)
         if (node.attachments && node.attachments.length > 0) {
             for (const a of node.attachments) {
                 const mime = a.mimetype || '';

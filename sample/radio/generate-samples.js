@@ -67,7 +67,7 @@ function playAudioNode(title, inputKey) {
     };
 }
 
-function outputDisplayNode(title, inputKey) {
+function pipelineOutputNode(title, inputKey) {
     return {
         title: b64(title),
         content: '',
@@ -75,7 +75,7 @@ function outputDisplayNode(title, inputKey) {
         attachments: [],
         children: [],
         nodeType: 'assemble',
-        btAction: 'outputDisplay',
+        btAction: 'pipelineOutput',
         btInputKey: inputKey,
     };
 }
