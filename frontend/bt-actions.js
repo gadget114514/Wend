@@ -33,7 +33,14 @@
                             resolve(false);
                         } else {
                             if (outputKey) {
-                                bt.bbWrite(outputKey, [msg], outputScope, outputType);
+                                if (outputType === 'text') {
+                                    const raw = msg.content;
+                                    let textContent;
+                                    try { textContent = atob(raw); } catch { textContent = raw; }
+                                    bt.bbWrite(outputKey, textContent, outputScope, 'text');
+                                } else {
+                                    bt.bbWrite(outputKey, [msg], outputScope, outputType);
+                                }
                             }
                             resolve(true);
                         }

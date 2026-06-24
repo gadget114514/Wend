@@ -5,15 +5,16 @@
   "attachments": [],
   "children": [
     {
-      "title": "R2VuZXJhdGUgQXJ0aWNsZQ==",
+      "title": "TG9hZCBUZXh0IEZpbGU=",
       "content": "",
       "mimetype": "text/plain",
       "attachments": [],
       "children": [],
       "nodeType": "assemble",
-      "selectedRecipe": "Radio Article Writer",
-      "btOutputKey": "article",
-      "btPrompt": "V3JpdGUgYSA1LXdvcmQgcmFkaW8gREogYXJ0aWNsZSBhYm91dCBhIHRyZW5kaW5nIG11c2ljIHRyYWNrLg=="
+      "btAction": "loadLocalFile",
+      "btLocalFilePath": "speech.txt",
+      "btOutputKey": "file_content",
+      "btOutputType": "text"
     },
     {
       "title": "VGV4dCB0byBTcGVlY2g=",
@@ -23,11 +24,11 @@
       "children": [],
       "nodeType": "assemble",
       "selectedRecipe": "Radio TTS",
-      "btInputKey": "article",
+      "btInputKey": "file_content",
       "btInputType": "text",
       "btOutputKey": "tts_audio",
       "btOutputType": "media",
-      "btPrompt": "Q29udmVydCB0aGUgZm9sbG93aW5nIHJhZGlvIERKIGFydGljbGUgdG8gc3BlZWNoOiB7YmI6YXJ0aWNsZX0="
+      "btPrompt": "UmVhZCB0aGUgZm9sbG93aW5nIHRleHQgYWxvdWQ6IHtiYjpmaWxlX2NvbnRlbnR9"
     },
     {
       "title": "UGxheSBBdWRpbw==",

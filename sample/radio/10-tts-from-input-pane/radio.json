@@ -5,17 +5,6 @@
   "attachments": [],
   "children": [
     {
-      "title": "R2VuZXJhdGUgQXJ0aWNsZQ==",
-      "content": "",
-      "mimetype": "text/plain",
-      "attachments": [],
-      "children": [],
-      "nodeType": "assemble",
-      "selectedRecipe": "Radio Article Writer",
-      "btOutputKey": "article",
-      "btPrompt": "V3JpdGUgYSA1LXdvcmQgcmFkaW8gREogYXJ0aWNsZSBhYm91dCBhIHRyZW5kaW5nIG11c2ljIHRyYWNrLg=="
-    },
-    {
       "title": "VGV4dCB0byBTcGVlY2g=",
       "content": "",
       "mimetype": "text/plain",
@@ -23,11 +12,9 @@
       "children": [],
       "nodeType": "assemble",
       "selectedRecipe": "Radio TTS",
-      "btInputKey": "article",
-      "btInputType": "text",
       "btOutputKey": "tts_audio",
       "btOutputType": "media",
-      "btPrompt": "Q29udmVydCB0aGUgZm9sbG93aW5nIHJhZGlvIERKIGFydGljbGUgdG8gc3BlZWNoOiB7YmI6YXJ0aWNsZX0="
+      "btPrompt": "UmVhZCB0aGUgZm9sbG93aW5nIHRleHQgYWxvdWQ6IHtjb250ZW50fQ=="
     },
     {
       "title": "UGxheSBBdWRpbw==",

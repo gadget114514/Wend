@@ -12,7 +12,7 @@ function b64(str) {
     return Buffer.from(binary, 'binary').toString('base64');
 }
 
-function leafNode(title, prompt, recipe, inputKey, inputType, outputKey, outputType, btPrompt) {
+function leafNode(title, prompt, recipe, inputKey, inputType, outputKey, ...args) {
     const node = {
         title: b64(title),
         content: b64(prompt),
@@ -25,13 +25,21 @@ function leafNode(title, prompt, recipe, inputKey, inputType, outputKey, outputT
     if (inputKey) node.btInputKey = inputKey;
     if (inputType) node.btInputType = inputType;
     if (outputKey) node.btOutputKey = outputKey;
+    // args: either [btPrompt] (backward-compat) or [outputType, btPrompt]
+    let btPrompt, outputType;
+    if (args.length === 2) {
+        outputType = args[0];
+        btPrompt = args[1];
+    } else {
+        btPrompt = args[0];
+    }
     if (outputType) node.btOutputType = outputType;
     if (btPrompt) node.btPrompt = b64(btPrompt);
     return node;
 }
 
-function loadLocalFileNode(title, localFilePath, outputKey) {
-    return {
+function loadLocalFileNode(title, localFilePath, outputKey, outputType) {
+    const node = {
         title: b64(title),
         content: '',
         mimetype: 'text/plain',
@@ -42,6 +50,8 @@ function loadLocalFileNode(title, localFilePath, outputKey) {
         btLocalFilePath: localFilePath,
         btOutputKey: outputKey,
     };
+    if (outputType) node.btOutputType = outputType;
+    return node;
 }
 
 function playAudioNode(title, inputKey) {
@@ -212,6 +222,22 @@ const recipes = [
         apiPath: '/v1/audio/speech',
         apiType: 'simple',
         customParams: {}
+    },
+    {
+        name: 'Radio TTS',
+        type: 'ai',
+        provider: 'voicebox',
+        model: 'kokoro',
+        temperature: 0.7,
+        systemPrompt: '',
+        command: '',
+        useCustomApiPath: false,
+        apiPath: '',
+        apiType: 'simple',
+        customParams: {
+            profile_name: '',
+            language: ''
+        }
     }
 ];
 
@@ -267,6 +293,7 @@ samples['05-validate-and-write'] = rootTree('sequence', [
 // 06: Local Music (Load Local MP3 -> Describe -> Write)
 samples['06-local-music'] = rootTree('sequence', [
     loadLocalFileNode('Load Music File', 'music.mp3', 'music_audio'),
+    playAudioNode('Play Music', 'music_audio'),
     leafNode('Describe Music', '', 'Radio Music Fetcher', 'music_audio', 'media', 'music_info',
         'Describe the attached audio file. Identify the genre, mood, tempo, instruments, and overall style. Provide a concise summary suitable for a radio DJ introduction.'),
     leafNode('Write Article', '', 'Radio Article Writer', 'music_info', 'text', 'article',
@@ -308,13 +335,28 @@ samples['09-tts-playback'] = rootTree('sequence', [
     playAudioNode('Play Audio', 'tts_audio'),
 ]);
 
+// 10: TTS from Input Pane (type text in the input pane, convert to speech)
+samples['10-tts-from-input-pane'] = rootTree('sequence', [
+    leafNode('Text to Speech', '', 'Radio TTS', null, null, 'tts_audio', 'media',
+        'Read the following text aloud: {content}'),
+    playAudioNode('Play Audio', 'tts_audio'),
+]);
+
+// 11: TTS from Local File (load a text file from disk, convert to speech)
+samples['11-tts-from-local-file'] = rootTree('sequence', [
+    loadLocalFileNode('Load Text File', 'speech.txt', 'file_content', 'text'),
+    leafNode('Text to Speech', '', 'Radio TTS', 'file_content', 'text', 'tts_audio', 'media',
+        'Read the following text aloud: {bb:file_content}'),
+    playAudioNode('Play Audio', 'tts_audio'),
+]);
+
 // Output directory
 const baseDir = __dirname;
 
 // Write projectrecipes.json at project root
 const general = [];
 const grouped = {};
-const knownProviders = ['openai', 'gemini', 'anthropic', 'replicate', 'opencode', 'mock'];
+const knownProviders = ['openai', 'gemini', 'anthropic', 'replicate', 'opencode', 'mock', 'voicebox'];
 
 for (const r of recipes) {
     const prov = (r.provider || '').toLowerCase().trim();
@@ -355,6 +397,17 @@ for (const [dirName, tree] of Object.entries(samples)) {
     const outPath = path.join(outDir, 'radio.json');
     fs.writeFileSync(outPath, JSON.stringify(tree, null, 2), 'utf8');
     console.log(`Wrote ${outPath}`);
+}
+
+// Write speech.txt for sample 11 (TTS from Local File)
+const sample11Dir = path.join(baseDir, '11-tts-from-local-file');
+if (fs.existsSync(sample11Dir)) {
+    const speechTextPath = path.join(sample11Dir, 'speech.txt');
+    fs.writeFileSync(speechTextPath,
+        'Hello! This is a test of the Voicebox text-to-speech system running through Wend. ' +
+        'Voicebox provides high-quality, local TTS with support for multiple languages and voices.',
+        'utf8');
+    console.log(`Wrote ${speechTextPath}`);
 }
 
 console.log('Done! Generated', Object.keys(samples).length, 'samples and projectrecipes.json.');

@@ -1,0 +1,1 @@
+Hello! This is a test of the Voicebox text-to-speech system running through Wend. Voicebox provides high-quality, local TTS with support for multiple languages and voices.
