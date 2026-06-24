@@ -350,6 +350,23 @@ samples['11-tts-from-local-file'] = rootTree('sequence', [
     playAudioNode('Play Audio', 'tts_audio'),
 ]);
 
+// 12: TTS from Operator Prompt (text typed directly in the operator pane's Prompt field)
+samples['12-tts-from-operator-prompt'] = rootTree('sequence', [
+    leafNode('Text to Speech',
+        'Welcome to Wend! This is a demonstration of the text-to-speech feature using text from the operator pane.',
+        'Radio TTS', null, null, 'tts_audio', 'media', null),
+    playAudioNode('Play Audio', 'tts_audio'),
+]);
+
+// 13: TTS from Pipeline Output (AI generates text from input → output feeds as input to TTS)
+samples['13-tts-pipeline-output'] = rootTree('sequence', [
+    leafNode('Generate Text', '', 'Radio Article Writer', null, null, 'speech_text',
+        'Write a short radio DJ introduction about: {content}'),
+    leafNode('Text to Speech', '', 'Radio TTS', 'speech_text', 'text', 'tts_audio', 'media',
+        'Read the following text aloud: {bb:speech_text}'),
+    playAudioNode('Play Audio', 'tts_audio'),
+]);
+
 // Output directory
 const baseDir = __dirname;
 

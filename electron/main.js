@@ -1591,6 +1591,11 @@ function seedDemoProject(sampleSubDir) {
         storage.saveProviders(JSON.parse(fs.readFileSync(providersPath, 'utf8')));
     }
 
+    const pipelinesPath = path.join(sampleDir, 'pipelines.json');
+    if (fs.existsSync(pipelinesPath)) {
+        storage.savePipelines(JSON.parse(fs.readFileSync(pipelinesPath, 'utf8')).pipelines || []);
+    }
+
     const entries = fs.readdirSync(sampleDir, { withFileTypes: true })
         .filter(e => e.isDirectory())
         .sort((a, b) => a.name.localeCompare(b.name));
@@ -1651,6 +1656,8 @@ function sendFullInit() {
     }
     // MockProvider is always available — no API key required
     runner.registerProvider('mock', 'mock', '', '');
+    // Voicebox — local TTS, available if running at default URL
+    runner.registerProvider('voicebox', 'voicebox', '', 'http://127.0.0.1:17493');
     if (!providers.mock) {
         providers.mock = { apiKey: '', baseUrl: '', models: ['echo', 'fixed', 'image-echo', 'image-compose'] };
     }

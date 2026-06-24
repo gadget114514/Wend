@@ -1,0 +1,31 @@
+{
+  "title": "",
+  "content": "",
+  "mimetype": "text/plain",
+  "attachments": [],
+  "children": [
+    {
+      "title": "VGV4dCB0byBTcGVlY2g=",
+      "content": "V2VsY29tZSB0byBXZW5kISBUaGlzIGlzIGEgZGVtb25zdHJhdGlvbiBvZiB0aGUgdGV4dC10by1zcGVlY2ggZmVhdHVyZSB1c2luZyB0ZXh0IGZyb20gdGhlIG9wZXJhdG9yIHBhbmUu",
+      "mimetype": "text/plain",
+      "attachments": [],
+      "children": [],
+      "nodeType": "assemble",
+      "selectedRecipe": "Radio TTS",
+      "btOutputKey": "tts_audio",
+      "btOutputType": "media"
+    },
+    {
+      "title": "UGxheSBBdWRpbw==",
+      "content": "",
+      "mimetype": "text/plain",
+      "attachments": [],
+      "children": [],
+      "nodeType": "assemble",
+      "btAction": "playAudio",
+      "btInputKey": "tts_audio"
+    }
+  ],
+  "nodeType": "root",
+  "btType": "sequence"
+}

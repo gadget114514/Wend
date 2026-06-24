@@ -1,0 +1,36 @@
+{
+  "pipelines": [
+    {
+      "name": "TTS from Pipeline Input",
+      "mode": "basic",
+      "outputMode": "child",
+      "outputNaming": "{pipeline_name}_{timestamp}",
+      "retryCount": 1,
+      "retryDelayMs": 1000,
+      "steps": [
+        {
+          "name": "Generate Text",
+          "type": "ai",
+          "params": {
+            "provider": "mock",
+            "model": "echo",
+            "userPrompt": "Write a short radio DJ introduction about a trending music track.",
+            "systemPrompt": "",
+            "temperature": "0.7"
+          }
+        },
+        {
+          "name": "Text to Speech",
+          "type": "ai",
+          "params": {
+            "provider": "voicebox",
+            "model": "kokoro",
+            "userPrompt": "{result}",
+            "systemPrompt": "",
+            "temperature": "0.7"
+          }
+        }
+      ]
+    }
+  ]
+}
