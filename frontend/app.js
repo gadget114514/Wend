@@ -2117,13 +2117,21 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             return this._classifyRecipeProvider(r) === this._selectedSelectProvider;
         });
 
-        if (displayedRecipes.length === 0) {
-            list.innerHTML = `<div style="color:#666;font-size:12px;padding:30px;text-align:center">${this.t('NoRecipes')}</div>`;
-            this._renderRecipeSelectDetail();
-            return;
-        }
+        // 3. Prepend "None (No Provider)" option
+        const isNone = !this._recipeSelectPending;
+        const noneHtml = `
+            <div class="recipe-select-item${isNone ? ' selected' : ''}" onclick="app._recipeSelectNone()"
+                style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:5px;cursor:pointer;margin-bottom:6px;
+                       background:${isNone ? '#094771' : '#252526'};border:1px solid ${isNone ? '#106097' : '#2d2d2d'};transition:background 0.1s, border-color 0.1s">
+                <span style="font-size:16px">🚫</span>
+                <span style="flex:1;min-width:0">
+                    <div style="font-size:12px;color:#fff;font-weight:500;margin-bottom:2px">${this.t('None')}</div>
+                    <div style="font-size:10px;color:#999">No provider / clear recipe</div>
+                </span>
+                ${isNone ? '<span style="color:#7ab0ff;font-size:14px;font-weight:bold">✓</span>' : ''}
+            </div>`;
 
-        // 3. Group by Usecase
+        // 4. Group by Usecase
         const groups = {};
         displayedRecipes.forEach(r => {
             const usecase = this._classifyRecipeUsecase(r);
@@ -2153,7 +2161,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             return idxA - idxB || a.localeCompare(b);
         });
 
-        list.innerHTML = sortedUsecases.map(usecase => {
+        list.innerHTML = noneHtml + sortedUsecases.map(usecase => {
             const recipesInGroup = groups[usecase];
             const recipesInGroupHtml = recipesInGroup.map(r => {
                 const origIdx = recipes.indexOf(r);
@@ -2309,6 +2317,13 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             const q = document.getElementById('recipe-select-search')?.value || '';
             this._renderRecipeSelectList(q);
         }
+    },
+
+    _recipeSelectNone() {
+        this._recipeSelectPending = '';
+        const q = document.getElementById('recipe-select-search')?.value || '';
+        this._renderRecipeSelectList(q);
+        this._renderRecipeSelectDetail();
     },
 
     applyRecipeSelectDialog() {

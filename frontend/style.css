@@ -181,7 +181,10 @@ button.btn-pressed { animation: btn-press 0.12s ease-out; }
 #search-box { background: #3d3d3d; border: 1px solid var(--theme-border); color: var(--theme-text); padding: 4px 8px; border-radius: 3px; width: 200px; }
 
 /* Tab bar */
-#tab-bar { display: flex; background: var(--theme-bg2); border-bottom: 1px solid var(--theme-border); min-height: 28px; }
+#tab-bar { display: flex; background: var(--theme-bg2); border-bottom: 1px solid var(--theme-border); min-height: 28px; overflow-x: auto; overflow-y: hidden; flex-shrink: 0; }
+#tab-bar::-webkit-scrollbar { height: 4px; }
+#tab-bar::-webkit-scrollbar-thumb { background: #555; border-radius: 2px; }
+#tab-bar::-webkit-scrollbar-track { background: transparent; }
 .tab { padding: 4px 16px; cursor: pointer; border-right: 1px solid var(--theme-border); background: var(--theme-bg3); white-space: nowrap; }
 .tab:hover { background: #3d3d3d; }
 .tab.active { background: var(--theme-bg); border-bottom: 2px solid var(--theme-accent); }
