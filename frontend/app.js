@@ -1045,6 +1045,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const onlyReasoning = !outputContent && meta.reasoning && !meta.error;
         if (onlyReasoning) return;
         const autoTitle = outputContent.replace(/\s+/g, ' ').trim().substring(0, 50) + (outputContent.length > 50 ? '...' : '');
+        const execTime = meta.startedAt ? (() => { try { return new Date(meta.startedAt).toLocaleTimeString(); } catch { return ''; } })() : '';
         const tab = this.state.tabs[this.state.activeTab];
         // Phase A: Use targetNodePath from meta if available (from BT requestId correlation),
         // else fall back to selectedOpPath/currentNodePath (for non-BT or single-threaded execution)
@@ -1094,7 +1095,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
         const recipeUsed = (opNode && opNode.selectedRecipe) || this.state.selectedRecipe || '';
         const outputNode = {
-            title: this.safeB64(autoTitle || meta.pipelineName),
+            title: this.safeB64(execTime ? '[' + execTime + '] ' + (autoTitle || meta.pipelineName) : (autoTitle || meta.pipelineName)),
             content: this.safeB64(outputContent),
             mimetype: 'text/plain',
             attachments: meta.outputAttachments || [],
@@ -1128,7 +1129,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             const pendingIdx = target.children.findIndex(c => c._pending);
             if (pendingIdx !== -1) {
                 const pending = target.children[pendingIdx];
-                pending.title = this.safeB64(autoTitle || meta.pipelineName);
+                pending.title = this.safeB64(execTime ? '[' + execTime + '] ' + (autoTitle || meta.pipelineName) : (autoTitle || meta.pipelineName));
                 pending.content = this.safeB64(outputContent);
                 pending.pipelineMeta = JSON.stringify(meta);
                 pending.attachments = meta.outputAttachments || [];
