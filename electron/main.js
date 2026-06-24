@@ -208,10 +208,10 @@ function redactMediaFromBody(bodyStr) {
             const result = {};
             for (const [key, value] of Object.entries(obj)) {
                 if (key === 'data' && typeof value === 'string' && value.length > 100) {
-                    result[key] = `[base64: ${value.length} chars]`;
+                    result[key] = '(b64 emitted)';
                 } else if (key === 'image_url' && typeof value === 'object') {
                     if (value.url && value.url.startsWith('data:')) {
-                        result[key] = { url: `[data URL: ${value.url.length} chars]` };
+                        result[key] = { url: '(b64 emitted)' };
                     } else {
                         result[key] = value;
                     }
@@ -234,10 +234,14 @@ function redactMediaFromBody(bodyStr) {
 
 function tryLogHttp(info) {
     const redactedBody = redactMediaFromBody(info.requestBody);
-    console.log('[HTTP]', info.method, info.url, info.statusCode || info.error);
+    const elapsed = info.elapsedMs ? ` (${info.elapsedMs}ms)` : '';
+    const status = info.statusCode || info.error || '?';
+    const requestStr = redactedBody ? redactedBody.substring(0, 80).replace(/\n/g, '\\n') : '';
+    const detailStr = info.responsePreview ? info.responsePreview.substring(0, 80).replace(/\n/g, '\\n') : '';
+    console.log(`[HTTP] ${info.method} ${info.url} → request: ${requestStr} | result: ${status}${elapsed} | detail: ${detailStr}`);
     try {
         fs.appendFileSync(path.join(appDataPath || 'C:\\Users\\bluen\\AppData\\Local\\Temp', 'prompts_http_debug.log'),
-            `[${new Date().toISOString()}] ${info.method} ${info.url} → ${info.statusCode || info.error || '?'}\n`, 'utf8');
+            `[${new Date().toISOString()}] ${info.method} ${info.url} → request: ${requestStr} | result: ${status}${elapsed} | detail: ${detailStr}\n`, 'utf8');
     } catch (e) { console.error('HTTP debug log error:', e); }
     try { if (_httpLogCallback) _httpLogCallback({ ...info, requestBody: redactedBody }); } catch(e) { console.error('HTTP log callback error:', e); }
 }
@@ -365,12 +369,16 @@ console.log('[ProviderLoader] Loaded providers:', Object.keys(builtinProviders).
 try {
     const providerUtils = require('./providers/utils');
     providerUtils.setHttpLogCallback((info) => {
-        console.log('[HTTP]', info.method, info.url, info.statusCode || info.error);
+        const elapsed = info.elapsedMs ? ` (${info.elapsedMs}ms)` : '';
+        const status = info.statusCode || info.error || '?';
+        const requestStr = info.requestBody ? info.requestBody.substring(0, 80).replace(/\n/g, '\\n') : '';
+        const detailStr = info.responsePreview ? info.responsePreview.substring(0, 80).replace(/\n/g, '\\n') : '';
+        console.log(`[HTTP] ${info.method} ${info.url} → request: ${requestStr} | result: ${status}${elapsed} | detail: ${detailStr}`);
         try {
             const logPath = appDataPath || path.join(os.tmpdir(), 'prompts');
             fs.mkdirSync(logPath, { recursive: true });
             fs.appendFileSync(path.join(logPath, 'prompts_http_debug.log'),
-                `[${new Date().toISOString()}] ${info.method} ${info.url} → ${info.statusCode || info.error || '?'}\n`, 'utf8');
+                `[${new Date().toISOString()}] ${info.method} ${info.url} → request: ${requestStr} | result: ${status}${elapsed} | detail: ${detailStr}\n`, 'utf8');
         } catch (e) { console.error('HTTP debug log error:', e.message); }
         try { postToJS('http_log', info); } catch (e) {
             console.error('[HTTP] Failed to post http_log:', e.message);
@@ -1335,7 +1343,6 @@ class PipelineRunner {
             status: 'completed',
             outputMode: this.outputMode,
             outputContent: lastStep ? lastStep.output : '',
-            outputAttachments: lastStep ? (lastStep.artifacts || []) : [],
             // AI comment = the model's internal reasoning; carried separately so
             // the frontend can show it without treating it as output.
             reasoning: lastStep ? (lastStep.reasoning || '') : '',

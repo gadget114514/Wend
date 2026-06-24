@@ -23,9 +23,9 @@ function redactMediaFromBody(bodyStr) {
         const json = JSON.parse(bodyStr);
         return JSON.stringify(json, (key, value) => {
             if (key === 'data' && typeof value === 'string' && value.length > 100)
-                return `[base64: ${value.length} chars]`;
+                return '(b64 emitted)';
             if (key === 'url' && typeof value === 'string' && value.startsWith('data:'))
-                return `[data URL: ${value.length} chars]`;
+                return '(b64 emitted)';
             return value;
         }, 2);
     } catch {

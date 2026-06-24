@@ -67,6 +67,19 @@ function playAudioNode(title, inputKey) {
     };
 }
 
+function outputDisplayNode(title, inputKey) {
+    return {
+        title: b64(title),
+        content: '',
+        mimetype: 'text/plain',
+        attachments: [],
+        children: [],
+        nodeType: 'assemble',
+        btAction: 'outputDisplay',
+        btInputKey: inputKey,
+    };
+}
+
 function compositeNode(title, btType, children) {
     return {
         title: b64(title),

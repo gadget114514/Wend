@@ -1064,7 +1064,8 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             }
             const outputScope = opNode.btOutputScope || 'run';
             if (!meta.error && this._bt) {
-                const outMedia = Array.isArray(meta.outputAttachments) ? meta.outputAttachments : [];
+                const lastStepMeta = meta.steps && meta.steps.length > 0 ? meta.steps[meta.steps.length - 1] : null;
+                const outMedia = lastStepMeta && Array.isArray(lastStepMeta.outputAttachments) ? lastStepMeta.outputAttachments : [];
                 if (outputType === 't2a' || outputType === 'media') {
                     // Audio/media output (t2a): store media only, no text dual-write.
                     if (outMedia.length > 0) {
@@ -1594,20 +1595,32 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     },
 
     _getDataNodeMediaType(node) {
-        if (!node || !node.pipelineMeta) return '';
-        try {
-            const meta = JSON.parse(node.pipelineMeta);
-            if (meta && meta.steps && meta.steps.length > 0) {
-                const lastStep = meta.steps[meta.steps.length - 1];
-                const attachments = lastStep.outputAttachments || lastStep.attachments || [];
-                for (const a of attachments) {
-                    const mime = a.mimetype || '';
-                    if (mime.startsWith('image/')) return 'image';
-                    if (mime.startsWith('audio/')) return 'audio';
-                    if (mime.startsWith('video/')) return 'video';
-                }
+        if (!node) return '';
+        // Check saved attachments first (set by outputDisplay or from meta)
+        if (node.attachments && node.attachments.length > 0) {
+            for (const a of node.attachments) {
+                const mime = a.mimetype || '';
+                if (mime.startsWith('image/')) return 'image';
+                if (mime.startsWith('audio/')) return 'audio';
+                if (mime.startsWith('video/')) return 'video';
             }
-        } catch (e) { /* ignore parse errors */ }
+        }
+        // Fall back to per-step data if available
+        if (node.pipelineMeta) {
+            try {
+                const meta = JSON.parse(node.pipelineMeta);
+                if (meta && meta.steps && meta.steps.length > 0) {
+                    const lastStep = meta.steps[meta.steps.length - 1];
+                    const attachments = lastStep.outputAttachments || lastStep.attachments || [];
+                    for (const a of attachments) {
+                        const mime = a.mimetype || '';
+                        if (mime.startsWith('image/')) return 'image';
+                        if (mime.startsWith('audio/')) return 'audio';
+                        if (mime.startsWith('video/')) return 'video';
+                    }
+                }
+            } catch (e) { /* ignore parse errors */ }
+        }
         return '';
     },
 
@@ -6318,6 +6331,26 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
     // Backward compat alias
     addLog(text) { this.outputMessage(text); },
 
+    setPipelineFinalOutput(data) {
+        const opNodePath = this.state.selectedOpPath || this.state.currentNodePath;
+        const opNode = this.getNodeByPath(opNodePath);
+        if (!opNode || !opNode.children) return;
+        const dataNodes = opNode.children.filter(c => c.nodeType === 'data');
+        if (dataNodes.length === 0) return;
+        const latest = dataNodes[0];
+        if (Array.isArray(data)) {
+            latest.attachments = data;
+            if (data.length > 0 && data[0].mimetype && data[0].content) {
+                // Media attachment — don't overwrite content
+            } else if (typeof data[0] === 'string') {
+                latest.content = this.safeB64(data[0]);
+            }
+        } else if (typeof data === 'string') {
+            latest.content = this.safeB64(data);
+        }
+        this.renderOutput();
+    },
+
     addHttpLog(info) {
         const el = document.getElementById('http-log-content');
         if (!el) return;
@@ -8683,7 +8716,6 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                     const lastStep = meta.steps[meta.steps.length - 1];
                     receivedText = lastStep.output || receivedText;
                     artifacts = lastStep.artifacts || [];
-                    outputAttachments = lastStep.outputAttachments || outputAttachments;
                     aiComment = lastStep.reasoning || meta.reasoning || '';
                 }
             } catch(e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: _renderOutputHistory\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
@@ -8818,7 +8850,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const makeDetail = (child, idx) => {
             let inputText = '', outputText = '';
             let inputAttachments = child.inputAttachments || [];
-            let outputAttachments = [], artifacts = [];
+            let outputAttachments = child.attachments || [], artifacts = [];
             let httpBodiesHtml = '';
             if (child.pipelineMeta) {
                 try {
@@ -8827,7 +8859,6 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                         inputText = meta.steps[0].input || '';
                         const last = meta.steps[meta.steps.length - 1];
                         outputText = last.output || '';
-                        outputAttachments = last.outputAttachments || [];
                         artifacts = last.artifacts || [];
                         
                         meta.steps.forEach((step, sIdx) => {

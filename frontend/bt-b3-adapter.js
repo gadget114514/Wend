@@ -235,7 +235,8 @@ class Behavior3Adapter {
                 if (meta.outputContent != null) {
                     this.bbWrite(ctx.outputKey, meta.outputContent, 'run', ctx.outputType || 'text');
                 }
-                const outMedia = Array.isArray(meta.outputAttachments) ? meta.outputAttachments : [];
+                const lastStepMeta = meta.steps && meta.steps.length > 0 ? meta.steps[meta.steps.length - 1] : null;
+                const outMedia = lastStepMeta && Array.isArray(lastStepMeta.outputAttachments) ? lastStepMeta.outputAttachments : [];
                 if (outMedia.length > 0) {
                     this.bbWrite(ctx.outputKey, outMedia, 'run', 'media');
                 }
