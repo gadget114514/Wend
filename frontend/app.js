@@ -6365,6 +6365,54 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.renderOutput();
     },
 
+    // Record a BT action/sink node's execution as a history data node. A data
+    // node IS the execution-history record, so every executed assemble node
+    // leaves one — including sinks like playAudio. The node consumed its input
+    // (preserved here as input/inputAttachments) but produces no displayed
+    // result, so its OUTPUT (content/attachments) is empty.
+    recordActionExecution(opNodePath, opts = {}) {
+        const { actionLabel = 'Action', input = '', inputAttachments = [], btRunId = '' } = opts;
+        const opPath = this.getLogicalOpPath(opNodePath);
+        const opNode = this.getNodeByPath(opPath);
+        const tab = this.state.tabs[this.state.activeTab];
+        if (!opNode || !tab) return;
+        if (!opNode.children) opNode.children = [];
+
+        let target = opNode;
+        if (opNode.placeholderName) {
+            let ph = opNode.children.find(c => c.nodeType === 'placeholder' || (!c.nodeType && c.title && this.safeAtob(c.title) === opNode.placeholderName));
+            if (!ph) { ph = { title: this.safeB64(opNode.placeholderName), nodeType: 'placeholder', children: [] }; opNode.children.push(ph); }
+            target = ph;
+        } else {
+            const legacy = opNode.children.find(c => c.nodeType === 'placeholder' || (!c.nodeType && c.title && this.safeAtob(c.title) === 'Processed'));
+            if (legacy) target = legacy;
+        }
+        if (!target.children) target.children = [];
+
+        const execTime = new Date().toLocaleTimeString();
+        target.children.unshift({
+            title: this.safeB64('[' + execTime + '] ' + actionLabel),
+            content: this.safeB64(''),     // empty OUTPUT — a sink produces nothing
+            mimetype: 'text/plain',
+            attachments: [],               // empty OUTPUT
+            children: [],
+            pipelineMeta: JSON.stringify({ pipelineName: actionLabel, steps: [{ input: input, output: '' }] }),
+            nodeType: 'data',
+            datetime: new Date().toISOString(),
+            btRunId: btRunId,
+            isActionHistory: true,
+            input: input || '',
+            inputAttachments: Array.isArray(inputAttachments) ? inputAttachments : []
+        });
+        this.state.selectedOutputRunIndex = 0;
+        this.renderTree();
+        this.renderList();
+        if (tab.file && tab.root) {
+            this.postMessage({ type: 'save_node', payload: { tabFile: tab.file, root: tab.root } });
+        }
+        this.renderOutput();
+    },
+
     addHttpLog(info) {
         const el = document.getElementById('http-log-content');
         if (!el) return;
@@ -9234,9 +9282,14 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                     html += section('★ ' + t('PipelineOutput'), f.content, f.attachments);
                 }
                 group.forEach(g => {
-                    const label = g.title ? this.safeAtob(g.title) : (g.nodeType || '');
                     const text = g.content ? this.safeAtob(g.content) : '';
-                    html += section(label, text, g.attachments || []);
+                    const atts = g.attachments || [];
+                    // Empty-output history nodes (e.g. a playAudio sink) contribute
+                    // nothing to the pipeline's products — skip them here. They
+                    // still exist in the tree as execution history.
+                    if (!text && atts.length === 0) return;
+                    const label = g.title ? this.safeAtob(g.title) : (g.nodeType || '');
+                    html += section(label, text, atts);
                 });
                 el.innerHTML = html;
                 return;

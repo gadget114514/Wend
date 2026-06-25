@@ -1028,7 +1028,20 @@ class BehaviorTreeEngine {
 
         try {
             const result = await config.handler(ctx);
-            return result !== false;
+            const ok = result !== false;
+            // A data node is the execution-history record, so an action/sink node
+            // (playAudio, playVideo, …) also leaves one — with EMPTY output. The
+            // pipelineOutput action is excluded: it only designates a final output
+            // and owns no execution result of its own.
+            if (ok && actionName !== 'pipelineOutput') {
+                app.recordActionExecution(path, {
+                    actionLabel: config.label || actionName,
+                    input: textInput || '',
+                    inputAttachments: Array.isArray(mediaArr) ? mediaArr : [],
+                    btRunId: this._btRunId || ''
+                });
+            }
+            return ok;
         } catch (e) {
             app.outputMessage(`❌ Action "${config.label}" error: ${e.message}`);
             return false;
