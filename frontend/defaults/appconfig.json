@@ -2,5 +2,8 @@
     "historyRetention": 50,
     "defaultProvider": "openai",
     "defaultModel": "",
-    "theme": "dark"
+    "theme": "dark",
+    "mcpHealthInitialDelayMs": 20000,
+    "mcpHealthIntervalMs": 600000,
+    "mcpHealthTimeoutMs": 8000
 }

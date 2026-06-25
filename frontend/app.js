@@ -189,6 +189,8 @@ const app = {
                 const hb = document.getElementById('btn-hamburger');
                 if (hb) hb.style.display = '';
                 this.outputMessage('✅ ' + this.t('AppReady'));
+                // Request current MCP status for the header badge
+                this.postMessage({ type: 'mcp_get_status' });
                 // Show wizard on first run
                 if (!localStorage.getItem('prompts_wizard_done')) {
                     setTimeout(() => this.showWizard(), 400);
@@ -369,6 +371,9 @@ const app = {
                 break;
             case 'http_log':
                 this.addHttpLog(msg.payload);
+                break;
+            case 'mcp_status':
+                this.updateMcpBadge(msg.payload);
                 break;
             // ── Stream Model Extensions ──
             case 'step_filter_pause':
@@ -640,6 +645,77 @@ const app = {
     postMessage(obj) {
         const bridge = window.__promptsBridge || window.chrome?.webview;
         if (bridge) bridge.postMessage(obj);
+    },
+
+    /** Format milliseconds since epoch into a human-readable relative time. */
+    _formatMcpCheckTime(ms) {
+        if (!ms || ms <= 0) return 'never';
+        const delta = Date.now() - ms;
+        if (delta < 60000) return 'just now';
+        if (delta < 3600000) return Math.floor(delta / 60000) + 'm ago';
+        if (delta < 86400000) return Math.floor(delta / 3600000) + 'h ago';
+        return Math.floor(delta / 86400000) + 'd ago';
+    },
+
+    /** Update the MCP status badge in the messages pane header. */
+    updateMcpBadge(payload) {
+        const el = document.getElementById('mcp-status-badge');
+        if (!el || !payload) return;
+        this._mcpStatus = payload;
+        el.style.display = '';
+        el.classList.remove('mcp-checking');
+
+        // Server-running state: ON = bridge up + client connected, READY = bridge up only, OFF = bridge down
+        let cls = 'mcp-off', label = 'OFF';
+        if (payload.bridgeListening) {
+            if (payload.clientActive) { cls = 'mcp-on'; label = 'ON'; }
+            else { cls = 'mcp-idle'; label = 'READY'; }
+        }
+        el.classList.remove('mcp-on', 'mcp-idle', 'mcp-off');
+        el.classList.add(cls);
+
+        const connected = payload.connectedCount || 0;
+        const configured = payload.configuredCount || 0;
+        el.innerHTML = `🔌 MCP: <b>${label}</b>` +
+            `<span class="mcp-count">接続先 ${connected}/${configured}</span>`;
+
+        // Tooltip: bridge / client / per-server detail with last checked time
+        const lines = [
+            `MCP bridge: ${payload.bridgeListening ? 'listening :18765' : 'down'}`,
+            `Client: ${payload.clientActive ? 'connected' : 'idle'}`,
+        ];
+        for (const s of (payload.servers || [])) {
+            const mark = s.status === 'up' ? '🟢' : (s.status === 'down' ? '🔴' : '⚪');
+            const checked = this._formatMcpCheckTime(s.lastChecked);
+            let line = `${mark} ${s.name} (${s.transport}) — checked ${checked}`;
+            if (s.error) line += ` — ${s.error}`;
+            lines.push(line);
+        }
+        lines.push('クリックで再チェック');
+        el.title = lines.join('\n');
+
+        // Decay "client connected" back to idle after the active window
+        clearTimeout(this._mcpActiveDecay);
+        if (payload.clientActive) {
+            this._mcpActiveDecay = setTimeout(() => {
+                if (this._mcpStatus) {
+                    this._mcpStatus.clientActive = false;
+                    this.updateMcpBadge(this._mcpStatus);
+                }
+            }, 30000);
+        }
+    },
+
+    /** Manually trigger a re-check of all configured MCP servers. */
+    refreshMcpStatus() {
+        const el = document.getElementById('mcp-status-badge');
+        if (el) el.classList.add('mcp-checking');
+        this.postMessage({ type: 'mcp_check' });
+        clearTimeout(this._mcpCheckSpin);
+        this._mcpCheckSpin = setTimeout(() => {
+            const e2 = document.getElementById('mcp-status-badge');
+            if (e2) e2.classList.remove('mcp-checking');
+        }, 2000);
     },
 
     /** Persist project-scope blackboard to disk (debounced). Called by BT engine. */
