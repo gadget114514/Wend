@@ -1026,22 +1026,23 @@ class BehaviorTreeEngine {
             setCleanup,
         };
 
+        // A data node IS the execution-history record, so an action/sink node
+        // (playAudio, playVideo, …) also leaves one — with EMPTY output. Record it
+        // when the action EXECUTES, not after its handler resolves: a sink like
+        // playAudio only resolves when playback ends (and not at all if autoplay
+        // is blocked), so gating on completion would create the node late or never.
+        // pipelineOutput is excluded: it only designates a final output.
+        if (actionName !== 'pipelineOutput') {
+            app.recordActionExecution(path, {
+                actionLabel: config.label || actionName,
+                input: textInput || '',
+                inputAttachments: Array.isArray(mediaArr) ? mediaArr : [],
+                btRunId: this._btRunId || ''
+            });
+        }
         try {
             const result = await config.handler(ctx);
-            const ok = result !== false;
-            // A data node is the execution-history record, so an action/sink node
-            // (playAudio, playVideo, …) also leaves one — with EMPTY output. The
-            // pipelineOutput action is excluded: it only designates a final output
-            // and owns no execution result of its own.
-            if (ok && actionName !== 'pipelineOutput') {
-                app.recordActionExecution(path, {
-                    actionLabel: config.label || actionName,
-                    input: textInput || '',
-                    inputAttachments: Array.isArray(mediaArr) ? mediaArr : [],
-                    btRunId: this._btRunId || ''
-                });
-            }
-            return ok;
+            return result !== false;
         } catch (e) {
             app.outputMessage(`❌ Action "${config.label}" error: ${e.message}`);
             return false;

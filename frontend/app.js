@@ -6150,21 +6150,19 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             textInput = bt._bbReadText(inputKey);
         }
         const ctx = { bt, app: this, path, node, inputKey, outputKey, outputType, mediaArr, textInput, setCleanup: () => {} };
+        // Leave an execution-history data node (empty output) when the action
+        // EXECUTES — same as the BT-engine path — so a manually-run sink (playAudio,
+        // …) is recorded immediately, not gated on its async playback finishing.
+        if (actionName !== 'pipelineOutput') {
+            this.recordActionExecution(path, {
+                actionLabel: config.label || actionName,
+                input: textInput || '',
+                inputAttachments: Array.isArray(mediaArr) ? mediaArr : [],
+                btRunId: ''
+            });
+        }
         config.handler(ctx).then(ok => {
-            if (ok) {
-                this.outputMessage(`✅ Action "${config.label}" completed`);
-                // Leave an execution-history data node (empty output) just like
-                // the BT-engine path (_runAction) does, so a manually-run sink
-                // (playAudio, …) is also recorded as history.
-                if (actionName !== 'pipelineOutput') {
-                    this.recordActionExecution(path, {
-                        actionLabel: config.label || actionName,
-                        input: textInput || '',
-                        inputAttachments: Array.isArray(mediaArr) ? mediaArr : [],
-                        btRunId: ''
-                    });
-                }
-            }
+            if (ok) this.outputMessage(`✅ Action "${config.label}" completed`);
         }).catch(e => {
             this.outputMessage(`❌ Action "${config.label}" error: ${e.message}`);
         });
