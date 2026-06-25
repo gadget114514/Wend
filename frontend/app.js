@@ -1027,6 +1027,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.outputMessage(`✅ Pipeline "${meta.pipelineName}" completed`);
 
         let handledByBt = false;
+        let activeEngine = null;
         // Phase C-D: If this is a parallel run, route to the correct engine and tab
         if (meta.runId && this._runIdToTabIndex) {
             const tabIndex = this._runIdToTabIndex.get(meta.runId);
@@ -1034,12 +1035,16 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 this.state.activeTab = tabIndex;  // switch to parallel tab
             }
             const engine = this.getEngine(meta.runId);
-            if (engine) handledByBt = engine.notifyLeafComplete(meta);
+            if (engine) { activeEngine = engine; handledByBt = engine.notifyLeafComplete(meta); }
         } else {
             // Phase A: notifyLeafComplete will route via requestId if present, else fall back to state
             // If BT is running, notify leaf completion to BT engine (fall through to save output normally)
-            if (this._bt) handledByBt = this._bt.notifyLeafComplete(meta);
+            if (this._bt) { activeEngine = this._bt; handledByBt = this._bt.notifyLeafComplete(meta); }
         }
+        // When this output is part of a BT execution, tag it with that run's id so
+        // the bottom "Pipeline Output" pane can aggregate all nodes of the run.
+        // Manual single executions (not handled by BT) get no btRunId.
+        const btRunId = (handledByBt && activeEngine && activeEngine._btRunId) ? activeEngine._btRunId : '';
 
         const outputContent = meta.outputContent || '';
         const onlyReasoning = !outputContent && meta.reasoning && !meta.error;
@@ -1104,6 +1109,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             pipelineMeta: JSON.stringify(meta),
             nodeType: 'data',
             datetime: new Date().toISOString(),
+            btRunId: btRunId,
             originalOpNode: opNodeCopy,
             selectedRecipe: recipeUsed,
             input: inputAttachmentsCopy.text || '',
@@ -1134,6 +1140,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 pending.content = this.safeB64(outputContent);
                 pending.pipelineMeta = JSON.stringify(meta);
                 pending.attachments = meta.outputAttachments || [];
+                pending.btRunId = btRunId;
                 pending.originalOpNode = opNodeCopy;
                 pending.selectedRecipe = recipeUsed;
                 pending.input = inputAttachmentsCopy.text || '';
@@ -6338,8 +6345,16 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const dataNodes = opNode.children.filter(c => c.nodeType === 'data');
         if (dataNodes.length === 0) return;
         const latest = dataNodes[0];
-        if (attachments) latest.attachments = Array.isArray(attachments) ? attachments : [attachments];
-        if (textContent) latest.content = this.safeB64(textContent);
+        // The pipelineOutput action designates the pipeline's FINAL output. This is
+        // a distinct concept from this data node's own direct output (the assemble
+        // node's execution result). Store it on a dedicated field instead of
+        // overwriting content/attachments, so the node's direct output (TOP pane)
+        // stays immutable. The designated output is surfaced in the bottom
+        // "Pipeline Output" pane via renderPipelineOutput.
+        latest.pipelineFinalOutput = {
+            attachments: attachments ? (Array.isArray(attachments) ? attachments : [attachments]) : [],
+            content: textContent || ''
+        };
         this.renderOutput();
     },
 
@@ -8697,18 +8712,21 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
         const child = runs[selectedIdx];
         let receivedText = child.content ? (() => { try { return atob(child.content); } catch { return child.content; } })() : '';
-        let artifacts = [];
         let aiComment = '';
 
-        let outputAttachments = child.attachments || [];
+        // TOP pane = this data node's OWN direct output only (the assemble node's
+        // execution result captured at node creation). content/attachments hold
+        // that result; reasoning is this node's own model reasoning. Do NOT read
+        // artifacts/reasoning from pipelineMeta.steps[] — that array is the
+        // aggregate "all pipeline products" record and belongs to the bottom
+        // "Pipeline Output" pane. (child.attachments already equals the node's
+        // own artifacts, so pulling steps[last].artifacts would double-count.)
+        const outputAttachments = child.attachments || [];
+        const artifacts = [];
         if (child.pipelineMeta) {
             try {
                 const meta = JSON.parse(child.pipelineMeta);
-                if (meta && meta.steps && meta.steps.length > 0) {
-                    const lastStep = meta.steps[meta.steps.length - 1];
-                    artifacts = lastStep.artifacts || [];
-                    aiComment = lastStep.reasoning || meta.reasoning || '';
-                }
+                aiComment = meta.reasoning || '';
             } catch(e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: _renderOutputHistory\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
         }
         let html;
@@ -9162,9 +9180,105 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         this.showMediaViewer('text', text, this.t('TextOutput'));
     },
 
+    // Returns the data node currently shown in the TOP output pane (mirrors the
+    // single-node selection branch of _renderOutputHistory). Null when a parent/
+    // root/op node is selected (those show history lists, not one node).
+    _getSelectedDataNode() {
+        const currentPath = this.state.currentNodePath;
+        const selectedDataPath = this.state.selectedDataPath;
+        const selectedOpPath = this.state.selectedOpPath;
+        if (selectedOpPath !== '') return null;
+        const targetPath = selectedDataPath === '' ? currentPath : selectedDataPath;
+        const targetNode = targetPath !== '' ? this.getNodeByPath(targetPath) : null;
+        if (selectedDataPath !== '') return targetNode || null;
+        if (targetNode && this.isParentOrRootNode(targetNode)) return null;
+        const opNode = this.getNodeByPath(currentPath);
+        if (!opNode || !opNode.children) return null;
+        const container = this._dataContainer(opNode);
+        const runs = container === opNode ? opNode.children : (container.children || []);
+        if (runs.length === 0) return null;
+        let selectedIdx = this.state.selectedOutputRunIndex !== undefined ? this.state.selectedOutputRunIndex : 0;
+        if (selectedIdx >= runs.length) selectedIdx = 0;
+        return runs[selectedIdx] || null;
+    },
+
+    // BOTTOM pane = all products of the pipeline this node belongs to.
+    //  - BT execution: one entry per assemble node (every data node sharing this
+    //    node's btRunId), in execution order, labelled by node title.
+    //  - Manual single execution: this one run's steps (pipelineMeta.steps).
+    // In both cases the designated final output (pipelineOutput action) is shown
+    // first as a ★ section when present.
+    _renderNodePipelineProducts(el, node, t) {
+        const section = (label, text, atts) =>
+            `<div style="font-size:10px;color:#888;margin:8px 8px 3px;border-bottom:1px solid #333;padding-bottom:2px">${this.escapeHtml(label)}</div>` +
+            `<div style="padding:4px 8px">${this.renderOutputGrid(text || '', atts || [], [])}</div>`;
+
+        // ── BT execution: aggregate all data nodes of the same run ──
+        if (node.btRunId) {
+            const group = [];
+            const root = this.state.tabs && this.state.tabs[this.state.activeTab] && this.state.tabs[this.state.activeTab].root;
+            const walk = (n) => {
+                if (!n) return;
+                if (n.nodeType === 'data' && n.btRunId === node.btRunId) group.push(n);
+                (n.children || []).forEach(walk);
+            };
+            if (root) walk(root);
+            if (group.length > 0) {
+                group.sort((a, b) => (a.datetime || '').localeCompare(b.datetime || ''));
+                let html = `<div class="output-toolbar"><span class="output-label">${t('PipelineOutput')}</span></div>`;
+                const finNode = group.find(g => {
+                    const f = g.pipelineFinalOutput;
+                    return f && ((f.content && f.content.length) || (f.attachments && f.attachments.length));
+                });
+                if (finNode) {
+                    const f = finNode.pipelineFinalOutput;
+                    html += section('★ ' + t('PipelineOutput'), f.content, f.attachments);
+                }
+                group.forEach(g => {
+                    const label = g.title ? this.safeAtob(g.title) : (g.nodeType || '');
+                    const text = g.content ? this.safeAtob(g.content) : '';
+                    html += section(label, text, g.attachments || []);
+                });
+                el.innerHTML = html;
+                return;
+            }
+        }
+
+        // ── Manual single execution: this run's own steps ──
+        let steps = [];
+        try {
+            const meta = node.pipelineMeta ? JSON.parse(node.pipelineMeta) : null;
+            if (meta && Array.isArray(meta.steps)) steps = meta.steps;
+        } catch (e) { /* fall through to whatever we have */ }
+
+        const fin = node.pipelineFinalOutput;
+        const hasFinal = fin && ((fin.content && fin.content.length) || (fin.attachments && fin.attachments.length));
+
+        if (steps.length === 0 && !hasFinal) {
+            el.innerHTML = `<div class="output-toolbar"><span class="output-label">${t('PipelineOutput')}</span></div><div class="empty">${t('NoOutput')}</div>`;
+            return;
+        }
+
+        let html = `<div class="output-toolbar"><span class="output-label">${t('PipelineOutput')}</span></div>`;
+        if (hasFinal) html += section('★ ' + t('PipelineOutput'), fin.content, fin.attachments);
+        steps.forEach((s, i) => {
+            html += section(s.name || s.type || `Step ${i + 1}`, s.output, s.outputAttachments);
+        });
+        el.innerHTML = html;
+    },
+
     renderPipelineOutput(el) {
-        const si = this.state.pipelineRun.selectedStep;
         const t = key => this.t(key);
+        // Outside a live run, reflect the selected saved data node's recorded
+        // products rather than the stale global live-run state.
+        if (!this.state.pipelineRun.running) {
+            const node = this._getSelectedDataNode();
+            if (node && (node.pipelineMeta || node.pipelineFinalOutput)) {
+                this._renderNodePipelineProducts(el, node, t);
+                return;
+            }
+        }
+        const si = this.state.pipelineRun.selectedStep;
         if (si < 0 || this.state.pipelineRun.steps.length === 0 || si >= this.state.pipelineRun.steps.length) {
             el.innerHTML = `<div class="empty">${t('EmptyNode')}</div>`;
             return;
