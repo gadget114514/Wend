@@ -9268,25 +9268,25 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     renderPipelineOutput(el) {
         const t = key => this.t(key);
-        // Outside a live run, reflect the selected saved data node's recorded
-        // products rather than the stale global live-run state.
-        if (!this.state.pipelineRun.running) {
+        // The live per-step view (driven by the global state.pipelineRun) is only
+        // valid while a run is in progress, or while the user is explicitly
+        // browsing the pipeline-step tree (viewMode 'pipeline'). In every other
+        // case this pane must reflect the SELECTED node's own products.
+        //
+        // General rule: a node that produced nothing shows nothing. This covers
+        // every node type that creates no data node — action/sink nodes
+        // (playAudio, playVideo, loadLocalFile, math, web, misc, pipelineOutput),
+        // composite nodes (sequence/parallel/selector), and the root. None of
+        // them must ever fall through to a previous run's leftover state.pipelineRun.
+        const liveStepContext = this.state.pipelineRun.running || this.state.viewMode === 'pipeline';
+        if (!liveStepContext) {
             const node = this._getSelectedDataNode();
             if (node && (node.pipelineMeta || node.pipelineFinalOutput)) {
                 this._renderNodePipelineProducts(el, node, t);
-                return;
-            }
-            // No data node is selected — e.g. an action/sink node like "Play Audio"
-            // which produces no output but leaves itself selected (selectedOpPath)
-            // after a BT run. Do NOT fall through to the previous run's stale
-            // state.pipelineRun (that would show the last AI leaf's audio/output
-            // under a node that produced nothing). The live single-step view below
-            // is only meaningful while running or while browsing the pipeline-step
-            // tree (viewMode 'pipeline').
-            if (this.state.viewMode !== 'pipeline') {
+            } else {
                 el.innerHTML = `<div class="output-toolbar"><span class="output-label">${t('PipelineOutput')}</span></div><div class="empty">${t('NoOutput')}</div>`;
-                return;
             }
+            return;
         }
         const si = this.state.pipelineRun.selectedStep;
         if (si < 0 || this.state.pipelineRun.steps.length === 0 || si >= this.state.pipelineRun.steps.length) {
