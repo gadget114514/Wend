@@ -2044,12 +2044,14 @@ function withMcpTimeout(promise, ms) {
     ]);
 }
 
-// Ping every configured MCP server (in parallel) and record up/down status.
+// Ping every configured MCP server (sequentially, 10s apart) and record up/down status.
 async function checkMcpServers() {
     const entries = listMcpProviders();
     const { ProviderClass } = require('./providers/mcp');
     const names = new Set();
-    await Promise.all(entries.map(async ([name, cfg]) => {
+
+    for (let i = 0; i < entries.length; i++) {
+        const [name, cfg] = entries[i];
         names.add(name);
         const baseUrl = cfg.baseUrl || '';
         let err = '';
@@ -2065,7 +2067,14 @@ async function checkMcpServers() {
             lastChecked: Date.now(),
             error: err || '',
         };
-    }));
+        pushMcpStatus(false);
+
+        // Wait 10s before checking next server (except after the last one)
+        if (i < entries.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 10000));
+        }
+    }
+
     // Drop servers that are no longer configured
     for (const name of Object.keys(_mcpHealth.servers)) {
         if (!names.has(name)) delete _mcpHealth.servers[name];
