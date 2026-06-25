@@ -1622,7 +1622,7 @@ function seedDemoProject(sampleSubDir) {
 // ============================================================
 function sendFullInit() {
 //    postToJS('log', JSON.stringify({ message: '[TRACE] SendFullInit: loading session...' }));
-	this.outputDebug('[TRACE] SendFullInit: loading session...');
+//	this.outputDebug('[TRACE] SendFullInit: loading session...');
 
     // Ensure session.json exists
     const sessionPath = path.join(storage.getBasePath(), 'session.json');
@@ -1631,7 +1631,7 @@ function sendFullInit() {
         storage.saveTabData('default.wendbt', { title: '', content: '', mimetype: 'text/plain', attachments: [], children: [] });
         storage.saveSession({ tabs: [tab] });
  //       postToJS('log', JSON.stringify({ message: `[TRACE] Created empty session.json` }));
-        this.outputDebug(`[TRACE] Created empty session.json`);
+ //       this.outputDebug(`[TRACE] Created empty session.json`);
     }
 
     let session = storage.loadSession();
@@ -1652,7 +1652,7 @@ function sendFullInit() {
     if (!fs.existsSync(pipelinesPath)) {
         storage.savePipelines([]);
    //     postToJS('log', JSON.stringify({ message: `[TRACE] Created empty pipelines.json` }));
-        this.outputDebug(`[TRACE] Created empty pipelines.json`);
+   //     this.outputDebug(`[TRACE] Created empty pipelines.json`);
     }
 
     const pipelines = storage.loadPipelines();
@@ -1738,7 +1738,7 @@ function sendFullInit() {
     });
 
   //  postToJS('log', JSON.stringify({ message: '[TRACE] SendFullInit: init posted' }));
-    this.outputDebug('[TRACE] SendFullInit: init posted');
+  //  this.outputDebug('[TRACE] SendFullInit: init posted');
 }
 
 // ============================================================
@@ -4956,7 +4956,7 @@ ipcMain.on('bridge', (_event, msg) => {
 
     if (type === 'init_complete') {
 //        postToJS('log', JSON.stringify({ message: '[TRACE] init_complete received from JS, calling SendFullInit' }));
-        this.outputDebug('[TRACE] init_complete received from JS, calling SendFullInit');
+//        app.outputDebug('[TRACE] init_complete received from JS, calling SendFullInit');
         if (providerLoadErrors.length > 0) {
             postToJS('log', JSON.stringify({ message: `[ProviderLoader] ⚠️ Failed to load ${providerLoadErrors.length} provider(s):\n${providerLoadErrors.join('\n')}` }));
         }

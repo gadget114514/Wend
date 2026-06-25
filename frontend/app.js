@@ -1067,36 +1067,35 @@ const app = {
         }, 100);
     },
     showProjectLifecycleInfo() {
-        const info = `Project Lifecycle Information
-
-A Project is the top-level container for organizing your work:
-
-📁 Project Structure:
-  • Each project has its own isolated storage for:
-    - BT definitions (Behavior Trees)
-    - Generated blobs (images, audio, etc.)
-    - Recipes (AI configurations)
-    - Execution history
-    - Provider configurations
-
-🔄 Project Switching:
-  • Switch between projects to work on different tasks
-  • Each project maintains its own state independently
-  • Open BTs are saved per-project
-
-💾 Save Semantics:
-  • "Save Project" saves all open BTs + global config
-  • "Save BT" saves only the current BT
-  • "Save BT As..." creates a deep copy in a new location
-
-📍 Projects Root Folder:
-  • Configure where all projects are stored
-  • Default: %APPDATA%/Wend
-  • Change requires app restart
-
-Current Project: ${this.state.activeProject || 'default'}
-Data Path: ${this.state.appDataPath || '(not set)'}`;
-        alert(info);
+        const modal = document.getElementById('project-lifecycle-modal');
+        if (!modal) return;
+        
+        const currentProjectEl = document.getElementById('lifecycle-current-project');
+        const dataPathEl = document.getElementById('lifecycle-data-path');
+        
+        if (currentProjectEl) currentProjectEl.textContent = this.state.activeProject || 'default';
+        if (dataPathEl) dataPathEl.textContent = this.state.appDataPath || '(not set)';
+        
+        modal.classList.add('visible');
+    },
+    closeProjectLifecycleInfo() {
+        document.getElementById('project-lifecycle-modal')?.classList.remove('visible');
+    },
+    openProjectFolder() {
+        if (!this.state.activeProject || !this.state.appDataPath) {
+            alert('No active project or data path available');
+            return;
+        }
+        const projectPath = `${this.state.appDataPath}\\projects\\${this.state.activeProject}`;
+        this.postMessage({ type: 'open_artifact', payload: { path: projectPath } });
+    },
+    openProjectsRootFolder() {
+        if (!this.state.appDataPath) {
+            alert('Data path not available');
+            return;
+        }
+        const projectsPath = `${this.state.appDataPath}\\projects`;
+        this.postMessage({ type: 'open_artifact', payload: { path: projectsPath } });
     },
     onPipelineCompleted(meta) {
         this.state.pipelineRun.running = false;
