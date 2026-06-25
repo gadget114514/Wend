@@ -63,7 +63,7 @@
   "AboutDesc": "AI prompt and pipeline management tool.",
   "AboutVersion": "Version",
   "CopyrightTitle": "Copyright & Licenses",
-  "CopyrightBody": "Wend — Part of the Ecode project.\n\nThird-party libraries:\n• marked.js — MIT License\n• mark.js — MIT License\n• mermaid.js — MIT License\n• cytoscape.js — MIT License\n• Microsoft WebView2 SDK — BSD 3-Clause\n• Mbed TLS — Apache 2.0 / GPL 2.0+",
+  "CopyrightBody": "Wend — Part of the Ecode project.\nGNU General Public License 3.0\n\nThird-party libraries:\n• marked.js — MIT License\n• mark.js — MIT License\n• mermaid.js — MIT License\n• cytoscape.js — MIT License\n• Microsoft WebView2 SDK — BSD 3-Clause\n• Mbed TLS — Apache 2.0 / GPL 2.0+",
   "Providers": "Providers",
   "General": "General",
   "TestConnection": "Test Connection",

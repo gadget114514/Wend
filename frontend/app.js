@@ -8079,7 +8079,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const modal = document.getElementById('copyright-modal');
         const body = document.getElementById('copyright-body');
         if (body) body.textContent = this.t('CopyrightBody') ||
-            'Wend — Part of the Ecode project.\n\nThird-party libraries:\n' +
+            'Wend — Part of the Ecode project.\nGNU General Public License 3.0\n\n\nThird-party libraries:\n' +
             '• marked.js — MIT License\n• mark.js — MIT License\n' +
             '• mermaid.js — MIT License\n• cytoscape.js — MIT License\n' +
             '• Microsoft WebView2 SDK — BSD 3-Clause\n• Mbed TLS — Apache 2.0 / GPL 2.0+';
