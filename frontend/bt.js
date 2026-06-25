@@ -449,6 +449,11 @@ class BehaviorTreeEngine {
             return;
         }
 
+        // Identifier for this whole BT run, stamped onto every data node created
+        // during it (see app.onPipelineCompleted) so the output pane can group
+        // "all products of one BT execution" together.
+        this._btRunId = 'btrun_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+
         const cfg = this._config;
         const isCycle = cfg.mode === 'cycle';
         const maxIter = isCycle ? (cfg.count === 0 ? Infinity : cfg.count) : 1;
