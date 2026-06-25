@@ -123,6 +123,15 @@ class B3TreeConverter {
         // Store original tree path for result routing
         if (origPath) properties._origPath = origPath;
 
+        // Preserve the original Wend action. The B3 layer only models
+        // ProcessPromptAction / LoadLocalFileAction, so every other action
+        // (playAudio, playVideo, math, web, misc, pipelineOutput, mediaToFile,
+        // fileToMedia) would otherwise be silently collapsed into an AI prompt
+        // on a round-trip — turning e.g. a Play Audio sink into a node that
+        // feeds its input audio to the model. Carrying btAction lets b3ToWend
+        // restore the real action.
+        if (promptsNode.btAction) properties.btAction = promptsNode.btAction;
+
         if (nodeName === 'ProcessPromptAction') {
             properties.prompt = promptsNode.btPrompt
                 ? this._decodeBase64(promptsNode.btPrompt)
@@ -233,7 +242,12 @@ class B3TreeConverter {
                 promptsNode.btType = btType;
             }
 
-            if (b3Node.name === 'ProcessPromptAction') {
+            // Restore the original Wend action when it was preserved (any
+            // non-AI action survives the round-trip this way); otherwise fall
+            // back to the B3 node name.
+            if (b3Node.properties && b3Node.properties.btAction) {
+                promptsNode.btAction = b3Node.properties.btAction;
+            } else if (b3Node.name === 'ProcessPromptAction') {
                 promptsNode.btAction = 'processPrompt';
             } else if (b3Node.name === 'LoadLocalFileAction') {
                 promptsNode.btAction = 'loadLocalFile';
