@@ -1041,7 +1041,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             if (this._bt) handledByBt = this._bt.notifyLeafComplete(meta);
         }
 
-        const outputContent = meta.outputContent || '';
+        const lastStep = meta.steps && meta.steps.length > 0 ? meta.steps[meta.steps.length - 1] : null;
+        const outputContent = meta.outputContent || (lastStep ? (lastStep.output || '') : '');
+        const outputAttachmentsFromSteps = lastStep ? (lastStep.outputAttachments || []) : [];
         const onlyReasoning = !outputContent && meta.reasoning && !meta.error;
         if (onlyReasoning) return;
         const autoTitle = outputContent.replace(/\s+/g, ' ').trim().substring(0, 50) + (outputContent.length > 50 ? '...' : '');
@@ -1064,8 +1066,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             }
             const outputScope = opNode.btOutputScope || 'run';
             if (!meta.error && this._bt) {
-                const outMedia = Array.isArray(meta.outputAttachments) ? meta.outputAttachments : [];
-                const outContent = meta.outputContent || null;
+                const lastStepMeta = meta.steps && meta.steps.length > 0 ? meta.steps[meta.steps.length - 1] : null;
+                const outMedia = lastStepMeta && Array.isArray(lastStepMeta.outputAttachments) ? lastStepMeta.outputAttachments : [];
+                const outContent = lastStepMeta ? lastStepMeta.output : null;
                 if (outputType === 't2a' || outputType === 'media') {
                     // Audio/media output (t2a): store media only, no text dual-write.
                     if (outMedia.length > 0) {
@@ -1099,7 +1102,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             title: this.safeB64(execTime ? '[' + execTime + '] ' + (autoTitle || meta.pipelineName) : (autoTitle || meta.pipelineName)),
             content: this.safeB64(outputContent),
             mimetype: 'text/plain',
-            attachments: meta.outputAttachments || [],
+            attachments: meta.outputAttachments || outputAttachmentsFromSteps,
+            artifacts: [],
+            reasoning: meta.reasoning || '',
             children: [],
             pipelineMeta: JSON.stringify(meta),
             nodeType: 'data',
@@ -1133,7 +1138,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 pending.title = this.safeB64(execTime ? '[' + execTime + '] ' + (autoTitle || meta.pipelineName) : (autoTitle || meta.pipelineName));
                 pending.content = this.safeB64(outputContent);
                 pending.pipelineMeta = JSON.stringify(meta);
-                pending.attachments = meta.outputAttachments || [];
+                pending.attachments = meta.outputAttachments || outputAttachmentsFromSteps;
+                pending.artifacts = [];
+                pending.reasoning = meta.reasoning || '';
                 pending.originalOpNode = opNodeCopy;
                 pending.selectedRecipe = recipeUsed;
                 pending.input = inputAttachmentsCopy.text || '';
@@ -8697,20 +8704,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
         const child = runs[selectedIdx];
         let receivedText = child.content ? (() => { try { return atob(child.content); } catch { return child.content; } })() : '';
-        let artifacts = [];
-        let aiComment = '';
-
+        let artifacts = child.artifacts || [];
+        let aiComment = child.reasoning || '';
         let outputAttachments = child.attachments || [];
-        if (child.pipelineMeta) {
-            try {
-                const meta = JSON.parse(child.pipelineMeta);
-                if (meta && meta.steps && meta.steps.length > 0) {
-                    const lastStep = meta.steps[meta.steps.length - 1];
-                    artifacts = lastStep.artifacts || [];
-                    aiComment = lastStep.reasoning || meta.reasoning || '';
-                }
-            } catch(e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: _renderOutputHistory\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
-        }
         let html;
         {
             const runOptions = runs.map((c, idx) => {
@@ -8839,19 +8835,16 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         const selectedIdx = this.state.selectedOutputRunIndex ?? -1;
 
         const makeDetail = (child, idx) => {
-            let inputText = '', outputText = '';
+            let inputText = child.input || '';
             let inputAttachments = child.inputAttachments || [];
-            let outputAttachments = child.attachments || [], artifacts = [];
+            let outputAttachments = child.attachments || [];
+            let artifacts = child.artifacts || [];
+            let outputText = '';
             let httpBodiesHtml = '';
             if (child.pipelineMeta) {
                 try {
                     const meta = JSON.parse(child.pipelineMeta);
                     if (meta.steps?.length > 0) {
-                        inputText = meta.steps[0].input || '';
-                        const last = meta.steps[meta.steps.length - 1];
-                        outputText = last.output || '';
-                        artifacts = last.artifacts || [];
-                        
                         meta.steps.forEach((step, sIdx) => {
                             if (step.requestUrl || step.requestBody) {
                                 const urlHtml = step.requestUrl ? `
@@ -8870,7 +8863,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                     }
                 } catch(e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: renderLinkedRunHistory\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
             }
-            if (!outputText && child.content) {
+            if (child.content) {
                 try { outputText = atob(child.content); } catch { outputText = child.content; }
             }
             const inputTextId = inputText ? this._cacheText(inputText) : 0;
@@ -8891,16 +8884,10 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
         const items = runs.map((child, idx) => {
             let icon = '📄';
-            if (child.pipelineMeta) {
-                try {
-                    const meta = JSON.parse(child.pipelineMeta);
-                    const last = meta.steps?.[meta.steps.length - 1];
-                    const att = last?.outputAttachments?.[0];
-                    if (att?.mimetype?.startsWith('image/')) icon = '🖼';
-                    else if (att?.mimetype?.startsWith('video/')) icon = '🎬';
-                    else if (att?.mimetype?.startsWith('audio/')) icon = '🎵';
-                } catch(e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: renderLinkedRunHistory (icon detection)\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
-            }
+            const att = child.attachments?.[0];
+            if (att?.mimetype?.startsWith('image/')) icon = '🖼';
+            else if (att?.mimetype?.startsWith('video/')) icon = '🎬';
+            else if (att?.mimetype?.startsWith('audio/')) icon = '🎵';
             let titleStr = child.title ? this.safeAtob(child.title) : `Run ${idx + 1}`;
             let isDateTitle = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(titleStr);
             if (isDateTitle) {

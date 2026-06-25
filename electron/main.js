@@ -1342,10 +1342,6 @@ class PipelineRunner {
             startedAt: this.startedAt,
             status: 'completed',
             outputMode: this.outputMode,
-            outputContent: lastStep ? lastStep.output : '',
-            outputAttachments: lastStep ? (lastStep.artifacts || []) : [],
-            // AI comment = the model's internal reasoning; carried separately so
-            // the frontend can show it without treating it as output.
             reasoning: lastStep ? (lastStep.reasoning || '') : '',
             steps: this.historySteps.map(s => ({
                 index: s.index, name: s.name, type: s.type,

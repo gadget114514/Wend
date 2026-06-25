@@ -3688,6 +3688,7 @@ describe('Selection & Color logic', () => {
         app.onPipelineCompleted({
             pipelineName: 'Test Pipeline',
             outputContent: 'new output',
+            reasoning: 'pipeline execution reasoning',
             steps: [{ input: 'new input', output: 'new output' }]
         });
 
@@ -3698,6 +3699,8 @@ describe('Selection & Color logic', () => {
         assert.ok(newChild.inputAttachments, 'New child should have inputAttachments copied');
         assert.equal(newChild.inputAttachments.length, 1);
         assert.equal(newChild.inputAttachments[0].file, 'new_input_attach.png');
+        assert.deepEqual(newChild.artifacts, []);
+        assert.equal(newChild.reasoning, 'pipeline execution reasoning');
     });
 
     test('REGRESSION: data node viewing mode must show input from when data node was created', () => {
