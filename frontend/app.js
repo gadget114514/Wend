@@ -5239,7 +5239,9 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         let node = this.getNodeByPath(this.state.currentNodePath);
         if (!node) return;
         if (node.nodeType === 'data' && node.originalOpNode) node = node.originalOpNode;
-        const action = document.getElementById('bt-action')?.value || 'processPrompt';
+        // Fall back to the node's existing action (not a hard 'processPrompt'
+        // default) so an absent/empty dropdown never corrupts an action node.
+        const action = document.getElementById('bt-action')?.value || node.btAction || 'processPrompt';
         const config = action !== 'processPrompt' ? (window.btActions?.get(action) || null) : null;
         const fields = config?.fields || [];
 
@@ -5296,6 +5298,15 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
     onBtActionChange() {
         const action = document.getElementById('bt-action')?.value || 'processPrompt';
+        // Persist immediately so the node's btAction never desyncs from the
+        // dropdown. Previously btAction lived only in the DOM until a later
+        // save/run wrote it back (defaulting to 'processPrompt'), which corrupted
+        // action nodes (e.g. a playAudio node became processPrompt) on run start.
+        let actionNode = this.getNodeByPath(this.state.currentNodePath);
+        if (actionNode) {
+            if (actionNode.nodeType === 'data' && actionNode.originalOpNode) actionNode = actionNode.originalOpNode;
+            actionNode.btAction = action;
+        }
         const fields = this._getActionFields(action);
         const isProcess = action === 'processPrompt';
 
