@@ -76,6 +76,9 @@
                 <button class="msg-tab" data-tab="http" onclick="event.stopPropagation();app.switchMsgTab('http')">🌐 HTTP</button>
                 <button class="msg-tab" data-tab="manager" onclick="event.stopPropagation();app.switchMsgTab('manager')">🚀 Tasks</button>
             </span>
+            <span id="mcp-status-badge" class="mcp-status-badge" style="display:none"
+                  onclick="event.stopPropagation();app.refreshMcpStatus()"
+                  title="MCP status"></span>
             <span class="messages-actions" id="msg-log-actions">
                 <button class="msg-action-btn" onclick="event.stopPropagation();app.copyAllLogs()" title="Copy all logs" data-hint="Copy all logs">📋</button>
                 <button class="msg-action-btn" onclick="event.stopPropagation();app.clearLogs()" title="Clear logs" data-hint="Clear logs">✕</button>

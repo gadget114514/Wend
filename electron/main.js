@@ -1967,6 +1967,17 @@ function resolveRunCompletion(runId, result, error) {
 let btHttpServer = null;
 const BT_API_PORT = 18765;
 
+// ── MCP health/status tracking ──
+const MCP_CLIENT_ACTIVE_WINDOW_MS = 30000;
+let mcpHealthTimeoutMs = 8000;
+let _mcpHealthTimer = null;
+let _lastMcpPush = 0;
+let _mcpHealth = {
+    bridgeListening: false,    // BT HTTP bridge (port 18765) is listening
+    lastClientRequestAt: 0,    // last time an external MCP client hit the HTTP API
+    servers: {},               // { [name]: { status, transport, lastChecked, error } }
+};
+
 function startBtHttpServer() {
     btHttpServer = http.createServer((req, res) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -1984,6 +1995,13 @@ function startBtHttpServer() {
         req.on('end', () => {
             try {
                 const payload = body ? JSON.parse(body) : {};
+                // Track external MCP client activity (the frontend talks over IPC, not HTTP,
+                // so any HTTP hit here is an external MCP client). Skip our own status/check
+                // routes so polling them doesn't self-trigger the "client connected" state.
+                const pathOnly = req.url.split('?')[0];
+                if (pathOnly !== '/mcp/status' && pathOnly !== '/mcp/check') {
+                    markMcpClientActivity();
+                }
                 handleBtApi(req.url, req.method, payload, res);
             } catch (e) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -1993,12 +2011,116 @@ function startBtHttpServer() {
     });
 
     btHttpServer.listen(BT_API_PORT, '127.0.0.1', () => {
+        _mcpHealth.bridgeListening = true;
+        pushMcpStatus(true);
         postToJS('log', JSON.stringify({ message: `[BT API] HTTP server running on http://127.0.0.1:${BT_API_PORT}` }));
     });
 
     btHttpServer.on('error', (err) => {
+        _mcpHealth.bridgeListening = false;
+        pushMcpStatus(true);
         postToJS('log', JSON.stringify({ message: `[BT API] Server error: ${err.message}` }));
     });
+}
+
+// ============================================================
+// MCP health / status helpers
+// ============================================================
+
+// External MCP servers Wend can connect to are registered in providers.json
+// as entries with apiFormat === 'mcp'. Returns [name, cfg] pairs.
+function listMcpProviders() {
+    const providers = storage.loadProviders();
+    return Object.entries(providers)
+        .filter(([, v]) => v && v.apiFormat === 'mcp' && (v.baseUrl || '').trim());
+}
+
+// testConnection() resolves with '' on success or an error string; never rejects.
+// Race it against a timeout so a slow/hung stdio spawn can't stall the check.
+function withMcpTimeout(promise, ms) {
+    return Promise.race([
+        Promise.resolve(promise).catch(e => (e && e.message) || 'error'),
+        new Promise(resolve => setTimeout(() => resolve('timeout'), ms)),
+    ]);
+}
+
+// Ping every configured MCP server (in parallel) and record up/down status.
+async function checkMcpServers() {
+    const entries = listMcpProviders();
+    const { ProviderClass } = require('./providers/mcp');
+    const names = new Set();
+    await Promise.all(entries.map(async ([name, cfg]) => {
+        names.add(name);
+        const baseUrl = cfg.baseUrl || '';
+        let err = '';
+        try {
+            const provider = new ProviderClass(cfg.apiKey || '', baseUrl);
+            err = await withMcpTimeout(provider.testConnection(), mcpHealthTimeoutMs);
+        } catch (e) {
+            err = (e && e.message) || 'error';
+        }
+        _mcpHealth.servers[name] = {
+            status: err ? 'down' : 'up',
+            transport: baseUrl.startsWith('http') ? 'http' : 'stdio',
+            lastChecked: Date.now(),
+            error: err || '',
+        };
+    }));
+    // Drop servers that are no longer configured
+    for (const name of Object.keys(_mcpHealth.servers)) {
+        if (!names.has(name)) delete _mcpHealth.servers[name];
+    }
+    pushMcpStatus(true);
+    return _mcpHealth.servers;
+}
+
+function buildMcpStatusPayload() {
+    const servers = Object.entries(_mcpHealth.servers).map(([name, s]) => ({
+        name, status: s.status, transport: s.transport,
+        lastChecked: s.lastChecked, error: s.error,
+    }));
+    const configuredCount = listMcpProviders().length;
+    const connectedCount = servers.filter(s => s.status === 'up').length;
+    const clientActive = _mcpHealth.lastClientRequestAt > 0 &&
+        (Date.now() - _mcpHealth.lastClientRequestAt) < MCP_CLIENT_ACTIVE_WINDOW_MS;
+    return {
+        bridgeListening: _mcpHealth.bridgeListening,
+        clientActive,
+        lastClientRequestAt: _mcpHealth.lastClientRequestAt,
+        configuredCount,
+        connectedCount,
+        servers,
+    };
+}
+
+// Push status to the frontend (throttled unless forced) via the IPC bridge.
+function pushMcpStatus(force) {
+    const now = Date.now();
+    if (!force && now - _lastMcpPush < 2000) return;
+    _lastMcpPush = now;
+    postToJS('mcp_status', buildMcpStatusPayload());
+}
+
+function markMcpClientActivity() {
+    _mcpHealth.lastClientRequestAt = Date.now();
+    pushMcpStatus(false);
+}
+
+// Initial check after a startup delay, then poll on an interval. Both are
+// config-driven (frontend/defaults/appconfig.json + %APPDATA%/Wend/config.json);
+// mcpHealthIntervalMs === 0 disables polling (manual refresh only).
+function scheduleMcpHealthChecks() {
+    const cfg = storage.loadGeneralConfig() || {};
+    const initialDelay = Number.isFinite(cfg.mcpHealthInitialDelayMs) ? cfg.mcpHealthInitialDelayMs : 20000;
+    const interval = Number.isFinite(cfg.mcpHealthIntervalMs) ? cfg.mcpHealthIntervalMs : 600000;
+    mcpHealthTimeoutMs = Number.isFinite(cfg.mcpHealthTimeoutMs) ? cfg.mcpHealthTimeoutMs : 8000;
+    if (_mcpHealthTimer) { clearInterval(_mcpHealthTimer); _mcpHealthTimer = null; }
+    setTimeout(() => {
+        checkMcpServers().catch(() => {});
+        if (interval > 0) {
+            _mcpHealthTimer = setInterval(() => checkMcpServers().catch(() => {}), interval);
+        }
+    }, Math.max(0, initialDelay));
 }
 
 function handleBtApi(rawUrl, method, payload, res) {
@@ -2029,6 +2151,8 @@ function handleBtApi(rawUrl, method, payload, res) {
         '/recipes':      handleRecipes,
         '/providers':    handleProviders,
         '/screenshot':   handleScreenshot,
+        '/mcp/status':   handleMcpStatus,
+        '/mcp/check':    handleMcpCheck,
     };
 
     // Phase B: Check exact route first, then pattern routes
@@ -2775,6 +2899,18 @@ function handleProviders(method, payload, res) {
     }
 }
 
+function handleMcpStatus(method, payload, res) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(buildMcpStatusPayload()));
+}
+
+function handleMcpCheck(method, payload, res) {
+    // Trigger check in background (don't await); return current status immediately
+    checkMcpServers().catch(() => {});
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(buildMcpStatusPayload()));
+}
+
 function handleScreenshot(method, payload, res) {
     if (method !== 'POST') {
         res.writeHead(405, { 'Content-Type': 'application/json' });
@@ -3056,6 +3192,15 @@ async function handleBridgeMessage(type, payload) {
             // Phase D: Async run completed, resolve the pending executeRun promise
             const { runId, result, error } = payload;
             resolveRunCompletion(runId, result, error);
+            break;
+        }
+        case 'mcp_check': {
+            // Manual refresh from the MCP status badge
+            await checkMcpServers().catch(() => {});
+            break;
+        }
+        case 'mcp_get_status': {
+            postToJS('mcp_status', buildMcpStatusPayload());
             break;
         }
         case 'get_file_tree': {
@@ -4804,6 +4949,7 @@ ipcMain.on('bridge', (_event, msg) => {
         postToJS('log', JSON.stringify({ message: `[ProviderLoader] Loaded: ${Object.keys(builtinProviders).join(', ') || '(none)'}` }));
         sendFullInit();
         startBtHttpServer();
+        scheduleMcpHealthChecks();
         return;
     }
 
