@@ -8719,11 +8719,6 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
 
         const child = runs[selectedIdx];
         let receivedText = child.content ? (() => { try { return atob(child.content); } catch { return child.content; } })() : '';
-<<<<<<< HEAD
-        let artifacts = child.artifacts || [];
-        let aiComment = child.reasoning || '';
-        let outputAttachments = child.attachments || [];
-=======
         let aiComment = '';
 
         // TOP pane = this data node's OWN direct output only (the assemble node's
@@ -8741,7 +8736,7 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 aiComment = meta.reasoning || '';
             } catch(e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: _renderOutputHistory\nChild: ${child.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
         }
->>>>>>> 316cf808f527410e01ab2ef0b04de31c9204d848
+
         let html;
         {
             const runOptions = runs.map((c, idx) => {
