@@ -5918,12 +5918,12 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             targetNode.btInputType = document.getElementById('bt-input-type')?.value || 'text';
             targetNode.btOutputKey = (document.getElementById('bt-output-key')?.value || '').trim();
             targetNode.btOutputType = document.getElementById('bt-output-type')?.value || 'text';
-            // Only overwrite btAction when the dropdown actually supplies a value.
-            // Falling back to 'processPrompt' here previously corrupted action
-            // nodes (e.g. a playAudio node became processPrompt) whenever the
-            // dropdown was absent/empty for the edited node.
-            const btActionVal = document.getElementById('bt-action')?.value;
-            if (btActionVal) targetNode.btAction = btActionVal;
+            // NOTE: btAction is intentionally NOT written here. The bt-action
+            // dropdown can be stale relative to the node being saved (e.g. during
+            // run start), and writing it back corrupted action nodes (a playAudio
+            // node became processPrompt). btAction is persisted the moment the user
+            // changes the dropdown (see onBtActionChange), so updateNode must not
+            // touch it.
             targetNode.btLocalFilePath = (document.getElementById('bt-local-file-path')?.value || '').trim();
         }
 
