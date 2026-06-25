@@ -1,6 +1,6 @@
 {
   "name": "wend",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Wend - AI Pipeline Editor",
   "author": "Ecode",
   "main": "main.js",
