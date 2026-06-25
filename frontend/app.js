@@ -5907,7 +5907,12 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
             targetNode.btInputType = document.getElementById('bt-input-type')?.value || 'text';
             targetNode.btOutputKey = (document.getElementById('bt-output-key')?.value || '').trim();
             targetNode.btOutputType = document.getElementById('bt-output-type')?.value || 'text';
-            targetNode.btAction = document.getElementById('bt-action')?.value || 'processPrompt';
+            // Only overwrite btAction when the dropdown actually supplies a value.
+            // Falling back to 'processPrompt' here previously corrupted action
+            // nodes (e.g. a playAudio node became processPrompt) whenever the
+            // dropdown was absent/empty for the edited node.
+            const btActionVal = document.getElementById('bt-action')?.value;
+            if (btActionVal) targetNode.btAction = btActionVal;
             targetNode.btLocalFilePath = (document.getElementById('bt-local-file-path')?.value || '').trim();
         }
 
@@ -6146,7 +6151,20 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
         }
         const ctx = { bt, app: this, path, node, inputKey, outputKey, outputType, mediaArr, textInput, setCleanup: () => {} };
         config.handler(ctx).then(ok => {
-            if (ok) this.outputMessage(`✅ Action "${config.label}" completed`);
+            if (ok) {
+                this.outputMessage(`✅ Action "${config.label}" completed`);
+                // Leave an execution-history data node (empty output) just like
+                // the BT-engine path (_runAction) does, so a manually-run sink
+                // (playAudio, …) is also recorded as history.
+                if (actionName !== 'pipelineOutput') {
+                    this.recordActionExecution(path, {
+                        actionLabel: config.label || actionName,
+                        input: textInput || '',
+                        inputAttachments: Array.isArray(mediaArr) ? mediaArr : [],
+                        btRunId: ''
+                    });
+                }
+            }
         }).catch(e => {
             this.outputMessage(`❌ Action "${config.label}" error: ${e.message}`);
         });
