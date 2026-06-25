@@ -9276,6 +9276,17 @@ Data Path: ${this.state.appDataPath || '(not set)'}`;
                 this._renderNodePipelineProducts(el, node, t);
                 return;
             }
+            // No data node is selected — e.g. an action/sink node like "Play Audio"
+            // which produces no output but leaves itself selected (selectedOpPath)
+            // after a BT run. Do NOT fall through to the previous run's stale
+            // state.pipelineRun (that would show the last AI leaf's audio/output
+            // under a node that produced nothing). The live single-step view below
+            // is only meaningful while running or while browsing the pipeline-step
+            // tree (viewMode 'pipeline').
+            if (this.state.viewMode !== 'pipeline') {
+                el.innerHTML = `<div class="output-toolbar"><span class="output-label">${t('PipelineOutput')}</span></div><div class="empty">${t('NoOutput')}</div>`;
+                return;
+            }
         }
         const si = this.state.pipelineRun.selectedStep;
         if (si < 0 || this.state.pipelineRun.steps.length === 0 || si >= this.state.pipelineRun.steps.length) {
