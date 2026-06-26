@@ -125,6 +125,36 @@ function deleteDirSync(dirPath) {
     }
 }
 
+function processOutputAttachments(attachments) {
+    if (!Array.isArray(attachments)) return [];
+    return attachments.map(att => {
+        if (att.content && !att.path) {
+            let ext = '';
+            if (att.file) {
+                ext = path.extname(att.file);
+            } else if (att.mimetype) {
+                const mimeMap = {
+                    'image/png': '.png', 'image/jpeg': '.jpg', 'image/jpg': '.jpg',
+                    'image/gif': '.gif', 'image/webp': '.webp', 'image/bmp': '.bmp',
+                    'audio/wav': '.wav', 'audio/mpeg': '.mp3', 'audio/mp3': '.mp3',
+                    'audio/ogg': '.ogg', 'audio/flac': '.flac', 'audio/mp4': '.m4a',
+                    'video/mp4': '.mp4', 'video/webm': '.webm',
+                    'application/pdf': '.pdf', 'text/plain': '.txt', 'application/json': '.json'
+                };
+                ext = mimeMap[att.mimetype] || '';
+            }
+            try {
+                const name = storage.saveBlob(att.content, ext);
+                att.file = name;
+                att.path = storage.blobPath(name);
+            } catch (e) {
+                console.error('[processOutputAttachments] Failed to save blob:', e.message);
+            }
+        }
+        return att;
+    });
+}
+
 function readJson(filePath, fallback = null) {
     try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); }
     catch (e) {
@@ -1090,7 +1120,7 @@ class PipelineRunner {
                 this.historySteps[idx].output = resp.content;
                 this.historySteps[idx].status = 'completed';
                 if (resp.outputAttachments && resp.outputAttachments.length > 0) {
-                    this.historySteps[idx].artifacts = resp.outputAttachments;
+                    this.historySteps[idx].artifacts = processOutputAttachments(resp.outputAttachments);
                 }
                 if (resp.reasoning) {
                     this.historySteps[idx].reasoning = resp.reasoning;
@@ -3534,7 +3564,7 @@ async function handleBridgeMessage(type, payload) {
                 const meta = {
                     pipelineName: 'command/' + path.basename(cmd),
                     outputContent: resultContent,
-                    outputAttachments: outputAttachments,
+                    outputAttachments: processOutputAttachments(outputAttachments),
                     steps: [{ type: 'command', command: cmd, options: optionsStr, input: inFile, output: outFile }],
                     targetNodePath: requestContext.targetNodePath,
                 };

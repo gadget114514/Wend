@@ -133,6 +133,7 @@ async function executeToolStep(context, step) {
                 const data = fs.readFileSync(resolvedPath).toString('base64');
                 outputAttachments.push({
                     file: path.basename(resolvedPath),
+                    path: resolvedPath,
                     mimetype,
                     content: data,
                     size: fs.statSync(resolvedPath).size
