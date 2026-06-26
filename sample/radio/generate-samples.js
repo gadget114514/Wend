@@ -64,6 +64,7 @@ function playAudioNode(title, inputKey) {
         nodeType: 'assemble',
         btAction: 'playAudio',
         btInputKey: inputKey,
+        btOutputType: '0',
     };
 }
 

@@ -1,4 +1,4 @@
-﻿{
+{
  "Reasoning": "Reasoning",
  "TestRecipeBtn": "Test",
  "RecipeVerified": "Verifiziert",
@@ -38,6 +38,8 @@
  "Update": "Aktualisieren",
  "Remove": "Entfernen",
  "Copy": "Kopieren",
+ "CopyFullPath": "Vollständigen Pfad kopieren",
+ "ExportArtifact": "Artefakt exportieren",
  "Copied": "Kopiert!",
  "Cancel": "Abbrechen",
  "Pipeline": "Pipeline",
@@ -124,6 +126,6 @@
  "StorageChest": "Lagertruhe",
  "ClearStorageChest": "Lagertruhe leeren",
  "LangCode": "de",
- "Send": "Senden",
- "Receive": "Empfangen"
+  "Send": "Eingaberessource",
+  "Receive": "Ausgaberessource"
 }

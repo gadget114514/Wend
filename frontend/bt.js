@@ -999,7 +999,10 @@ class BehaviorTreeEngine {
         const outputType = node?.btOutputType || 'text';
 
         // Resolve prompt with BB expansion
-        const btPromptRaw = node?.btPrompt || '';
+        let btPromptRaw = node?.btPrompt || '';
+        if (!btPromptRaw && node?.content) {
+            btPromptRaw = node.content;
+        }
         const btPromptDecoded = btPromptRaw
             ? (() => { try { return atob(btPromptRaw); } catch { return btPromptRaw; } })()
             : '';
@@ -1059,13 +1062,18 @@ class BehaviorTreeEngine {
         const inputType  = node?.btInputType || 'text';
         const outputKey  = node?.btOutputKey || '';
         let   outputType = node?.btOutputType || 'text';
-        // Auto-derive audio (t2a) from the recipe usecase so a Text-to-Audio
-        // recipe never produces a text/t2t-typed node with a wav attached.
         if (outputType === 'text' && node?.selectedRecipe && typeof app._classifyRecipeUsecase === 'function') {
             const rec = (app.state.recipes || []).find(r => r.name === node.selectedRecipe);
-            if (rec && app._classifyRecipeUsecase(rec) === 'Text-to-Audio (T2A)') outputType = 't2a';
+            if (rec) {
+                const uc = app._classifyRecipeUsecase(rec);
+                if (uc === 'Text-to-Audio (T2A)') outputType = 't2a';
+                else if (uc.endsWith('(None)')) outputType = '0';
+            }
         }
-        const btPromptRaw = node?.btPrompt   || '';
+        let btPromptRaw = node?.btPrompt || '';
+        if (!btPromptRaw && node?.content) {
+            btPromptRaw = node.content;
+        }
         const btPromptDecoded = btPromptRaw
             ? (() => { try { return atob(btPromptRaw); } catch { return btPromptRaw; } })()
             : '';
@@ -1121,7 +1129,7 @@ class BehaviorTreeEngine {
                 }
                 if (meta?._stopped) { resolve(false); return; }
                 
-                if (!meta.error && outputKey) {
+                if (!meta.error && outputKey && outputType !== '0') {
                     const lastStepMeta = meta.steps && meta.steps.length > 0 ? meta.steps[meta.steps.length - 1] : null;
                     const outMedia = lastStepMeta && Array.isArray(lastStepMeta.outputAttachments) ? lastStepMeta.outputAttachments : [];
                     const outContent = lastStepMeta ? lastStepMeta.output : null;

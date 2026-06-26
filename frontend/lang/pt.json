@@ -1,4 +1,4 @@
-﻿{
+{
  "Reasoning": "Reasoning",
  "TestRecipeBtn": "Testar",
  "RecipeVerified": "Verificado",
@@ -38,6 +38,8 @@
  "Update": "Atualizar",
  "Remove": "Remover",
  "Copy": "Copiar",
+ "CopyFullPath": "Copiar caminho completo",
+ "ExportArtifact": "Exportar artefato",
  "Copied": "Copiado!",
  "Cancel": "Cancelar",
  "Pipeline": "Pipeline",
@@ -124,6 +126,6 @@
  "StorageChest": "Baﾃｺ de armazenamento",
  "ClearStorageChest": "Esvaziar baﾃｺ de armazenamento",
  "LangCode": "pt",
- "Send": "Enviar",
- "Receive": "Receber"
+  "Send": "Recurso de entrada",
+  "Receive": "Recurso de saída"
 }

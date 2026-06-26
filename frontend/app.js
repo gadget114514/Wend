@@ -62,6 +62,7 @@ const app = {
         this._projBbSaveTimer = null;   // debounce handle for saveProjectBlackboard
         this._taskMetricsInterval = null;  // Phase G: Task Manager auto-update timer
         this._taskMetrics = { activeCount: 0, queuedCount: 0, completedCount: 0, failedCount: 0, groups: {}, runs: {} };  // Task Manager state
+        this._dirty = false;
         this.setupBridge();
         this.loadLanguage(this.state.language);
         this.setupHints();
@@ -71,6 +72,7 @@ const app = {
         this.setupButtonJuice();
         window.addEventListener('beforeunload', () => {
             this.updateNode();
+            this.flushDirty();
         });
         document.addEventListener('click', () => {
             this.hideTreeContextMenu();
@@ -813,25 +815,29 @@ const app = {
         // Commit current node-content textarea if it's visible
         const nodeContentEl = document.getElementById('node-content');
         if (nodeContentEl) {
-            const tab = this.state.tabs[this.state.selectedTabIndex];
-            const node = tab && this.getNodeByPath(this.state.selectedOpPath);
+            const tab = this.state.tabs[this.state.activeTab];
+            const node = tab && this.getNodeByPath(this.state.currentNodePath);
             if (node) {
-                node.content = nodeContentEl.value;
-                this.postMessage({ type: 'save_node', payload: { tabFile: tab.file, root: tab.root } });
+                node.content = this.safeB64(nodeContentEl.value);
             }
         }
         // Commit input-textarea (tempInputAttachments text)
         const inputEl = document.getElementById('input-textarea');
         if (inputEl) {
-            const srcPath = this.state.selectedOpPath || this.state.selectedDataPath;
+            const srcPath = this.state.selectedOpPath || this.state.selectedDataPath || this.state.currentNodePath;
             const srcNode = srcPath ? this.getNodeByPath(srcPath) : null;
             if (srcNode) {
                 if (!srcNode.tempInputAttachments) srcNode.tempInputAttachments = {};
                 srcNode.tempInputAttachments.text = inputEl.value;
-                const tab = this.state.tabs[this.state.selectedTabIndex];
-                if (tab) this.postMessage({ type: 'save_node', payload: { tabFile: tab.file, root: tab.root } });
             }
         }
+        // Save all tabs before closing
+        for (const tab of this.state.tabs) {
+            if (tab && tab.file && tab.root) {
+                this.postMessage({ type: 'save_node', payload: { tabFile: tab.file, root: tab.root } });
+            }
+        }
+        this._dirty = false;
         // Tell main process it's safe to close
         this.postMessage({ type: 'close_ready', payload: {} });
     },
@@ -1139,13 +1145,16 @@ const app = {
         if (!handledByBt && opNode && opNode.nodeType === 'assemble' && opNode.btOutputKey) {
             const outputKey = opNode.btOutputKey;
             let outputType = opNode.btOutputType || 'text';
-            // Auto-derive audio (t2a) from the recipe usecase (see _runAI).
             if (outputType === 'text' && opNode.selectedRecipe) {
                 const rec = (this.state.recipes || []).find(r => r.name === opNode.selectedRecipe);
-                if (rec && this._classifyRecipeUsecase(rec) === 'Text-to-Audio (T2A)') outputType = 't2a';
+                if (rec) {
+                    const uc = this._classifyRecipeUsecase(rec);
+                    if (uc === 'Text-to-Audio (T2A)') outputType = 't2a';
+                    else if (uc.endsWith('(None)')) outputType = '0';
+                }
             }
             const outputScope = opNode.btOutputScope || 'run';
-            if (!meta.error && this._bt) {
+            if (!meta.error && this._bt && outputType !== '0') {
                 const lastStepMeta = meta.steps && meta.steps.length > 0 ? meta.steps[meta.steps.length - 1] : null;
                 const outMedia = lastStepMeta && Array.isArray(lastStepMeta.outputAttachments) ? lastStepMeta.outputAttachments : [];
                 const outContent = lastStepMeta ? lastStepMeta.output : null;
@@ -2093,6 +2102,8 @@ const app = {
             't2a': 'Text-to-Audio (T2A)',
             'tts': 'Text-to-Audio (T2A)',
             'music': 'Text-to-Audio (T2A)',
+            't20': 'Text-to-None (T20)',
+            'i20': 'Image-to-None (I20)',
             'others': 'Others'
         };
         if (recipe.usecase && usecaseMap[recipe.usecase]) {
@@ -2137,6 +2148,12 @@ const app = {
             name.includes('music') || name.includes('sound') || model.includes('musicgen')) {
             return 'Text-to-Audio (T2A)';
         }
+
+        // *-to-None: side-effect-only recipes (no output written)
+        if (name.includes('t20') || name.includes('text-to-none')) return 'Text-to-None (T20)';
+        if (name.includes('i20') || name.includes('image-to-none')) return 'Image-to-None (I20)';
+        if (name.includes('a20') || name.includes('audio-to-none')) return 'Audio-to-None (A20)';
+        if (name.includes('v20') || name.includes('video-to-none')) return 'Video-to-None (V20)';
 
         // Default to T2T
         return 'Text-to-Text (T2T)';
@@ -2784,6 +2801,10 @@ const app = {
                             <option value="grounding" ${r.usecase === 'grounding' ? 'selected' : ''}>🔍 Grounding / Search</option>
                             <option value="v2i" ${r.usecase === 'v2i' ? 'selected' : ''}>🎬 Video-to-Image (V2I)</option>
                             <option value="t2a" ${(r.usecase === 't2a' || r.usecase === 'tts' || r.usecase === 'music') ? 'selected' : ''}>🎵 Text-to-Audio (T2A)</option>
+                            <option value="t20" ${r.usecase === 't20' ? 'selected' : ''}>⊘ Text-to-None (T20)</option>
+                            <option value="i20" ${r.usecase === 'i20' ? 'selected' : ''}>⊘ Image-to-None (I20)</option>
+                            <option value="a20" ${r.usecase === 'a20' ? 'selected' : ''}>⊘ Audio-to-None (A20)</option>
+                            <option value="v20" ${r.usecase === 'v20' ? 'selected' : ''}>⊘ Video-to-None (V20)</option>
                             <option value="others" ${r.usecase === 'others' ? 'selected' : ''}>📦 Others</option>
                         </select>
                     </label>
@@ -2867,6 +2888,10 @@ const app = {
                                 <option value="grounding">🔍 Grounding / Search</option>
                                 <option value="v2i">🎬 Video-to-Image (V2I)</option>
                                 <option value="t2a">🎵 Text-to-Audio (T2A)</option>
+                                <option value="t20">⊘ Text-to-None (T20)</option>
+                                <option value="i20">⊘ Image-to-None (I20)</option>
+                                <option value="a20">⊘ Audio-to-None (A20)</option>
+                                <option value="v20">⊘ Video-to-None (V20)</option>
                                 <option value="others">📦 Others</option>
                             </select>
                         </label>
@@ -3030,7 +3055,7 @@ const app = {
                     }
                 });
             }
-            this.saveCurrentTab();
+            this.markDirty();
         }
         // Config is changing → any prior verification is no longer trustworthy.
         recipe.verified = false;
@@ -3725,7 +3750,7 @@ const app = {
                 node = node.originalOpNode;
             }
             node.selectedRecipe = this.state.selectedRecipe;
-            this.saveCurrentTab();
+            this.markDirty();
         }
         this.renderPrompt();
         this.updateRecipeBadge();
@@ -3749,7 +3774,7 @@ const app = {
                 node = node.originalOpNode;
             }
             node.selectedRecipe = this.state.selectedRecipe;
-            this.saveCurrentTab();
+            this.markDirty();
         }
         this.renderPrompt();
         this.updateRecipeBadge();
@@ -4715,18 +4740,75 @@ const app = {
         if (menu) menu.style.display = 'none';
     },
 
+    showOutputContextMenu(event, element) {
+        console.log('[OutputCtxMenu] Called with element:', element);
+        event.preventDefault();
+        event.stopPropagation();
+        const menu = document.getElementById('output-context-menu');
+        if (!menu) {
+            console.error('[OutputCtxMenu] Menu element not found');
+            return;
+        }
+        const index = parseInt(element.dataset.artifactIndex);
+        const artifact = this._renderedArtifacts && this._renderedArtifacts[index];
+        if (!artifact) {
+            console.error('[OutputCtxMenu] Artifact not found at index:', index);
+            return;
+        }
+        const fullPath = artifact.path ? this.getFileFullPath(artifact.path) : '';
+        const label = artifact.file || artifact.label || (fullPath ? fullPath.split(/[/\\]/).pop() : 'artifact');
+        console.log('[OutputCtxMenu] Path:', fullPath, 'Label:', label);
+
+        let items = '';
+        if (fullPath) {
+            items += `<div class="ctx-item" style="color:#888;font-size:10px;cursor:default;max-width:300px;overflow:hidden;text-overflow:ellipsis;user-select:text;pointer-events:none;padding-bottom:4px;border-bottom:1px solid var(--theme-border)" title="${this.escapeHtml(fullPath)}">${this.escapeHtml(fullPath)}</div>`;
+            items += `<div class="ctx-item" onclick="navigator.clipboard.writeText('${this.escapeHtml(fullPath).replace(/\\/g, '\\\\')}');app.hideOutputContextMenu();app.outputMessage('📋 ' + app.t('Copied'))">📋 ${this.t('CopyFullPath') || 'Copy Full Path'}</div>`;
+        } else {
+            items += `<div class="ctx-item" style="color:#888;font-size:10px;cursor:default;max-width:300px;overflow:hidden;text-overflow:ellipsis;user-select:text;pointer-events:none;padding-bottom:4px;border-bottom:1px solid var(--theme-border)" title="${this.escapeHtml(label)}">${this.escapeHtml(label)}</div>`;
+        }
+        items += `<div class="ctx-sep"></div>`;
+        
+        const exportPayload = { path: fullPath, content: artifact.content || '', file: label };
+        const payloadStr = JSON.stringify(exportPayload).replace(/'/g, "\\'");
+        items += `<div class="ctx-item" onclick="app.exportArtifact(${payloadStr});app.hideOutputContextMenu()">📤 ${this.t('ExportArtifact') || 'Export Artifact'}</div>`;
+
+        menu.innerHTML = items;
+        menu.style.display = 'block';
+
+        const width = menu.offsetWidth || 180;
+        const height = menu.offsetHeight || 120;
+        menu.style.left = Math.min(event.clientX, window.innerWidth - width - 10) + 'px';
+        menu.style.top = Math.min(event.clientY, window.innerHeight - height - 10) + 'px';
+    },
+
+    hideOutputContextMenu() {
+        const menu = document.getElementById('output-context-menu');
+        if (menu) menu.style.display = 'none';
+    },
+
     getFileFullPath(filePath) {
         const appData = this.state.appDataPath || '';
         const project = this.state.activeProject || 'Default';
         const sep = appData.includes('\\') ? '\\' : '/';
         if (!filePath) return '';
-        if (filePath.includes('/') || filePath.includes('\\') || filePath.includes(':')) {
+        
+        if (/^[a-zA-Z]:/.test(filePath) || filePath.startsWith('\\\\') || (sep === '/' && filePath.startsWith('/'))) {
             return filePath;
         }
+        
         let basePath = appData;
         if (basePath.endsWith('/') || basePath.endsWith('\\')) {
             basePath = basePath.slice(0, -1);
         }
+        
+        if (filePath.startsWith('blobs/') || filePath.startsWith('blobs\\')) {
+            return basePath + sep + 'projects' + sep + project + sep + filePath;
+        }
+        
+        if (filePath.includes('/') || filePath.includes('\\')) {
+            return filePath;
+        }
+        
         return basePath + sep + 'projects' + sep + project + sep + 'data' + sep + filePath;
     },
 
@@ -4897,7 +4979,7 @@ const app = {
                     }
                 });
             }
-            this.saveCurrentTab();
+            this.markDirty();
             this.renderInput();
         }
     },
@@ -4912,7 +4994,7 @@ const app = {
         this.renderTree();
         this.renderList();
         this.loadEditor(this.state.currentNodePath);
-        this.saveCurrentTab();
+        this.markDirty();
         this.outputDebug('➕ ' + this.t('ChildNodeAdded'));
     },
 
@@ -4930,7 +5012,7 @@ const app = {
         this.state.collapsedPaths.delete(path);
         this.state.currentNodePath = path + '/' + (node.children.length - 1);
         this.renderTree();
-        this.saveCurrentTab();
+        this.markDirty();
         this.outputDebug('📁 ' + this.t('PlaceholderAdded'));
     },
 
@@ -4972,7 +5054,7 @@ const app = {
                 });
             }
         }
-        this.saveCurrentTab();
+        this.markDirty();
         this.renderInput();
         this.outputDebug('📥 ' + this.t('OutputsAdded') + ' (' + dataPaths.length + ' ' + this.t('Nodes') + ')');
     },
@@ -5006,7 +5088,7 @@ const app = {
         this.state.selectedDataPath = '';
         this.renderTree();
         this.renderList();
-        this.saveCurrentTab();
+        this.markDirty();
         this.outputDebug('🗑 ' + this.t('NodesDeleted') + ' (' + count + ')');
     },
 
@@ -5095,7 +5177,7 @@ const app = {
         this.state.selectedDataPaths = [];
 
         this.renderTree();
-        this.saveCurrentTab();
+        this.markDirty();
         this.outputDebug('📦 ' + this.t('DataNodesMoved'));
     },
 
@@ -5112,7 +5194,7 @@ const app = {
         this.renderTree();
         this.renderList();
         this.loadEditor(this.state.currentNodePath);
-        this.saveCurrentTab();
+        this.markDirty();
         this.outputDebug('➕ ' + this.t('SiblingNodeAdded'));
     },
 
@@ -5129,7 +5211,7 @@ const app = {
         this.renderTree();
         this.renderList();
         this.loadEditor(this.state.currentNodePath);
-        this.saveCurrentTab();
+        this.markDirty();
         this.outputDebug('🗑 ' + this.t('NodeDeleted'));
     },
 
@@ -5146,7 +5228,7 @@ const app = {
         this.state.currentNodePath = newPath;
         this.renderTree();
         this.renderList();
-        this.saveCurrentTab();
+        this.markDirty();
         this.outputDebug('⬆ ' + this.t('NodeMovedUp'));
     },
 
@@ -5162,7 +5244,7 @@ const app = {
         this.state.currentNodePath = newPath;
         this.renderTree();
         this.renderList();
-        this.saveCurrentTab();
+        this.markDirty();
         this.outputDebug('⬇ ' + this.t('NodeMovedDown'));
     },
 
@@ -5204,7 +5286,7 @@ const app = {
             this.renderTree();
             this.renderList();
             this.loadEditor(path);
-            this.saveCurrentTab();
+            this.markDirty();
             this.outputDebug('✏️ ' + this.t('NodeRenamed'));
         };
         ok.onclick = commit;
@@ -5219,7 +5301,7 @@ const app = {
         if (btType === 'leaf') delete node.btType;
         else node.btType = btType;
         this.renderTree();
-        this.saveCurrentTab();
+        this.markDirty();
         this.outputDebug(`🌳 ${this.t('BTTypeSetTo').replace('{type}', btType)}`);
     },
 
@@ -5603,6 +5685,17 @@ const app = {
         const tab = this.state.tabs[this.state.activeTab];
         if (tab && tab.file && tab.root) {
             this.postMessage({ type: 'save_node', payload: { tabFile: tab.file, root: tab.root } });
+        }
+        this._dirty = false;
+    },
+
+    markDirty() {
+        this._dirty = true;
+    },
+
+    flushDirty() {
+        if (this._dirty) {
+            this.saveCurrentTab();
         }
     },
 
@@ -6021,7 +6114,10 @@ const app = {
         // During BT execution the node data is already correct; reading from
         // the DOM would overwrite it with stale values from a different node.
         const ctx = this.state.btRunContext;
-        if (!ctx) this.updateNode();
+        if (!ctx) {
+            this.updateNode();
+            this.flushDirty();
+        }
 
         if (this.state.viewMode === 'node') {
             const node = this.getNodeByPath(this.state.currentNodePath);
@@ -6128,7 +6224,7 @@ const app = {
                         inputAttachments: allInputAttachments,
                         _pending: true
                     });
-                    this.saveCurrentTab();
+                    this.markDirty();
                     this.renderTree();
                     this.renderList();
                     this.state.selectedOutputRunIndex = 0;
@@ -6168,7 +6264,7 @@ const app = {
             this.outputMessage(`▶ ${this.t('ProcessingPrompt').replace('{provider}', recipe.provider).replace('{model}', recipe.model || '(default)')}`);
             // After execution starts, attachments are saved to pending node (input is retained)
             const pendingInputFiles = node.tempInputAttachments ? node.tempInputAttachments.files : (node.inputAttachments || []);
-            this.saveCurrentTab();
+            this.markDirty();
 
             // Create a placeholder Data node as execution history card
             const opPath = this.getLogicalOpPath(this.state.currentNodePath);
@@ -6201,7 +6297,7 @@ const app = {
                     inputAttachments: pendingInputFiles,
                     _pending: true
                 });
-                this.saveCurrentTab();
+                this.markDirty();
                 this.renderTree();
                 this.renderList();
                 this.state.selectedOutputRunIndex = 0;
@@ -6213,7 +6309,7 @@ const app = {
             const pipeNode = this.getNodeByPath(this.state.currentNodePath);
             if (pipeNode) {
                 delete pipeNode.tempInputAttachments;
-                this.saveCurrentTab();
+                this.markDirty();
             }
         }
     },
@@ -6275,7 +6371,7 @@ const app = {
         this.renderTree();
         this.renderList();
         this.loadEditor(newPath);
-        this.saveCurrentTab();
+        this.markDirty();
         this.outputMessage('➕ ' + this.t('RootNodeAdded'));
     },
 
@@ -6290,7 +6386,7 @@ const app = {
         if (!parent || !parent.children || idx >= parent.children.length) return;
         parent.children.splice(idx, 1);
         this.state.currentNodePath = '/' + parentPath;
-        this.saveCurrentTab();
+        this.markDirty();
         this.renderTree();
         this.renderList();
         this.loadEditor(this.state.currentNodePath);
@@ -8330,7 +8426,7 @@ const app = {
         if (!node.tempInputAttachments) node.tempInputAttachments = { text: '', files: [] };
         node.tempInputAttachments.text = '';
         node.tempInputAttachments.files = [];
-        this.saveCurrentTab();
+        this.markDirty();
         this.renderInput();
         this.outputMessage('🗑 ' + this.t('InputCleared'));
     },
@@ -8377,7 +8473,7 @@ const app = {
         if (!node) return;
         if (!node.tempInputAttachments) node.tempInputAttachments = { text: '', files: [] };
         node.tempInputAttachments.files.splice(index, 1);
-        this.saveCurrentTab();
+        this.markDirty();
         this.renderInput();
     },
 
@@ -8386,7 +8482,7 @@ const app = {
         if (!node) return;
         if (!node.tempInputAttachments) node.tempInputAttachments = { text: '', files: [] };
         node.tempInputAttachments.text = value;
-        this.saveCurrentTab();
+        this.markDirty();
     },
 
     renderPipelineInput(el) {
@@ -8456,7 +8552,7 @@ const app = {
             if (meta && meta.steps && meta.steps[stepIndex]) {
                 meta.steps[stepIndex].attachments = (this.state.pipelineRun.steps[stepIndex] || {}).attachments || [];
                 node.pipelineMeta = JSON.stringify(meta);
-                this.saveCurrentTab();
+                this.markDirty();
             }
         } catch (e) { this.outputMessage('⚠ Failed to save pipeline step attachments: ' + (e.message || '')); }
     },
@@ -8607,6 +8703,7 @@ const app = {
                                 <option value="text"  ${btOutputType === 'text'  ? 'selected' : ''}>text</option>
                                 <option value="t2a"   ${btOutputType === 't2a'   ? 'selected' : ''}>t2a (audio)</option>
                                 <option value="media" ${btOutputType === 'media' ? 'selected' : ''}>media</option>
+                                <option value="0"     ${btOutputType === '0'     ? 'selected' : ''}>0 (no output)</option>
                             </select>
                         </div>
                     </div>
@@ -8637,7 +8734,7 @@ const app = {
         }
         if (!node.attachments) node.attachments = [];
         node.attachments.splice(index, 1);
-        this.saveCurrentTab();
+        this.markDirty();
         this.renderPrompt();
     },
 
@@ -8843,7 +8940,7 @@ const app = {
         let runs = [];
         let selectedIdx = 0;
 
-        if (selectedOpPath !== '') {
+        if (selectedOpPath !== '' && selectedDataPath === '') {
             const opNode = this.getNodeByPath(selectedOpPath);
             const linkedRuns = getRunResults(opNode);
             el.innerHTML = this.renderLinkedRunHistory(linkedRuns);
@@ -9050,12 +9147,13 @@ const app = {
             const outputTextId = outputText ? this._cacheText(outputText) : 0;
             return `<div class="linked-run-detail">
                 <div id="linked-send-${idx}" style="display:none">
-                    <div style="font-size:10px;color:#888;font-weight:bold;margin-bottom:2px">Input Text</div>
+                    <div style="font-size:10px;color:#888;font-weight:bold;margin-bottom:2px">${t('Send')}</div>
                     <div ${inputTextId ? `class="clickable-view" onclick="app._ov(${inputTextId})"` : ''}><pre class="output-display" style="max-height:120px;overflow-y:auto;font-size:11px">${this.escapeHtml(inputText)}</pre></div>
                     ${this.renderOutputGrid('', inputAttachments, [])}
                     ${httpBodiesHtml}
                 </div>
                 <div id="linked-recv-${idx}" style="display:none">
+                    <div style="font-size:10px;color:#888;font-weight:bold;margin-bottom:2px">${t('Receive')}</div>
                     <div ${outputTextId ? `class="clickable-view" onclick="app._ov(${outputTextId})"` : ''}><pre class="output-display" style="max-height:120px;overflow-y:auto;font-size:11px">${this.escapeHtml(outputText)}</pre></div>
                     ${this.renderOutputGrid('', outputAttachments, artifacts)}
                 </div>
@@ -9137,6 +9235,7 @@ const app = {
     // ── Output media grid ───────────────────────────────────────────
     renderOutputGrid(text, attachments, artifacts) {
         const cards = [];
+        this._renderedArtifacts = [];
 
         // Text card
         if (text && text.trim()) {
@@ -9152,26 +9251,33 @@ const app = {
 
         // Attachment cards (outputAttachments from AI response)
         (attachments || []).forEach((a, i) => {
+            const index = this._renderedArtifacts.length;
+            this._renderedArtifacts.push(a);
+
             const mime = a.mimetype || '';
             const label = this.escapeHtml(a.file || `attachment-${i}`);
+            const ctxMenu = `oncontextmenu="event.preventDefault();event.stopPropagation();app.showOutputContextMenu(event,this)" data-artifact-index="${index}"`;
+            const fullPath = a.path ? this.getFileFullPath(a.path) : '';
+            const hintAttr = fullPath ? `data-hint="${this.escapeHtml(fullPath)}"` : '';
+
             if (mime.startsWith('image/')) {
                 const src = `data:${mime};base64,${a.content || ''}`;
                 cards.push(`
-                    <div class="output-card" onclick="app.showMediaViewer('image','${src}','${label}')">
+                    <div class="output-card" onclick="app.showMediaViewer('image','${src}','${label}')" ${ctxMenu} ${hintAttr}>
                         <img class="output-thumb" src="${src}" onerror="this.src=''">
                         <div class="output-card-label">${label}</div>
                     </div>`);
             } else if (mime.startsWith('video/')) {
                 const src = `data:${mime};base64,${a.content || ''}`;
                 cards.push(`
-                    <div class="output-card" onclick="app.showMediaViewer('video','${src}','${label}')">
+                    <div class="output-card" onclick="app.showMediaViewer('video','${src}','${label}')" ${ctxMenu} ${hintAttr}>
                         <div class="output-card-icon">🎬</div>
                         <div class="output-card-label">${label}</div>
                     </div>`);
             } else if (mime.startsWith('audio/')) {
                 const src = `data:${mime};base64,${a.content || ''}`;
                 cards.push(`
-                    <div class="output-card" onclick="app.showMediaViewer('audio','${src}','${label}')">
+                    <div class="output-card" onclick="app.showMediaViewer('audio','${src}','${label}')" ${ctxMenu} ${hintAttr}>
                         <div class="output-card-icon">🎵</div>
                         <div class="output-card-label">${label}</div>
                     </div>`);
@@ -9179,7 +9285,7 @@ const app = {
                 const content = a.content ? atob(a.content) : '';
                 const encoded = encodeURIComponent(content);
                 cards.push(`
-                    <div class="output-card" onclick="app.showMediaViewer('text',decodeURIComponent('${encoded}'),'${label}')">
+                    <div class="output-card" onclick="app.showMediaViewer('text',decodeURIComponent('${encoded}'),'${label}')" ${ctxMenu} ${hintAttr}>
                         <div class="output-card-icon">📎</div>
                         <div class="output-card-label">${label}</div>
                     </div>`);
@@ -9188,6 +9294,9 @@ const app = {
 
         // Artifact cards (file paths)
         (artifacts || []).forEach(a => {
+            const index = this._renderedArtifacts.length;
+            this._renderedArtifacts.push(a);
+
             const label = this.escapeHtml(a.label || a.path || '');
             const ext = (a.path || '').split('.').pop().toLowerCase();
             const imgExts = ['png','jpg','jpeg','gif','webp','bmp','svg'];
@@ -9198,8 +9307,11 @@ const app = {
             if (imgExts.includes(ext)) icon = '🖼';
             else if (vidExts.includes(ext)) icon = '🎬';
             else if (audExts.includes(ext)) icon = '🎵';
+            const ctxMenu = `oncontextmenu="event.preventDefault();event.stopPropagation();app.showOutputContextMenu(event,this)" data-artifact-index="${index}"`;
+            const fullPath = a.path ? this.getFileFullPath(a.path) : '';
+            const hintAttr = fullPath ? `data-hint="${this.escapeHtml(fullPath)}"` : '';
             cards.push(`
-                <div class="output-card" onclick="${viewer}">
+                <div class="output-card" onclick="${viewer}" ${ctxMenu} ${hintAttr}>
                     <div class="output-card-icon">${icon}</div>
                     <div class="output-card-label">${label}</div>
                 </div>`);
@@ -9557,12 +9669,12 @@ const app = {
             }
             if (!targetNode.attachments) targetNode.attachments = [];
             targetNode.attachments.push(...attachments);
-            this.saveCurrentTab();
+            this.markDirty();
             this.renderPrompt();
         } else if (purpose === 'input_attachment') {
             if (!node.tempInputAttachments) node.tempInputAttachments = { text: '', files: [] };
             node.tempInputAttachments.files.push(...attachments);
-            this.saveCurrentTab();
+            this.markDirty();
             this.renderInput();
         } else if (purpose === 'step_attachment') {
             const si = payload.stepIndex;
@@ -9587,6 +9699,11 @@ const app = {
         if (artifact.path) {
             this.postMessage({ type: 'open_artifact', payload: artifact });
         }
+    },
+
+    exportArtifact(artifact) {
+        if (!artifact) return;
+        this.postMessage({ type: 'export_artifact', payload: artifact });
     },
 
     // ── Chest Operations ───────────────────────────────────────────
@@ -9670,7 +9787,7 @@ const app = {
                 this.state.selectedOutputRunIndex--;
             }
             
-            this.saveCurrentTab();
+            this.markDirty();
             
             this.renderTree();
             this.renderList();
@@ -9703,7 +9820,7 @@ const app = {
             });
             this.state.currentNodePath = '/' + parentPath;
             
-            this.saveCurrentTab();
+            this.markDirty();
  
             this.renderTree();
             this.renderList();
@@ -9779,6 +9896,7 @@ const app = {
     },
 
     switchProject(name) {
+        this.flushDirty();
         this.postMessage({ type: 'select_project', payload: { projectName: name } });
     },
 
@@ -11836,6 +11954,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const tabMenu = document.getElementById('tab-context-menu');
         if (tabMenu && tabMenu.style.display !== 'none' && !tabMenu.contains(e.target)) {
             app.hideTabContextMenu();
+        }
+        const outputMenu = document.getElementById('output-context-menu');
+        if (outputMenu && outputMenu.style.display !== 'none' && !outputMenu.contains(e.target)) {
+            app.hideOutputContextMenu();
         }
     });
 });

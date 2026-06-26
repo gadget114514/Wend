@@ -66,7 +66,7 @@ class ProcessPromptAction extends b3.Action {
         const resolvedPrompt = rawPrompt ? this._expandPlaceholders(rawPrompt, blackboard) : '';
 
         console.log(`[ProcessPromptAction] Prompt: "${String(resolvedPrompt).slice(0, 50)}..."`);
-        console.log(`[ProcessPromptAction] Input: key="${inputKey}", type="${inputType}"`);
+        console.log(`[ProcessPromptAction] Input: key="${inputKey}", type="${forcedType}"`);
         console.log(`[ProcessPromptAction] Output: key="${outputKey}", type="${outputType}"`);
 
         // Set BT run context for processPrompt to read

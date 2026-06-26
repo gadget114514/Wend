@@ -3863,16 +3863,22 @@ describe('Selection & Color logic', () => {
         let outputHtml = '';
         let bodyHtml = '';
         app._vmContext.document.getElementById = (id) => {
-            if (id === 'output-content') {
+            if (id === 'output-content' || id === 'output-result-container') {
                 return {
                     set innerHTML(html) { outputHtml = html; },
-                    get innerHTML() { return outputHtml; }
+                    get innerHTML() { return outputHtml; },
+                    style: {},
+                    classList: { remove: () => {}, add: () => {} },
+                    appendChild: () => {}
                 };
             }
-            if (id === 'output-tab-body') {
+            if (id === 'output-tab-body' || id === 'output-run-container') {
                 return {
                     set innerHTML(html) { bodyHtml = html; outputHtml += html; },
-                    get innerHTML() { return bodyHtml; }
+                    get innerHTML() { return bodyHtml; },
+                    style: {},
+                    classList: { remove: () => {}, add: () => {} },
+                    appendChild: () => {}
                 };
             }
             return { style: {}, classList: { remove: () => {}, add: () => {} }, appendChild: () => {} };
@@ -5104,7 +5110,7 @@ describe('Behavior Tree', () => {
         const ctx = {
             window: {},
             document: {
-                getElementById: () => ({ style: {}, classList: { add: () => {}, remove: () => {} }, value: '', innerHTML: '' }),
+                getElementById: () => ({ style: {}, classList: { add: () => {}, remove: () => {} }, value: '', innerHTML: '', appendChild: () => {} }),
                 addEventListener: () => {},
                 querySelector: () => ({ style: {} }),
                 querySelectorAll: () => [],
@@ -5119,8 +5125,17 @@ describe('Behavior Tree', () => {
             clearTimeout,
             btoa: s => Buffer.from(s, 'binary').toString('base64'),
             atob: s => Buffer.from(s, 'base64').toString('binary'),
+            Date,
+            Math,
         };
+        ctx.window = ctx;
         vm.createContext(ctx);
+
+        const registryCode = fs.readFileSync(path.join(__dirname, '../frontend/bt-registry.js'), 'utf8');
+        const actionsCode = fs.readFileSync(path.join(__dirname, '../frontend/bt-actions.js'), 'utf8');
+        vm.runInContext(registryCode, ctx);
+        vm.runInContext(actionsCode, ctx);
+
         vm.runInContext(btJsCode, ctx);
         vm.runInContext(appJsCode, ctx);
         const app = vm.runInContext('app', ctx);
@@ -5130,7 +5145,10 @@ describe('Behavior Tree', () => {
         app.renderList  = () => {};
         app.loadEditor  = () => {};
         app.renderOutput = () => {};
-        app.addLog      = () => {};
+        app.addLog      = (msg) => { console.log("[App Log]", msg); };
+        app.outputTrace = (text) => app.addLog(text);
+        app.outputDebug = (text) => app.addLog(text);
+        app.outputMessage = (text) => app.addLog(text);
         app.postMessage = () => {};
         app.saveCurrentTab = () => {};
         app._messageListeners = [];
@@ -5430,7 +5448,9 @@ describe('Behavior Tree', () => {
         
         let sentMsg = null;
         app.postMessage = (msg) => {
-            sentMsg = msg;
+            if (msg.type === 'bt_http_request') {
+                sentMsg = msg;
+            }
         };
 
         const runPromise = app._bt._runNode('0');
@@ -5550,7 +5570,12 @@ describe('Behavior Tree', () => {
 
         app.processPrompt = () => {
             const cb = app._bt._pendingCallbacks.get('0') || app._bt._leafCallback;
-            cb({ outputContent: 'AI output content', pipelineName: 'test-ai', error: false });
+            cb({
+                outputContent: 'AI output content',
+                pipelineName: 'test-ai',
+                error: false,
+                steps: [{ output: 'AI output content' }]
+            });
         };
 
         const ok = await app._bt._runNode('0');
@@ -5587,7 +5612,8 @@ describe('Behavior Tree', () => {
         app.onPipelineCompleted({
             outputContent: 'Manual output content',
             pipelineName: 'test-manual',
-            error: false
+            error: false,
+            steps: [{ output: 'Manual output content' }]
         });
 
         assert.equal(app._bt._blackboard.manual_res.text, 'Manual output content');
@@ -6074,34 +6100,6 @@ describe('Behavior Tree', () => {
         // 4. Clear key event
         engine.bbClearKey('var1');
         assert.ok(callbackCount > prevCount3, 'bbClearKey should trigger change callback');
-    });
-
-    test('Integration: Behavior3 blackboard read/write/remove/create events update blackboard dialog', () => {
-        const app = createB3BtApp();
-        
-        let callbackCount = 0;
-        app._bt._bbChangeCallback = () => {
-            callbackCount++;
-        };
-        
-        // 1. Write/Create event
-        app._bt.bbWrite('var1', 'val1');
-        assert.ok(callbackCount > 0, 'bbWrite B3 should trigger change callback');
-        const prevCount1 = callbackCount;
-        
-        // 2. Read event (via Proxy)
-        const slot = app._bt._blackboard.get('var1');
-        assert.ok(callbackCount > prevCount1, '_blackboard get B3 should trigger change callback');
-        const prevCount2 = callbackCount;
-        
-        // 3. Set event (via Proxy)
-        app._bt._blackboard.set('var1', { text: 'newval' });
-        assert.ok(callbackCount > prevCount2, '_blackboard set B3 should trigger change callback');
-        const prevCount3 = callbackCount;
-        
-        // 4. Clear key/remove event
-        app._bt.bbClearKey('var1');
-        assert.ok(callbackCount > prevCount3, 'bbClearKey B3 should trigger change callback');
     });
 });
 
@@ -6590,8 +6588,8 @@ describe('Behavior3 Integration Tests with Mock & Mock Recipes', () => {
             window: {},
             document: {
                 getElementById: (id) => {
-                    if (id === 'bt-target-label') return { textContent: '' };
-                    return { style: {}, classList: { add: () => {}, remove: () => {} }, value: '', innerHTML: '' };
+                    if (id === 'bt-target-label') return { textContent: '', appendChild: () => {} };
+                    return { style: {}, classList: { add: () => {}, remove: () => {} }, value: '', innerHTML: '', appendChild: () => {} };
                 },
                 addEventListener: () => {},
                 querySelector: () => ({ style: {} }),
@@ -6637,7 +6635,10 @@ describe('Behavior3 Integration Tests with Mock & Mock Recipes', () => {
         app.renderList  = () => {};
         app.loadEditor  = () => {};
         app.renderOutput = () => {};
-        app.addLog      = () => {};
+        app.addLog      = (msg) => { console.log("[B3 App Log]", msg); };
+        app.outputTrace = (text) => app.addLog(text);
+        app.outputDebug = (text) => app.addLog(text);
+        app.outputMessage = (text) => app.addLog(text);
         app.postMessage = () => {};
         app.saveCurrentTab = () => {};
         app._messageListeners = [];
@@ -6648,6 +6649,34 @@ describe('Behavior3 Integration Tests with Mock & Mock Recipes', () => {
         
         return app;
     }
+
+    test('Integration: Behavior3 blackboard read/write/remove/create events update blackboard dialog', () => {
+        const app = createB3BtApp();
+        
+        let callbackCount = 0;
+        app._bt._bbChangeCallback = () => {
+            callbackCount++;
+        };
+        
+        // 1. Write/Create event
+        app._bt.bbWrite('var1', 'val1');
+        assert.ok(callbackCount > 0, 'bbWrite B3 should trigger change callback');
+        const prevCount1 = callbackCount;
+        
+        // 2. Read event (via Proxy)
+        const slot = app._bt._blackboard.get('var1');
+        assert.ok(callbackCount > prevCount1, '_blackboard get B3 should trigger change callback');
+        const prevCount2 = callbackCount;
+        
+        // 3. Set event (via Proxy)
+        app._bt._blackboard.set('var1', { text: 'newval' });
+        assert.ok(callbackCount > prevCount2, '_blackboard set B3 should trigger change callback');
+        const prevCount3 = callbackCount;
+        
+        // 4. Clear key/remove event
+        app._bt.bbClearKey('var1');
+        assert.ok(callbackCount > prevCount3, 'bbClearKey B3 should trigger change callback');
+    });
 
     test('Integration: sequence with ProcessPromptAction executes through PipelineRunner and MockProvider', async () => {
         const app = createB3BtApp();
@@ -6673,7 +6702,7 @@ describe('Behavior3 Integration Tests with Mock & Mock Recipes', () => {
                 runner.run(payload.nodeTitle, steps, payload.content || '', [], 'child')
                     .then(() => {
                         const output = runner.historySteps[0].output;
-                        app._bt.notifyLeafComplete({ error: false, outputContent: output });
+                        app._bt.notifyLeafComplete({ error: false, outputContent: output, steps: [{ output }] });
                     })
                     .catch(err => {
                         app._bt.notifyLeafComplete({ error: true, message: err.message });
@@ -6738,7 +6767,7 @@ describe('Behavior3 Integration Tests with Mock & Mock Recipes', () => {
                 runner.run(payload.nodeTitle, steps, payload.content || '', [], 'child')
                     .then(() => {
                         const output = runner.historySteps[0].output;
-                        app._bt.notifyLeafComplete({ error: false, outputContent: output });
+                        app._bt.notifyLeafComplete({ error: false, outputContent: output, steps: [{ output }] });
                     })
                     .catch(err => {
                         app._bt.notifyLeafComplete({ error: true, message: err.message });
@@ -6813,7 +6842,7 @@ describe('Behavior3 Integration Tests with Mock & Mock Recipes', () => {
                 runner.run(payload.nodeTitle, steps, payload.content || '', [], 'child')
                     .then(() => {
                         const output = runner.historySteps[0].output;
-                        app._bt.notifyLeafComplete({ error: false, outputContent: output });
+                        app._bt.notifyLeafComplete({ error: false, outputContent: output, steps: [{ output }] });
                     })
                     .catch(err => {
                         app._bt.notifyLeafComplete({ error: true, message: err.message });
@@ -8209,7 +8238,7 @@ describe('GeminiProvider Multimodal & Image Generation URL resolution', () => {
 // ── Recipe files — triplet validation ──────────────────────
 const RECIPES_DIR = path.join(__dirname, '..', 'frontend', 'defaults');
 
-const VALID_TOOL_TYPES = ['t2t', 't2i', 'i2i', 'v2i', 'tts', 'stt', 't2a', 't2v', 'translate'];
+const VALID_TOOL_TYPES = ['t2t', 't2i', 'i2i', 'v2i', 'tts', 'stt', 't2a', 't2v', 'translate', 't20', 'i20', 'a20', 'v20'];
 const VALID_API_TYPES  = ['openai', 'anthropic', 'gemini', 'ollama', 'polling', 'simple'];
 
 describe('Recipe files — structural validation', () => {

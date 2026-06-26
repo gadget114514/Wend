@@ -4423,6 +4423,36 @@ Return the updated JSON configuration.`;
             if (payload?.path) shell.openPath(payload.path);
             break;
         }
+        case 'export_artifact': {
+            const { path: sourcePath, content, file: filename } = payload || {};
+            const defaultName = filename || (sourcePath ? path.basename(sourcePath) : 'export');
+            const ext = path.extname(defaultName).toLowerCase().slice(1);
+            const filters = ext ? [{ name: ext.toUpperCase(), extensions: [ext] }, { name: 'All Files', extensions: ['*'] }] : [{ name: 'All Files', extensions: ['*'] }];
+            
+            dialog.showSaveDialog(mainWindow, {
+                defaultPath: defaultName,
+                filters: filters
+            }).then(result => {
+                if (!result.canceled && result.filePath) {
+                    try {
+                        if (sourcePath && fs.existsSync(sourcePath)) {
+                            fs.copyFileSync(sourcePath, result.filePath);
+                            postToJS('log', JSON.stringify({ message: `Exported artifact to ${result.filePath}` }));
+                        } else if (content) {
+                            fs.writeFileSync(result.filePath, Buffer.from(content, 'base64'));
+                            postToJS('log', JSON.stringify({ message: `Exported artifact to ${result.filePath}` }));
+                        } else {
+                            throw new Error('No source file or content available to export');
+                        }
+                    } catch (e) {
+                        postToJS('log', JSON.stringify({ message: `Export Error: ${e.message}` }));
+                    }
+                }
+            }).catch(err => {
+                postToJS('log', JSON.stringify({ message: `Export Error: ${err.message}` }));
+            });
+            break;
+        }
         case 'close_ready': {
             if (mainWindow && mainWindow._closeReadyFallback) {
                 clearTimeout(mainWindow._closeReadyFallback);

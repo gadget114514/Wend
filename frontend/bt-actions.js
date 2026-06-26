@@ -56,7 +56,7 @@
     R.register('playAudio', {
         label: 'Play Audio',
         fields: ['inputKey'],
-        defaults: { inputType: 'media' },
+        defaults: { inputType: 'media', outputType: '0' },
         handler: async (ctx) => {
             const { bt, app, path, inputKey, mediaArr, setCleanup } = ctx;
 
@@ -152,7 +152,7 @@
     R.register('pipelineOutput', {
         label: 'Pipeline Output',
         fields: ['inputKey'],
-        defaults: { inputType: 'media' },
+        defaults: { inputType: 'media', outputType: '0' },
         handler: async (ctx) => {
             const { bt, app, inputKey, mediaArr, textInput } = ctx;
 
@@ -177,7 +177,7 @@
     R.register('playVideo', {
         label: 'Play Video',
         fields: ['inputKey'],
-        defaults: { inputType: 'media' },
+        defaults: { inputType: 'media', outputType: '0' },
         handler: async (ctx) => {
             const { bt, app, path, inputKey, mediaArr, setCleanup } = ctx;
 

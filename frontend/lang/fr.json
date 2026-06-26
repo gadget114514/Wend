@@ -1,4 +1,4 @@
-﻿{
+{
  "Reasoning": "Reasoning",
  "TestRecipeBtn": "Tester",
  "RecipeVerified": "Vérifié",
@@ -38,7 +38,9 @@
  "Update": "Mettre ﾃ jour",
  "Remove": "Supprimer",
  "Copy": "Copier",
- "Copied": "Copiﾃｩ !",
+ "CopyFullPath": "Copier le chemin complet",
+ "ExportArtifact": "Exporter l'artefact",
+ "Copied": "Copié !",
  "Cancel": "Annuler",
  "Pipeline": "Pipeline",
  "History": "Historique",
@@ -124,6 +126,6 @@
  "StorageChest": "Coffre de stockage",
  "ClearStorageChest": "Vider le coffre de stockage",
  "LangCode": "fr",
- "Send": "Envoyer",
- "Receive": "Recevoir"
+  "Send": "Ressource d'entrée",
+  "Receive": "Ressource de sortie"
 }
