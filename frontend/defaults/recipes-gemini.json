@@ -1,5 +1,21 @@
 [
   {
+    "name": "Gemini T2I (Text-to-Image) gemini-3-pro-image",
+    "type": "ai",
+    "provider": "gemini",
+    "model": "gemini-3-pro-image",
+    "temperature": 0.7,
+    "systemPrompt": "You are an AI image generator. Generate high-quality images based on the user prompt.",
+    "command": "",
+    "useCustomApiPath": false,
+    "apiPath": "/v1beta/models/{model}:generateContent",
+    "apiType": "gemini",
+    "customParams": {},
+    "tool": [
+      "t2i"
+    ]
+  },
+  {
     "name": "Article Writer (Gemini) gemini-3.1-pro-preview",
     "type": "ai",
     "provider": "gemini",
@@ -15,24 +31,8 @@
       "t2t"
     ],
     "verified": true,
-    "verifiedAt": 1782221863363,
+    "verifiedAt": 1782547394968,
     "verifiedModel": "gemini-3.1-pro-preview"
-  },
-  {
-    "name": "Gemini T2I (Text-to-Image) gemini-3-pro-image",
-    "type": "ai",
-    "provider": "gemini",
-    "model": "gemini-3-pro-image",
-    "temperature": 0.7,
-    "systemPrompt": "You are an AI image generator. Generate high-quality images based on the user prompt.",
-    "command": "",
-    "useCustomApiPath": false,
-    "apiPath": "/v1beta/models/{model}:generateContent",
-    "apiType": "gemini",
-    "customParams": {},
-    "tool": [
-      "t2i"
-    ]
   },
   {
     "name": "Gemini T2I Flash (Text-to-Image) gemini-3.1-flash-image",

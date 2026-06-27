@@ -3,7 +3,7 @@ const { httpRequest } = require('./utils');
 class AnthropicProvider {
     constructor(apiKey, baseUrl) {
         this.apiKey = apiKey;
-        this.baseUrl = baseUrl || 'https://api.anthropic.com';
+        this.baseUrl = (baseUrl || 'https://api.anthropic.com').replace(/\/+$/, '');
     }
     name() { return 'anthropic'; }
     defaultModels() { return ['claude-sonnet-4-6', 'claude-haiku-4-5']; }

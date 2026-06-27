@@ -149,6 +149,7 @@ button.btn-pressed { animation: btn-press 0.12s ease-out; }
 .recipe-verified-badge.verified-ok { color: #4caf50; background: rgba(76,175,80,0.12); }
 .recipe-verified-badge.verified-warn { color: #e0a800; background: rgba(224,168,0,0.12); }
 .recipe-verified-badge.verified-none { color: #888; background: #2d2d2d; }
+.recipe-verified-date { font-size: 9px; padding: 1px 6px; border-radius: 8px; color: var(--theme-text2); background: rgba(255,255,255,0.05); letter-spacing: 0.03em; }
 .rt-result { margin-top: 8px; }
 .rt-result:empty { display: none; }
 /* AI comment (model reasoning shown separately from the output) */

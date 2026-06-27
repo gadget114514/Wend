@@ -540,4 +540,50 @@
         }
     });
 
+    // ── invoke (command execution) ────────────────────────────────
+    R.register('invoke', {
+        label: 'Invoke Command',
+        description: 'Execute a system command with input from blackboard',
+        fields: ['prompt', 'inputKey', 'outputKey'],
+        defaults: { inputType: 'text', outputType: 'text' },
+        handler: async (ctx) => {
+            const { bt, app, node, prompt, outputKey, outputScope } = ctx;
+
+            let command = (prompt || '').trim();
+            if (!command) {
+                app.outputMessage('❌ Invoke Command: No command specified');
+                return false;
+            }
+
+            const outputType = node?.btOutputType || 'text';
+            const scope = outputScope || 'run';
+
+            return new Promise(resolve => {
+                const handler = (msg) => {
+                    if (msg.type === 'bt_invoke_result') {
+                        app._removeMessageListener(handler);
+                        if (msg.error) {
+                            app.outputMessage(`❌ Command failed: ${msg.error}`);
+                            resolve(false);
+                        } else {
+                            if (outputKey) {
+                                bt.bbWrite(outputKey, msg.output || '', scope, outputType);
+                            }
+                            app.outputMessage(`✓ Command executed: ${command}`);
+                            resolve(true);
+                        }
+                    }
+                };
+                app._addMessageListener(handler);
+                app.postMessage({
+                    type: 'bt_invoke_command',
+                    payload: {
+                        command,
+                        workingDir: node?.btWorkingDir || ''
+                    }
+                });
+            });
+        }
+    });
+
 })();

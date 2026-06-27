@@ -3,7 +3,7 @@ const { httpRequest } = require('./utils');
 class GeminiImageProvider {
     constructor(apiKey, baseUrl) {
         this.apiKey = apiKey;
-        this.baseUrl = baseUrl || 'https://generativelanguage.googleapis.com';
+        this.baseUrl = (baseUrl || 'https://generativelanguage.googleapis.com').replace(/\/+$/, '');
     }
     name() { return 'gemini-image'; }
     defaultModels() { return ['gemini-3.1-flash-image']; }

@@ -448,12 +448,16 @@
 
 <!-- Recipe Manager Modal -->
 <div id="recipe-modal" class="modal">
-    <div class="modal-content recipe-modal-content" style="min-width:850px;max-width:1000px;height:580px;display:flex;flex-direction:column;padding:0">
+    <div class="modal-content recipe-modal-content" style="position:relative;min-width:850px;max-width:1000px;height:580px;display:flex;flex-direction:column;padding:0">
         <div class="recipe-modal-header" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444;flex-shrink:0">
             <span>📋 Recipe Manager</span>
             <span class="modal-close" onclick="app.closeRecipeManager()">&times;</span>
         </div>
         <div id="recipe-manager-path" style="padding:4px 16px;font-size:10px;color:#666;background:#1a1a1a;border-bottom:1px solid #333;line-height:1.6"></div>
+        <div id="recipe-manager-error" style="display:none;padding:8px 16px;background:rgba(231,76,60,0.15);color:#ff6b6b;border-bottom:1px solid rgba(231,76,60,0.3);font-size:11px;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0;">
+            <span class="error-msg"></span>
+            <button onclick="document.getElementById('recipe-manager-error').style.display='none'" style="background:none;border:none;color:#ff6b6b;cursor:pointer;font-size:14px;padding:0;line-height:1;">&times;</button>
+        </div>
         <div style="display:flex;flex:1;min-height:0">
             <!-- Left Sidebar: Providers -->
             <div id="recipe-manager-sidebar" style="width:200px;border-right:1px solid #333;background:#151515;overflow-y:auto;padding:8px 0;display:flex;flex-direction:column;gap:2px">
@@ -465,6 +469,10 @@
         <div class="recipe-modal-footer" style="display:flex;justify-content:flex-end;gap:8px;padding:10px 14px;border-top:1px solid #333;flex-shrink:0;background:#1a1a1a">
             <button class="btn" onclick="app.closeRecipeManager()" data-i18n="Close">Close</button>
         </div>
+        <!-- Resize Handles -->
+        <div class="resize-handle resize-r" style="position:absolute;top:0;right:0;width:6px;height:100%;cursor:e-resize;z-index:100;"></div>
+        <div class="resize-handle resize-b" style="position:absolute;bottom:0;left:0;width:100%;height:6px;cursor:s-resize;z-index:100;"></div>
+        <div class="resize-handle resize-se" style="position:absolute;right:0;bottom:0;width:12px;height:12px;cursor:se-resize;z-index:101;background:linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.3) 50%);border-bottom-right-radius:8px;"></div>
     </div>
 </div>
 
@@ -476,6 +484,7 @@
     </div>
     <div class="config-body">
         <div id="config-tab-providers" class="config-tab-panel">
+            <div id="config-providers-path" style="font-size: 10px; color: var(--theme-text2); margin-bottom: 10px; padding: 4px 6px; background: rgba(0,0,0,0.15); border-radius: 4px; word-break: break-all; display: none;"></div>
             <div class="provider-list" id="provider-list"></div>
             <div class="config-actions">
                 <button onclick="app.saveProviders()" class="btn-primary" data-i18n="Save">Save</button>
@@ -491,154 +500,213 @@
         <button onclick="app.closeAppConfig()">&times;</button>
     </div>
     <div class="config-body">
-        <div class="settings-field-row">
-            <label data-i18n="DefaultProvider">Default Provider</label>
-            <div class="settings-field-control">
-                <select id="config-default-provider" onchange="app.setDefaultProvider(this.value)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;"></select>
-            </div>
+        <div class="config-tabs">
+            <button class="config-tab active" onclick="app.switchConfigTab('general', this)" data-i18n="General">General</button>
+            <button class="config-tab" onclick="app.switchConfigTab('theme', this)" data-i18n="Theme">Theme</button>
+            <button class="config-tab" onclick="app.switchConfigTab('proxy', this)" data-i18n="Proxy">Proxy</button>
         </div>
-        <div class="settings-field-row">
-            <label data-i18n="DefaultModel">Default Model</label>
-            <div class="settings-field-control">
-                <input type="text" id="config-default-model" placeholder="gpt-4o" onchange="app.setDefaultModel(this.value)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;">
-            </div>
-        </div>
-        <div class="settings-separator"></div>
-        <div class="settings-field-row">
-            <label>Image Viewer Default Fit</label>
-            <div class="settings-field-control">
-                <select id="config-default-image-fit" onchange="app.setDefaultImageFit(this.value)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;">
-                    <option value="contain" data-i18n="ImageFitContain">Fit All (contain)</option>
-                    <option value="fit-height" data-i18n="ImageFitHeight">Fit Height (fit height)</option>
-                    <option value="fit-width" data-i18n="ImageFitWidth">Fit Width (fit width)</option>
-                    <option value="native" data-i18n="ImageFitNative">Native Resolution (native)</option>
-                </select>
-            </div>
-        </div>
-        <div class="settings-separator"></div>
-        <div class="settings-field-row">
-            <label data-i18n="ProjectsRoot">Projects Root Folder</label>
-            <div class="settings-field-hint" data-i18n="ProjectsRootDesc">Location for all project data. Restart required after change. Leave empty for default.</div>
-            <div class="settings-field-control" style="display:flex;gap:4px;align-items:center;">
-                <input type="text" id="config-projects-root" placeholder="(default)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;">
-                <button onclick="app.browseProjectsRoot()" data-i18n="Browse">Browse...</button>
-                <button onclick="app.applyProjectsRoot()" class="btn-primary" data-i18n="Apply">Apply</button>
-                <button onclick="app.resetProjectsRoot()" data-i18n="Reset">Reset</button>
-            </div>
-        </div>
-        <div class="settings-separator"></div>
-        <div class="settings-field-row">
-            <label data-i18n="HistoryRetention">History Retention (runs)</label>
-            <div class="settings-field-hint" data-i18n="HistoryRetentionDesc">Number of execution histories to keep per project.</div>
-            <div class="settings-field-control">
-                <button onclick="app.adjustRetention(-10)" title="Decrease by 10">−10</button>
-                <button onclick="app.adjustRetention(-1)" title="Decrease by 1">−1</button>
-                <input type="number" id="config-history-retention" value="50" min="10" max="500" onchange="app.setHistoryRetention(this.value)">
-                <button onclick="app.adjustRetention(1)" title="Increase by 1">+1</button>
-                <button onclick="app.adjustRetention(10)" title="Increase by 10">+10</button>
-            </div>
-        </div>
-        <div class="settings-separator"></div>
-        <div class="settings-field-row">
-            <label>BT Execution Settings</label>
-            <div class="settings-field-hint">Configure parallel execution limits for Behavior Tree runs and LLM API calls.</div>
-            <div class="settings-field-control" style="display:flex;flex-direction:column;gap:12px;">
-                <!-- Max Parallel Runs -->
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <label style="width:180px;font-size:12px;">Max Parallel BT Runs</label>
-                    <button onclick="app.adjustMaxParallel(-1)" title="Decrease">−</button>
-                    <input type="number" id="config-max-parallel" value="4" min="1" max="16" onchange="app.setMaxParallel(this.value)" style="width:50px;text-align:center;">
-                    <button onclick="app.adjustMaxParallel(1)" title="Increase">+</button>
-                    <span style="font-size:11px;color:#888;">(1-16)</span>
-                </div>
-                <!-- Max Concurrent LLM Calls -->
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <label style="width:180px;font-size:12px;">Max Concurrent HTTP Calls</label>
-                    <button onclick="app.adjustMaxConcurrentLLM(-1)" title="Decrease">−</button>
-                    <input type="number" id="config-max-concurrent-llm" value="4" min="1" max="32" onchange="app.setMaxConcurrentLLM(this.value)" style="width:50px;text-align:center;">
-                    <button onclick="app.adjustMaxConcurrentLLM(1)" title="Increase">+</button>
-                    <span style="font-size:11px;color:#888;">(1-32)</span>
-                </div>
-                <!-- Task Polling Interval -->
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <label style="width:180px;font-size:12px;">Task Polling Interval</label>
-                    <button onclick="app.adjustTaskPollingInterval(-1)" title="Decrease">−</button>
-                    <input type="number" id="config-task-polling-interval" value="10" min="1" max="60" onchange="app.setTaskPollingInterval(this.value)" style="width:50px;text-align:center;">
-                    <button onclick="app.adjustTaskPollingInterval(1)" title="Increase">+</button>
-                    <span style="font-size:11px;color:#888;">seconds (1-60)</span>
+
+        <div id="config-tab-general" class="config-tab-panel">
+            <div class="settings-field-row">
+                <label data-i18n="DefaultProvider">Default Provider</label>
+                <div class="settings-field-control">
+                    <select id="config-default-provider" onchange="app.setDefaultProvider(this.value)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;"></select>
                 </div>
             </div>
-        </div>
-        <div class="settings-separator"></div>
-        <div class="settings-field-row">
-            <label data-i18n="Theme">Theme</label>
-            <div id="theme-options" class="settings-theme-list"></div>
-            <div id="custom-theme-colors" style="display:none; margin-top: 12px; border-top: 1px solid var(--theme-border); padding-top: 12px; width: 100%;">
-                <div style="font-weight: bold; margin-bottom: 8px;" data-i18n="CustomizeTheme">Customize Theme Colors</div>
-                <div class="custom-color-pickers-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+            <div class="settings-field-row">
+                <label data-i18n="DefaultModel">Default Model</label>
+                <div class="settings-field-control">
+                    <input type="text" id="config-default-model" placeholder="gpt-4o" onchange="app.setDefaultModel(this.value)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;">
+                </div>
+            </div>
+            <div class="settings-separator"></div>
+            <div class="settings-field-row">
+                <label>Image Viewer Default Fit</label>
+                <div class="settings-field-control">
+                    <select id="config-default-image-fit" onchange="app.setDefaultImageFit(this.value)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;">
+                        <option value="contain" data-i18n="ImageFitContain">Fit All (contain)</option>
+                        <option value="fit-height" data-i18n="ImageFitHeight">Fit Height (fit height)</option>
+                        <option value="fit-width" data-i18n="ImageFitWidth">Fit Width (fit width)</option>
+                        <option value="native" data-i18n="ImageFitNative">Native Resolution (native)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="settings-separator"></div>
+            <div class="settings-field-row">
+                <label data-i18n="ProjectsRoot">Projects Root Folder</label>
+                <div class="settings-field-hint" data-i18n="ProjectsRootDesc">Location for all project data. Restart required after change. Leave empty for default.</div>
+                <div class="settings-field-control" style="display:flex;gap:4px;align-items:center;">
+                    <input type="text" id="config-projects-root" placeholder="(default)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;">
+                    <button onclick="app.browseProjectsRoot()" data-i18n="Browse">Browse...</button>
+                    <button onclick="app.applyProjectsRoot()" class="btn-primary" data-i18n="Apply">Apply</button>
+                    <button onclick="app.resetProjectsRoot()" data-i18n="Reset">Reset</button>
+                </div>
+            </div>
+            <div class="settings-separator"></div>
+            <div class="settings-field-row">
+                <label data-i18n="HistoryRetention">History Retention (runs)</label>
+                <div class="settings-field-hint" data-i18n="HistoryRetentionDesc">Number of execution histories to keep per project.</div>
+                <div class="settings-field-control">
+                    <button onclick="app.adjustRetention(-10)" title="Decrease by 10">−10</button>
+                    <button onclick="app.adjustRetention(-1)" title="Decrease by 1">−1</button>
+                    <input type="number" id="config-history-retention" value="50" min="10" max="500" onchange="app.setHistoryRetention(this.value)">
+                    <button onclick="app.adjustRetention(1)" title="Increase by 1">+1</button>
+                    <button onclick="app.adjustRetention(10)" title="Increase by 10">+10</button>
+                </div>
+            </div>
+            <div class="settings-separator"></div>
+            <div class="settings-field-row">
+                <label>BT Execution Settings</label>
+                <div class="settings-field-hint">Configure parallel execution limits for Behavior Tree runs and LLM API calls.</div>
+                <div class="settings-field-control" style="display:flex;flex-direction:column;gap:12px;">
+                    <!-- Max Parallel Runs -->
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <label style="width:180px;font-size:12px;">Max Parallel BT Runs</label>
+                        <button onclick="app.adjustMaxParallel(-1)" title="Decrease">−</button>
+                        <input type="number" id="config-max-parallel" value="4" min="1" max="16" onchange="app.setMaxParallel(this.value)" style="width:50px;text-align:center;">
+                        <button onclick="app.adjustMaxParallel(1)" title="Increase">+</button>
+                        <span style="font-size:11px;color:#888;">(1-16)</span>
+                    </div>
+                    <!-- Max Concurrent LLM Calls -->
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <label style="width:180px;font-size:12px;">Max Concurrent HTTP Calls</label>
+                        <button onclick="app.adjustMaxConcurrentLLM(-1)" title="Decrease">−</button>
+                        <input type="number" id="config-max-concurrent-llm" value="4" min="1" max="32" onchange="app.setMaxConcurrentLLM(this.value)" style="width:50px;text-align:center;">
+                        <button onclick="app.adjustMaxConcurrentLLM(1)" title="Increase">+</button>
+                        <span style="font-size:11px;color:#888;">(1-32)</span>
+                    </div>
+                    <!-- Task Polling Interval -->
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <label style="width:180px;font-size:12px;">Task Polling Interval</label>
+                        <button onclick="app.adjustTaskPollingInterval(-1)" title="Decrease">−</button>
+                        <input type="number" id="config-task-polling-interval" value="10" min="1" max="60" onchange="app.setTaskPollingInterval(this.value)" style="width:50px;text-align:center;">
+                        <button onclick="app.adjustTaskPollingInterval(1)" title="Increase">+</button>
+                        <span style="font-size:11px;color:#888;">seconds (1-60)</span>
+                    </div>
+                </div>
+            </div>
+            <div class="settings-separator"></div>
+            <div class="settings-field-row">
+                <label data-i18n="ChestList">Named Chests</label>
+                <div id="config-chest-list" class="settings-chest-list"></div>
+            </div>
+            <div class="settings-separator"></div>
+            <div class="settings-field-row">
+                <label data-i18n="StorageChest">Storage Chest</label>
+                <button onclick="app.clearStorageChest()" class="btn-danger config-danger-btn" data-i18n="ClearStorageChest">Empty Storage Chest</button>
+            </div>
+            <div class="settings-separator"></div>
+            <div class="settings-field-row">
+                <label data-i18n="LogHttpHeaders">Log HTTP Headers</label>
+                <div class="settings-field-hint" data-i18n="LogHttpHeadersDesc">Include HTTP request/response headers in log messages</div>
+                <div class="settings-field-control">
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                        <input type="checkbox" id="config-log-http-headers" onchange="app.setLogHttpHeaders(this.checked)">
+                        <span data-i18n="Enabled">Enabled</span>
+                    </label>
+                </div>
+            </div>
+            <div class="settings-separator"></div>
+            <div class="settings-field-row">
+                <label data-i18n="ViewOnlyMode">View-Only Mode</label>
+                <div class="settings-field-hint" data-i18n="ViewOnlyModeDesc">Disable editing: prompt, recipe, and attachment management become read-only</div>
+                <div class="settings-field-control">
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                        <input type="checkbox" id="config-view-only-mode" onchange="app.setViewOnlyMode(this.checked)">
+                        <span data-i18n="Enabled">Enabled</span>
+                    </label>
+                </div>
+            </div>
+            <div class="settings-separator"></div>
+            <div class="settings-field-row">
+                <label>Local Mock Server</label>
+                <div class="settings-field-hint">Start and stop the local mock server on port 8765.</div>
+                <div class="settings-field-control">
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                        <input type="checkbox" id="config-start-mock-server" onchange="app.setStartMockServer(this.checked)">
+                        <span>Run Mock Server</span>
+                    </label>
+                </div>
+            </div>
+            <div class="settings-separator"></div>
+            <div class="settings-field-row">
+                <label data-i18n="PlaceholderArchiveName">Placeholder Name</label>
+                <div class="settings-field-hint" data-i18n="PlaceholderArchiveNameDesc">Default name for new placeholders created via context menu</div>
+                <div class="settings-field-control">
+                    <input type="text" id="config-placeholder-archive-name" value="archive" onchange="app.setPlaceholderArchiveName(this.value)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;">
+                </div>
+            </div>
+            <div class="settings-separator"></div>
+            <div class="settings-field-row">
+                <label data-i18n="MaintainByAI">🤖 Maintain by AI</label>
+                <div class="settings-field-hint" data-i18n="MaintainByAIDesc">Configure AI recipe for automatic error fixing and configuration maintenance</div>
+                <div class="settings-field-control" style="display:flex;gap:4px;align-items:center;">
+                    <select id="config-maintain-recipe" onchange="app.setMaintainRecipe(this.value)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;"></select>
+                    <button onclick="app.testMaintainAI()" class="btn-primary" data-i18n="Test">Test</button>
                 </div>
             </div>
         </div>
-        <div class="settings-separator"></div>
-        <div class="settings-field-row">
-            <label data-i18n="ChestList">Named Chests</label>
-            <div id="config-chest-list" class="settings-chest-list"></div>
-        </div>
-        <div class="settings-separator"></div>
-        <div class="settings-field-row">
-            <label data-i18n="StorageChest">Storage Chest</label>
-            <button onclick="app.clearStorageChest()" class="btn-danger config-danger-btn" data-i18n="ClearStorageChest">Empty Storage Chest</button>
-        </div>
-        <div class="settings-separator"></div>
-        <div class="settings-field-row">
-            <label data-i18n="LogHttpHeaders">Log HTTP Headers</label>
-            <div class="settings-field-hint" data-i18n="LogHttpHeadersDesc">Include HTTP request/response headers in log messages</div>
-            <div class="settings-field-control">
-                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-                    <input type="checkbox" id="config-log-http-headers" onchange="app.setLogHttpHeaders(this.checked)">
-                    <span data-i18n="Enabled">Enabled</span>
-                </label>
+
+        <div id="config-tab-theme" class="config-tab-panel" style="display: none;">
+            <div class="settings-field-row">
+                <label data-i18n="Theme">Theme</label>
+                <div id="theme-options" class="settings-theme-list"></div>
+                <div id="custom-theme-colors" style="display:none; margin-top: 12px; border-top: 1px solid var(--theme-border); padding-top: 12px; width: 100%;">
+                    <div style="font-weight: bold; margin-bottom: 8px;" data-i18n="CustomizeTheme">Customize Theme Colors</div>
+                    <div class="custom-color-pickers-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="settings-separator"></div>
-        <div class="settings-field-row">
-            <label data-i18n="ViewOnlyMode">View-Only Mode</label>
-            <div class="settings-field-hint" data-i18n="ViewOnlyModeDesc">Disable editing: prompt, recipe, and attachment management become read-only</div>
-            <div class="settings-field-control">
-                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-                    <input type="checkbox" id="config-view-only-mode" onchange="app.setViewOnlyMode(this.checked)">
-                    <span data-i18n="Enabled">Enabled</span>
-                </label>
+
+        <div id="config-tab-proxy" class="config-tab-panel" style="display: none;">
+            <div class="settings-field-row">
+                <label data-i18n="ProxySettings">Proxy Settings</label>
+                
+                <!-- Proxy Enabled Toggle -->
+                <div class="settings-field-control" style="margin-top: 8px; margin-bottom: 12px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: bold; color: var(--theme-text);">
+                        <input type="checkbox" id="config-proxy-enabled" onchange="app.setProxyEnabled(this.checked)">
+                        <span data-i18n="ProxyEnabled">Enable Proxy Settings</span>
+                    </label>
+                </div>
+                
+                <div id="proxy-sub-options-container" style="transition: opacity 0.2s ease;">
+                    <!-- Proxy Mode Selection -->
+                    <div class="settings-field-hint" data-i18n="ProxyMode" style="margin-top: 8px; font-weight: bold;">Proxy Source</div>
+                    <div class="settings-field-control" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: var(--theme-text);">
+                            <input type="radio" name="config-proxy-mode" value="env" onchange="app.setProxyMode('env')">
+                            <span data-i18n="ProxyModeEnv">Use system HTTP proxy (http_proxy environment variable)</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: var(--theme-text);">
+                            <input type="radio" name="config-proxy-mode" value="manual" onchange="app.setProxyMode('manual')">
+                            <span data-i18n="ProxyModeManual">Manual proxy settings</span>
+                        </label>
+                    </div>
+                    
+                    <div class="settings-separator"></div>
+                    
+                    <!-- Detected Env Proxy Display -->
+                    <div id="proxy-env-detected-container" style="margin-top: 8px; font-size: 11px;">
+                        <span data-i18n="ProxyEnvDetected">Detected system proxy:</span>
+                        <code id="config-proxy-env-val" style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-family: monospace; word-break: break-all; margin-left: 4px;">None</code>
+                    </div>
+                    
+                    <div class="settings-separator"></div>
+                    
+                    <!-- Manual Proxy Input -->
+                    <div id="proxy-manual-input-container" style="transition: opacity 0.2s ease;">
+                        <label data-i18n="ProxyServerLabel" style="font-size: 12px; font-weight: bold;">Proxy Server URL</label>
+                        <div class="settings-field-hint" data-i18n="ProxyServerHint" style="margin-bottom: 6px;">Example: http://127.0.0.1:7890. Leave blank for none.</div>
+                        <div class="settings-field-control" style="display: flex;">
+                            <input type="text" id="config-proxy-server" placeholder="http://127.0.0.1:7890" onchange="app.setProxyServer(this.value)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:4px 6px;font-size:12px;border-radius:4px;">
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="settings-separator"></div>
-        <div class="settings-field-row">
-            <label>Local Mock Server</label>
-            <div class="settings-field-hint">Start and stop the local mock server on port 8765.</div>
-            <div class="settings-field-control">
-                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-                    <input type="checkbox" id="config-start-mock-server" onchange="app.setStartMockServer(this.checked)">
-                    <span>Run Mock Server</span>
-                </label>
-            </div>
-        </div>
-        <div class="settings-separator"></div>
-        <div class="settings-field-row">
-            <label data-i18n="PlaceholderArchiveName">Placeholder Name</label>
-            <div class="settings-field-hint" data-i18n="PlaceholderArchiveNameDesc">Default name for new placeholders created via context menu</div>
-            <div class="settings-field-control">
-                <input type="text" id="config-placeholder-archive-name" value="archive" onchange="app.setPlaceholderArchiveName(this.value)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;">
-            </div>
-        </div>
-        <div class="settings-separator"></div>
-        <div class="settings-field-row">
-            <label data-i18n="MaintainByAI">🤖 Maintain by AI</label>
-            <div class="settings-field-hint" data-i18n="MaintainByAIDesc">Configure AI recipe for automatic error fixing and configuration maintenance</div>
-            <div class="settings-field-control" style="display:flex;gap:4px;align-items:center;">
-                <select id="config-maintain-recipe" onchange="app.setMaintainRecipe(this.value)" style="flex:1;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;"></select>
-                <button onclick="app.testMaintainAI()" class="btn-primary" data-i18n="Test">Test</button>
-            </div>
-        </div>
+
         <div class="config-actions">
             <button onclick="app.closeAppConfig()" data-i18n="Close">Close</button>
         </div>

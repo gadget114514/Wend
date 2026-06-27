@@ -3,6 +3,7 @@
     "defaultProvider": "openai",
     "defaultModel": "",
     "theme": "dark",
+    "proxyServer": "",
     "mcpHealthInitialDelayMs": 20000,
     "mcpHealthIntervalMs": 600000,
     "mcpHealthTimeoutMs": 8000

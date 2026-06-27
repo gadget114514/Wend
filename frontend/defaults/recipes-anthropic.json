@@ -9,11 +9,16 @@
     "command": "",
     "useCustomApiPath": false,
     "apiPath": "/v1/messages",
-    "apiType": "anthropic",
+    "apiType": "simple",
     "customParams": {},
     "tool": [
       "t2t"
-    ]
+    ],
+    "verified": false,
+    "verifiedAt": 0,
+    "verifiedModel": "",
+    "usecase": "t2t",
+    "baseUrl": ""
   },
   {
     "name": "Logical calculation tester (Claude)",

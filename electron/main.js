@@ -395,9 +395,10 @@ try {
 }
 console.log('[ProviderLoader] Loaded providers:', Object.keys(builtinProviders).join(', ') || '(none)');
 
+let providerUtils = null;
 // Wire up providers/utils.js callbacks — all HTTP log logic lives here
 try {
-    const providerUtils = require('./providers/utils');
+    providerUtils = require('./providers/utils');
     providerUtils.setHttpLogCallback((info) => {
         const elapsed = info.elapsedMs ? ` (${info.elapsedMs}ms)` : '';
         const status = info.statusCode || info.error || '?';
@@ -502,8 +503,53 @@ function saveDefaultRecipes(recipes) {
     }
 }
 
+// Data migration helpers
+const DATA_VERSION = 1;
+
+function migrateData(data, migrations, label) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+    const startVersion = data.dataVersion || 0;
+    let version = startVersion;
+    const keys = Object.keys(migrations).map(Number).sort((a, b) => a - b);
+    for (const targetVersion of keys) {
+        if (version < targetVersion) {
+            console.log(`[migrate] ${label}: v${version} → v${targetVersion}`);
+            data = migrations[targetVersion](data);
+            data.dataVersion = targetVersion;
+            version = targetVersion;
+        }
+    }
+    return version !== startVersion;
+}
+
+// Per-type migration registries — add new entries as the schema evolves
+const MIGRATIONS = {
+    config: {
+        1: (cfg) => cfg,
+    },
+    providers: {
+        1: (providers) => {
+            for (const p of Object.values(providers)) {
+                if (p && p.baseUrl === 'https://googleapis.com') {
+                    p.baseUrl = 'https://generativelanguage.googleapis.com';
+                }
+            }
+            return providers;
+        },
+    },
+    pipelines: {
+        1: (pipelines) => pipelines,
+    },
+    session: {
+        1: (session) => session,
+    },
+    projectBlackboard: {
+        1: (bb) => bb,
+    },
+};
+
 // ============================================================
-// Storage
+// Storage — handles all project-level persistence
 // ============================================================
 class Storage {
     constructor() {
@@ -531,10 +577,13 @@ class Storage {
 
     // Session
     loadSession() {
-        return readJson(path.join(this.basePath, 'session.json'), { tabs: [] });
+        const session = readJson(path.join(this.basePath, 'session.json'), { tabs: [], dataVersion: DATA_VERSION });
+        migrateData(session, MIGRATIONS.session, 'session');
+        return session;
     }
 
     saveSession(session) {
+        session.dataVersion = DATA_VERSION;
         writeJson(path.join(this.basePath, 'session.json'), session);
     }
 
@@ -661,42 +710,27 @@ class Storage {
     // Providers
     loadProviders() {
         const providers = readJson(path.join(this.basePath, 'providers.json'), {});
-        let modified = false;
-        
-        // Correct incorrect baseUrl
-        for (const [key, p] of Object.entries(providers)) {
-            if (p && p.baseUrl === 'https://googleapis.com') {
-                p.baseUrl = 'https://generativelanguage.googleapis.com';
-                modified = true;
-            }
-        }
-        
-        if (modified) {
+        if (migrateData(providers, MIGRATIONS.providers, 'providers')) {
             this.saveProviders(providers);
         }
         return providers;
     }
 
     saveProviders(providers) {
-        // Correct incorrect baseUrl
-        for (const [key, p] of Object.entries(providers)) {
-            if (p && p.baseUrl === 'https://googleapis.com') {
-                p.baseUrl = 'https://generativelanguage.googleapis.com';
-            }
-        }
-
+        providers.dataVersion = DATA_VERSION;
         writeJson(path.join(this.basePath, 'providers.json'), providers);
         return true;
     }
 
     // Pipelines
     loadPipelines() {
-        const obj = readJson(path.join(this.basePath, 'pipelines.json'), { pipelines: [] });
+        const obj = readJson(path.join(this.basePath, 'pipelines.json'), { pipelines: [], dataVersion: DATA_VERSION });
+        migrateData(obj, MIGRATIONS.pipelines, 'pipelines');
         return obj.pipelines || obj || [];
     }
 
     savePipelines(pipelines) {
-        writeJson(path.join(this.basePath, 'pipelines.json'), { pipelines });
+        writeJson(path.join(this.basePath, 'pipelines.json'), { pipelines, dataVersion: DATA_VERSION });
     }
 
     // Recent files
@@ -711,10 +745,13 @@ class Storage {
     // General config
     loadGeneralConfig() {
         const defaults = readJson(path.join(FRONTEND_ROOT, 'defaults', 'appconfig.json'), {});
-        return readJson(path.join(this.basePath, 'config.json'), defaults);
+        const cfg = readJson(path.join(this.basePath, 'config.json'), defaults);
+        migrateData(cfg, MIGRATIONS.config, 'config');
+        return cfg;
     }
 
     saveGeneralConfig(cfg) {
+        cfg.dataVersion = DATA_VERSION;
         writeJson(path.join(this.basePath, 'config.json'), cfg);
         this.maxHistoryRuns = cfg.historyRetention || 50;
         return true;
@@ -821,10 +858,13 @@ class Storage {
 
     // Project-scope blackboard (shared across tabs, persisted)
     loadProjectBlackboard() {
-        return readJson(path.join(this.basePath, 'project_bb.json'), {});
+        const bb = readJson(path.join(this.basePath, 'project_bb.json'), {});
+        migrateData(bb, MIGRATIONS.projectBlackboard, 'project_bb');
+        return bb;
     }
 
     saveProjectBlackboard(data) {
+        if (data && typeof data === 'object') data.dataVersion = DATA_VERSION;
         writeJson(path.join(this.basePath, 'project_bb.json'), data || {});
         return true;
     }
@@ -1710,6 +1750,13 @@ function sendFullInit() {
 
     const generalCfg = storage.loadGeneralConfig();
     storage.maxHistoryRuns = generalCfg.historyRetention || 50;
+    if (providerUtils) {
+        providerUtils.setProxyServer(
+            generalCfg.proxyServer || '', 
+            generalCfg.proxyMode || (generalCfg.proxyServer ? 'manual' : 'env'),
+            generalCfg.proxyEnabled !== false
+        );
+    }
 
     const chestList = storage.listNamedChests();
     const defaultRecipes = storage.loadDefaultRecipes();
@@ -1757,7 +1804,11 @@ function sendFullInit() {
             projectsRoot,
             projectsRootDefault,
             maintainRecipe: generalCfg.maintainRecipe || '',
-            logHttpHeaders: generalCfg.logHttpHeaders || false
+            logHttpHeaders: generalCfg.logHttpHeaders || false,
+            proxyServer: generalCfg.proxyServer || '',
+            proxyMode: generalCfg.proxyMode || (generalCfg.proxyServer ? 'manual' : 'env'),
+            envProxy: process.env.http_proxy || process.env.HTTP_PROXY || process.env.https_proxy || process.env.HTTPS_PROXY || '',
+            proxyEnabled: generalCfg.proxyEnabled !== false
         },
         defaultRecipes,
         projectRecipes,
@@ -3628,7 +3679,8 @@ async function handleBridgeMessage(type, payload) {
                     };
                 } catch (e) {}
             }
-            postToJS('providers_result', { providers, customMetadata });
+            const providersPath = path.join(storage.getBasePath(), 'providers.json');
+            postToJS('providers_result', { providers, customMetadata, path: providersPath });
             break;
         }
         case 'save_providers': {
@@ -3675,8 +3727,8 @@ async function handleBridgeMessage(type, payload) {
                         : (typeof p.defaultModels === 'function' ? p.defaultModels.bind(p) : async () => []);
                     listFn().then(models => {
                         postToJS('model_list', { provider: prov, models });
-                    }).catch(() => {
-                        postToJS('model_list', { provider: prov, models: [] });
+                    }).catch(err => {
+                        postToJS('model_list', { provider: prov, models: [], error: err.message });
                     });
                 } else {
                     postToJS('model_list', { provider: prov, models: [] });
@@ -3723,6 +3775,8 @@ async function handleBridgeMessage(type, payload) {
         case 'send_to_chest': {
             if (payload?.chestName && payload?.content != null) {
                 storage.saveToNamedChest(payload.chestName, payload.content);
+                const updatedList = storage.listNamedChests();
+                postToJS('chest_list_updated', { chestList: updatedList });
             }
             break;
         }
@@ -3730,7 +3784,40 @@ async function handleBridgeMessage(type, payload) {
             const name = payload?.chestName;
             if (name) {
                 const content = storage.loadFromNamedChest(name);
-                this.postBridge('chest_view', JSON.stringify({ name, content }));
+                postToJS('chest_view', { name, content });
+            }
+            break;
+        }
+        case 'delete_chest': {
+            const name = payload?.chestName;
+            if (name) {
+                const chestFile = storage._chestPath(name);
+                if (fs.existsSync(chestFile)) {
+                    try {
+                        fs.unlinkSync(chestFile);
+                    } catch (e) {
+                        console.error('[delete_chest] Failed to unlink:', e.message);
+                    }
+                }
+                const updatedList = storage.listNamedChests();
+                postToJS('chest_list_updated', { chestList: updatedList });
+            }
+            break;
+        }
+        case 'rename_chest': {
+            const { oldName, newName } = payload || {};
+            if (oldName && newName) {
+                const oldFile = storage._chestPath(oldName);
+                const newFile = storage._chestPath(newName);
+                if (fs.existsSync(oldFile)) {
+                    try {
+                        fs.renameSync(oldFile, newFile);
+                    } catch (e) {
+                        console.error('[rename_chest] Failed to rename:', e.message);
+                    }
+                }
+                const updatedList = storage.listNamedChests();
+                postToJS('chest_list_updated', { chestList: updatedList });
             }
             break;
         }
@@ -3754,6 +3841,18 @@ async function handleBridgeMessage(type, payload) {
             if (payload?.theme) cfg.theme = payload.theme;
             if (payload?.customThemeColors) cfg.customThemeColors = payload.customThemeColors;
             if (payload?.logHttpHeaders !== undefined) cfg.logHttpHeaders = payload.logHttpHeaders;
+            if (payload?.proxyServer !== undefined) {
+                cfg.proxyServer = payload.proxyServer;
+            }
+            if (payload?.proxyMode !== undefined) {
+                cfg.proxyMode = payload.proxyMode;
+            }
+            if (payload?.proxyEnabled !== undefined) {
+                cfg.proxyEnabled = payload.proxyEnabled;
+            }
+            if (providerUtils) {
+                providerUtils.setProxyServer(cfg.proxyServer || '', cfg.proxyMode || 'env', cfg.proxyEnabled !== false);
+            }
             if (payload?.startMockServer !== undefined) {
                 const wasRunning = cfg.startMockServer;
                 cfg.startMockServer = payload.startMockServer;
@@ -4453,6 +4552,24 @@ Return the updated JSON configuration.`;
             if (payload?.path) shell.openPath(payload.path);
             break;
         }
+        case 'read_artifact_file': {
+            const fp = payload?.path;
+            if (fp && fs.existsSync(fp)) {
+                try {
+                    const content = fs.readFileSync(fp).toString('base64');
+                    const ext = path.extname(fp).toLowerCase().slice(1);
+                    const mimeMap = { png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', webp:'image/webp', bmp:'image/bmp', svg:'image/svg+xml', mp4:'video/mp4', webm:'video/webm', mov:'video/quicktime', avi:'video/x-msvideo', mkv:'video/x-matroska', mp3:'audio/mpeg', wav:'audio/wav', ogg:'audio/ogg', flac:'audio/flac', m4a:'audio/mp4', pdf:'application/pdf', txt:'text/plain', json:'application/json', xml:'application/xml', html:'text/html', css:'text/css', js:'application/javascript', py:'text/x-python', md:'text/markdown' };
+                    const mimetype = mimeMap[ext] || 'application/octet-stream';
+                    const size = fs.statSync(fp).size;
+                    postToJS('read_artifact_file_result', { path: fp, mimetype, content, size });
+                } catch (e) {
+                    postToJS('read_artifact_file_result', { path: fp, error: e.message });
+                }
+            } else {
+                postToJS('read_artifact_file_result', { path: fp || '', error: 'File not found' });
+            }
+            break;
+        }
         case 'export_artifact': {
             const { path: sourcePath, content, file: filename } = payload || {};
             const defaultName = filename || (sourcePath ? path.basename(sourcePath) : 'export');
@@ -4848,15 +4965,7 @@ function buildMenu() {
                 { label: 'BT Settings...', click: send('bt_config') },
             ],
         },
-        {
-            label: 'Pipeline',
-            submenu: [
-                { label: 'Run Pipeline', accelerator: 'F5', click: send('run_pipeline') },
-                { label: 'Pipeline Manager', click: send('pipeline_manager') },
-                { label: 'History', click: send('pipeline_history') },
-                { label: 'Cancel', click: () => runner.cancel() },
-            ],
-        },
+
         {
             label: 'Providers',
             submenu: [
@@ -5067,6 +5176,19 @@ app.whenReady().then(() => {
     } else {
         // Switch to existing project
         storage.init(projectPath);
+    }
+    
+    try {
+        const generalCfg = storage.loadGeneralConfig();
+        if (providerUtils) {
+            providerUtils.setProxyServer(
+                generalCfg.proxyServer || '', 
+                generalCfg.proxyMode || (generalCfg.proxyServer ? 'manual' : 'env'),
+                generalCfg.proxyEnabled !== false
+            );
+        }
+    } catch (e) {
+        console.error('[Proxy] Failed to load initial proxy config:', e.message);
     }
     
     // Save current project to bootstrap config

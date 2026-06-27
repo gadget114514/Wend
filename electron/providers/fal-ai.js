@@ -3,7 +3,7 @@ const { httpRequest, downloadBinary } = require('./utils');
 class FalAIProvider {
     constructor(apiKey, baseUrl) {
         this.apiKey = apiKey;
-        this.baseUrl = baseUrl || 'https://queue.fal.run';
+        this.baseUrl = (baseUrl || 'https://queue.fal.run').replace(/\/+$/, '');
     }
     name() { return 'fal-ai'; }
     defaultModels() { return ['fal-ai/flux/schnell', 'fal-ai/stable-diffusion-v35-medium']; }

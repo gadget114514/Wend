@@ -1,0 +1,760 @@
+▶ jsonEscape
+  [32m✔ empty string [90m(0.8991ms)[39m[39m
+  [32m✔ plain string unchanged [90m(0.1111ms)[39m[39m
+  [32m✔ double quotes escaped [90m(0.1016ms)[39m[39m
+  [32m✔ backslash escaped [90m(0.1571ms)[39m[39m
+  [32m✔ newline escaped [90m(0.1147ms)[39m[39m
+  [32m✔ carriage return escaped [90m(0.1411ms)[39m[39m
+  [32m✔ tab escaped [90m(0.0898ms)[39m[39m
+  [32m✔ combined special chars [90m(0.1532ms)[39m[39m
+[32m✔ jsonEscape [90m(2.9862ms)[39m[39m
+▶ generateRunId
+  [32m✔ returns non-empty string [90m(1.0852ms)[39m[39m
+  [32m✔ two calls produce different ids [90m(0.2459ms)[39m[39m
+  [32m✔ format contains timestamp portion [90m(0.2888ms)[39m[39m
+[32m✔ generateRunId [90m(1.8749ms)[39m[39m
+▶ nowIso
+  [32m✔ returns ISO 8601 string ending in Z [90m(0.43ms)[39m[39m
+[32m✔ nowIso [90m(0.4972ms)[39m[39m
+▶ Storage
+  [32m✔ init creates directories [90m(0.5665ms)[39m[39m
+  [32m✔ getBasePath returns init path [90m(0.1051ms)[39m[39m
+  [32m✔ session round-trip [90m(1.5873ms)[39m[39m
+  [32m✔ loadSession defaults to empty tabs [90m(2.8236ms)[39m[39m
+  [32m✔ tab data round-trip [90m(1.6651ms)[39m[39m
+  [32m✔ loadTabData returns default when file missing [90m(0.2242ms)[39m[39m
+  [32m✔ getTabFiles lists json files [90m(1.294ms)[39m[39m
+  [32m✔ providers round-trip [90m(1.4309ms)[39m[39m
+  [32m✔ pipelines round-trip [90m(1.2129ms)[39m[39m
+  [32m✔ recent files round-trip [90m(1.2909ms)[39m[39m
+  [32m✔ general config round-trip [90m(1.3936ms)[39m[39m
+  [32m✔ saveGeneralConfig updates maxHistoryRuns [90m(0.7838ms)[39m[39m
+  [32m✔ recipes round-trip [90m(2.3219ms)[39m[39m
+  [32m✔ builtin recipes are seeded when projectrecipes.json is empty [90m(2.5574ms)[39m[39m
+  [32m✔ existing recipes are NOT overwritten by builtin seed [90m(3.9592ms)[39m[39m
+  [32m✔ getDefaultRecipes returns correct structure [90m(0.236ms)[39m[39m
+  [32m✔ history save and list [90m(1.0767ms)[39m[39m
+  [32m✔ history load record [90m(1.1776ms)[39m[39m
+  [32m✔ updateHistoryEvaluation [90m(2.5018ms)[39m[39m
+  [32m✔ history trimming respects maxHistoryRuns [90m(7.2897ms)[39m[39m
+  [32m✔ named chest save and load [90m(1.8033ms)[39m[39m
+  [32m✔ chestExists false for missing chest [90m(0.2934ms)[39m[39m
+  [32m✔ listNamedChests returns chest names [90m(1.2511ms)[39m[39m
+  [32m✔ blob save and load [90m(1.2714ms)[39m[39m
+  [32m✔ removeBlob deletes file [90m(0.7563ms)[39m[39m
+  [32m✔ garbageCollectBlobs removes unreferenced files [90m(1.5411ms)[39m[39m
+  [32m✔ resolveProjectPath within bounds [90m(0.1343ms)[39m[39m
+  [32m✔ resolveProjectPath rejects traversal [90m(0.0883ms)[39m[39m
+[32m✔ Storage [90m(48.9702ms)[39m[39m
+▶ PipelineVersionManager
+  [32m✔ ensureBaseVersion creates version 1 [90m(1.989ms)[39m[39m
+  [32m✔ ensureBaseVersion is idempotent [90m(2.1631ms)[39m[39m
+  [32m✔ commitVersion increments version [90m(3.0429ms)[39m[39m
+  [32m✔ undo returns previous pipeline [90m(3.6207ms)[39m[39m
+  [32m✔ undo returns null at version 1 [90m(1.7199ms)[39m[39m
+  [32m✔ redo returns next pipeline [90m(7.0248ms)[39m[39m
+  [32m✔ redo returns null at head version [90m(2.7891ms)[39m[39m
+  [32m✔ checkoutVersion loads specific version [90m(3.3385ms)[39m[39m
+  [32m✔ checkoutVersion returns null for missing version [90m(1.8159ms)[39m[39m
+[32m✔ PipelineVersionManager [90m(31.845ms)[39m[39m
+▶ PipelineRunner
+  [32m✔ initial state: not running [90m(0.3755ms)[39m[39m
+  [32m✔ cancel when idle is safe [90m(0.0959ms)[39m[39m
+  [32m✔ run with no steps completes immediately [90m(0.3389ms)[39m[39m
+  [32m✔ run with mock AI step completes [90m(0.5074ms)[39m[39m
+  [32m✔ AI step substitutes {content} placeholder [90m(0.1901ms)[39m[39m
+  [32m✔ AI step substitutes {result} from previous step [90m(0.2008ms)[39m[39m
+  [32m✔ run emits pipeline_error for missing provider [90m(0.1957ms)[39m[39m
+  [32m✔ cancel mid-run stops execution [90m(0.2076ms)[39m[39m
+  [32m✔ manual step pauses and resumes [90m(26.4525ms)[39m[39m
+  [32m✔ wizard step pauses and resumes [90m(14.8594ms)[39m[39m
+  [32m✔ filter step auto-mode skips pause [90m(0.208ms)[39m[39m
+  [32m✔ filter step manual-mode pauses and resumes [90m(15.674ms)[39m[39m
+  [32m✔ unknown step type is skipped [90m(0.2251ms)[39m[39m
+  [32m✔ setExternalInput overrides step input [90m(0.1855ms)[39m[39m
+  [32m✔ multi-step pipeline passes output between steps [90m(0.1843ms)[39m[39m
+  [32m✔ runId is set after run [90m(0.1073ms)[39m[39m
+[32m✔ PipelineRunner [90m(60.8166ms)[39m[39m
+▶ AI Provider request building
+  [32m✔ OpenAI call sends Authorization header [90m(9.3564ms)[39m[39m
+  [32m✔ OpenAI call sends correct endpoint [90m(1.1982ms)[39m[39m
+  [32m✔ OpenAI call returns content [90m(1.0581ms)[39m[39m
+  [32m✔ OpenAI listModels returns array [90m(1.049ms)[39m[39m
+  [32m✔ Anthropic call sends x-api-key header [90m(0.9717ms)[39m[39m
+  [32m✔ Anthropic call sends anthropic-version header [90m(0.8303ms)[39m[39m
+  [32m✔ Anthropic call returns content [90m(0.9498ms)[39m[39m
+  [32m✔ Ollama call uses /api/generate endpoint [90m(1.0216ms)[39m[39m
+  [32m✔ Ollama call returns response [90m(1.1112ms)[39m[39m
+  [32m✔ Ollama listModels returns array [90m(1.2151ms)[39m[39m
+[32m✔ AI Provider request building [90m(34.4879ms)[39m[39m
+▶ GeminiImageProvider response parsing
+  [32m✔ parse inlineData (camelCase) from Gemini API response [90m(0.1763ms)[39m[39m
+  [32m✔ extract both text and multiple images from response parts [90m(0.1155ms)[39m[39m
+  [32m✔ handle response with only images (no text) [90m(0.1025ms)[39m[39m
+  [32m✔ handle empty response gracefully [90m(0.0937ms)[39m[39m
+[32m✔ GeminiImageProvider response parsing [90m(0.7318ms)[39m[39m
+▶ Bridge message handling
+  [32m✔ save_session persists tabs [90m(4.1641ms)[39m[39m
+  [32m✔ save_node persists node data [90m(3.1163ms)[39m[39m
+  [31m✖ get_providers returns providers_result [90m(2.6486ms)[39m[39m
+  [32m✔ save_providers persists and save_providers round-trips [90m(3.2547ms)[39m[39m
+  [32m✔ save_pipeline creates new pipeline [90m(3.2961ms)[39m[39m
+  [32m✔ save_pipeline updates existing pipeline [90m(4.025ms)[39m[39m
+  [32m✔ delete_pipeline removes pipeline [90m(4.8096ms)[39m[39m
+  [32m✔ history_list returns saved history [90m(3.2848ms)[39m[39m
+  [32m✔ save_recipes persists recipes [90m(3.9057ms)[39m[39m
+  [32m✔ save_config persists config [90m(2.9804ms)[39m[39m
+  [32m✔ send_to_chest stores content in chest [90m(3.1922ms)[39m[39m
+  [32m✔ view_chest returns content via chest_view bridge [90m(3.9283ms)[39m[39m
+  [32m✔ cancel_pipeline stops the runner [90m(2.2723ms)[39m[39m
+  [32m✔ run_prompt_process merges machine and belt attachments [90m(2.197ms)[39m[39m
+  [32m✔ run_prompt_process with only machine attachments [90m(1.7396ms)[39m[39m
+  [32m✔ run_prompt_process with no attachments produces empty array [90m(1.6774ms)[39m[39m
+  [32m✔ save_node persists selectedRecipe in node data [90m(3.1319ms)[39m[39m
+  [32m✔ save_node persists node.attachments and node.inputAttachments [90m(3.1474ms)[39m[39m
+[31m✖ Bridge message handling [90m(58.4533ms)[39m[39m
+▶ buildMetaRecord artifact inclusion
+  [32m✔ includes artifacts field defaulting to empty array [90m(0.3256ms)[39m[39m
+  [32m✔ preserves artifacts when present [90m(0.0924ms)[39m[39m
+  [32m✔ includes all required fields [90m(0.101ms)[39m[39m
+  [32m✔ pipeline_completed event steps can be mapped through buildMetaRecord [90m(0.2374ms)[39m[39m
+[32m✔ buildMetaRecord artifact inclusion [90m(1.0197ms)[39m[39m
+▶ Pipeline state reset on node switch
+  [32m✔ resetPipelineSteps clears completed flag on all steps [90m(0.1851ms)[39m[39m
+  [32m✔ resetPipelineSteps clears input/output data [90m(0.0802ms)[39m[39m
+  [32m✔ resetPipelineSteps sets all statuses to pending [90m(0.0854ms)[39m[39m
+  [32m✔ resetPipelineSteps preserves step name and other properties [90m(0.087ms)[39m[39m
+  [32m✔ dialog should be shown when any step is completed (condition check) [90m(0.0987ms)[39m[39m
+[32m✔ Pipeline state reset on node switch [90m(0.7569ms)[39m[39m
+▶ View mode — node view mode logic
+  [32m✔ getLastStepOutput returns fallback content when no pipelineMeta [90m(0.2234ms)[39m[39m
+  [32m✔ getLastStepOutput reads last step output from pipelineMeta [90m(0.0897ms)[39m[39m
+  [32m✔ getLastStepOutput returns artifacts from last step [90m(0.9854ms)[39m[39m
+  [32m✔ getLastStepOutput uses content as fallback when last step output is empty [90m(0.1263ms)[39m[39m
+  [32m✔ getLastStepOutput tolerates invalid pipelineMeta JSON [90m(0.1224ms)[39m[39m
+  [32m✔ node.inputAttachments is separate from node.attachments [90m(0.1273ms)[39m[39m
+  [32m✔ selectedRecipe is restored from node.selectedRecipe on node switch [90m(0.0724ms)[39m[39m
+  [32m✔ selectedRecipe defaults to empty string if not set [90m(0.0633ms)[39m[39m
+[32m✔ View mode — node view mode logic [90m(2.1088ms)[39m[39m
+▶ Normal mode — normal single-run logic
+  [32m✔ buildSentText replaces {content} placeholder [90m(0.1311ms)[39m[39m
+  [32m✔ buildSentText concatenates when no {content} placeholder [90m(0.0575ms)[39m[39m
+  [32m✔ buildSentText with empty input [90m(0.0849ms)[39m[39m
+  [32m✔ buildSentText with multiple {content} occurrences replaces first only [90m(0.0959ms)[39m[39m
+  [32m✔ run_prompt_process payload includes machine and belt attachments [90m(0.1752ms)[39m[39m
+  [32m✔ run_prompt_process payload has empty arrays when node has no attachments [90m(0.0859ms)[39m[39m
+  [32m✔ merged allAttachments order: machine first, belt second [90m(0.1007ms)[39m[39m
+  [32m✔ pipeline_completed event carries step output [90m(0.1936ms)[39m[39m
+[32m✔ Normal mode — normal single-run logic [90m(1.2828ms)[39m[39m
+▶ Linked mode — pipeline chain mode logic
+  [32m✔ step 0 source label is Original Input ({content}) [90m(0.2747ms)[39m[39m
+  [32m✔ step N source label references previous step [90m(0.0627ms)[39m[39m
+  [32m✔ selectOutputText: pending step shows (pending) [90m(0.1294ms)[39m[39m
+  [32m✔ selectOutputText: running step shows ... [90m(0.1075ms)[39m[39m
+  [32m✔ selectOutputText: running step shows streamingOutput when available [90m(0.0734ms)[39m[39m
+  [32m✔ selectOutputText: completed step shows output [90m(0.0573ms)[39m[39m
+  [32m✔ selectOutputText: completed step with empty output shows (empty output) [90m(0.0555ms)[39m[39m
+  [32m✔ getPrevArtifacts: step 0 has no previous artifacts [90m(0.0943ms)[39m[39m
+  [32m✔ getPrevArtifacts: step 1 gets step 0 artifacts [90m(0.0694ms)[39m[39m
+  [32m✔ getPrevArtifacts: step 2 gets step 1 artifacts, not step 0 [90m(0.0626ms)[39m[39m
+  [32m✔ pipeline {result} placeholder picks up previous step output [90m(0.1946ms)[39m[39m
+  [32m✔ {content} stays original through all chain steps [90m(0.1546ms)[39m[39m
+  [32m✔ step attachments default to empty when not set [90m(0.0705ms)[39m[39m
+  [32m✔ step-specific attachments are preserved per step index [90m(0.0703ms)[39m[39m
+  [32m✔ pipeline run with three steps chains outputs correctly [90m(0.1674ms)[39m[39m
+[32m✔ Linked mode — pipeline chain mode logic [90m(2.2021ms)[39m[39m
+▶ MockAIProvider — scripted provider
+  [32m✔ queue: scripted content is returned in order [90m(0.4342ms)[39m[39m
+  [32m✔ queue: model field is preserved [90m(0.0812ms)[39m[39m
+  [32m✔ default (no queue): echoes userPrompt [90m(0.0732ms)[39m[39m
+  [32m✔ queueError: throws with the given message [90m(0.4603ms)[39m[39m
+  [32m✔ queueError followed by queue: error then success [90m(0.1346ms)[39m[39m
+  [32m✔ calls: every request is captured [90m(0.1248ms)[39m[39m
+  [32m✔ lastCall returns most recent request [90m(0.0973ms)[39m[39m
+  [32m✔ nthCall returns request at given index [90m(0.0899ms)[39m[39m
+  [32m✔ reset: clears queue and calls [90m(0.111ms)[39m[39m
+  [32m✔ captures all request fields [90m(0.1313ms)[39m[39m
+  [32m✔ when: exact string match — same input always returns same output [90m(0.1137ms)[39m[39m
+  [32m✔ when: regex match [90m(0.1597ms)[39m[39m
+  [32m✔ when: unmatched userPrompt falls through to queue [90m(0.0958ms)[39m[39m
+  [32m✔ when: unmatched and empty queue falls through to echo [90m(0.1074ms)[39m[39m
+  [32m✔ when: rule takes priority over queue for matching input [90m(0.0819ms)[39m[39m
+  [32m✔ when: function predicate [90m(0.1091ms)[39m[39m
+  [32m✔ when: function predicate + function response returns full object [90m(0.1654ms)[39m[39m
+  [32m✔ when: multiple rules — first match wins [90m(0.1529ms)[39m[39m
+  [32m✔ reset: clears rules along with queue and calls [90m(0.1018ms)[39m[39m
+[32m✔ MockAIProvider — scripted provider [90m(3.6295ms)[39m[39m
+▶ Pipeline features — MockAIProvider
+  [32m✔ single-step: userPrompt is sent verbatim [90m(0.3841ms)[39m[39m
+  [32m✔ single-step: {content} is replaced with input [90m(0.2046ms)[39m[39m
+  [32m✔ single-step: provider receives correct model [90m(0.127ms)[39m[39m
+  [32m✔ single-step: provider receives systemPrompt and temperature [90m(0.1632ms)[39m[39m
+  [32m✔ single-step: output is stored in historySteps [90m(0.1609ms)[39m[39m
+  [32m✔ single-step: pipeline_completed event carries the output [90m(0.1299ms)[39m[39m
+  [32m✔ two-step chain: step 2 receives step 1 output via {result} [90m(0.1735ms)[39m[39m
+  [32m✔ two-step chain: {content} stays original in step 2 [90m(0.1485ms)[39m[39m
+  [32m✔ three-step chain: output flows through all steps [90m(0.1391ms)[39m[39m
+  [32m✔ provider error: pipeline emits pipeline_error [90m(0.181ms)[39m[39m
+  [32m✔ provider error: runner stops after first error [90m(0.1328ms)[39m[39m
+  [32m✔ recipe temperature is forwarded as float [90m(0.1437ms)[39m[39m
+  [32m✔ recipe systemPrompt is forwarded [90m(0.1133ms)[39m[39m
+  [32m✔ separate runs do not share state [90m(0.2013ms)[39m[39m
+  [32m✔ provider is called exactly once per step [90m(0.2113ms)[39m[39m
+[migrate] providers: v0 → v1
+  [32m✔ manual step pause does not call the provider [90m(1.4039ms)[39m[39m
+  [32m✔ bridge run_prompt_process: merged allAttachments are passed correctly [90m(0.0926ms)[39m[39m
+[32m✔ Pipeline features — MockAIProvider [90m(4.8591ms)[39m[39m
+▶ MockAIProvider — image/audio input
+  [32m✔ single image attachment is captured in req.attachments [90m(0.2891ms)[39m[39m
+  [32m✔ single audio attachment is captured in req.attachments [90m(0.0927ms)[39m[39m
+  [32m✔ mixed image + audio attachments are all captured [90m(0.0983ms)[39m[39m
+  [32m✔ inputImagesOf filters only image/* attachments [90m(0.1934ms)[39m[39m
+  [32m✔ inputAudiosOf filters only audio/* attachments [90m(0.1468ms)[39m[39m
+  [32m✔ no attachments field → inputAttachmentsOf returns [] [90m(0.0828ms)[39m[39m
+  [32m✔ base64 content is preserved exactly [90m(0.0917ms)[39m[39m
+  [32m✔ file metadata (file, path, size) is preserved [90m(0.1179ms)[39m[39m
+  [32m✔ attachments snapshot is independent (mutation after call does not affect captures) [90m(0.0991ms)[39m[39m
+  [32m✔ lastInputAttachments points to most recent call [90m(0.1947ms)[39m[39m
+  [32m✔ per-call attachment tracking across multiple calls [90m(0.1225ms)[39m[39m
+[32m✔ MockAIProvider — image/audio input [90m(1.9263ms)[39m[39m
+▶ MockAIProvider — media output
+  [32m✔ queueWithMedia: outputAttachments returned in response [90m(0.1987ms)[39m[39m
+  [32m✔ queueWithMedia: image output (e.g. generated image) [90m(0.106ms)[39m[39m
+  [32m✔ queueWithMedia: multiple output attachments [90m(0.0733ms)[39m[39m
+  [32m✔ queue (text-only): outputAttachments is empty array [90m(0.0736ms)[39m[39m
+  [32m✔ default (no queue): outputAttachments is empty array [90m(0.0743ms)[39m[39m
+  [32m✔ queueWithMedia model field is preserved [90m(0.1181ms)[39m[39m
+  [32m✔ output and input attachments are independent [90m(0.0907ms)[39m[39m
+[32m✔ MockAIProvider — media output [90m(0.9596ms)[39m[39m
+▶ Pipeline — attachments flow through PipelineRunner
+  [32m✔ inputAttachments are forwarded to the provider [90m(0.303ms)[39m[39m
+  [32m✔ multiple mixed attachments are all forwarded [90m(0.1382ms)[39m[39m
+  [32m✔ same inputAttachments are forwarded to every step in the chain [90m(0.1388ms)[39m[39m
+  [32m✔ no attachments: provider receives empty array [90m(0.1363ms)[39m[39m
+  [32m✔ outputAttachments from provider are stored as historyStep.artifacts [90m(0.1435ms)[39m[39m
+  [32m✔ outputAttachments are in pipeline_completed event steps [90m(0.1427ms)[39m[39m
+  [32m✔ text-only response leaves historyStep.artifacts undefined (not set) [90m(0.1127ms)[39m[39m
+  [32m✔ image input + audio output round-trip through pipeline [90m(0.1259ms)[39m[39m
+  [32m✔ callStreaming delegates to call and invokes onChunk/onDone [90m(0.1678ms)[39m[39m
+  [32m✔ callStreaming error calls onError, not onDone [90m(0.1418ms)[39m[39m
+[32m✔ Pipeline — attachments flow through PipelineRunner [90m(1.8789ms)[39m[39m
+▶ MockProvider — app recipe provider
+  [32m✔ echo model returns [Mock] + userPrompt [90m(0.3139ms)[39m[39m
+  [32m✔ fixed model returns systemPrompt verbatim [90m(0.103ms)[39m[39m
+  [32m✔ fixed model with empty systemPrompt returns placeholder [90m(0.084ms)[39m[39m
+  [32m✔ model field is preserved in response [90m(0.1158ms)[39m[39m
+  [32m✔ no model → defaults to echo behaviour [90m(0.1353ms)[39m[39m
+  [32m✔ no attachments → no attachment summary appended [90m(0.1086ms)[39m[39m
+  [32m✔ single image attachment appended to summary [90m(0.1244ms)[39m[39m
+  [32m✔ single audio attachment appended to summary [90m(0.0801ms)[39m[39m
+  [32m✔ mixed image + audio attachment summary [90m(0.1173ms)[39m[39m
+  [32m✔ fixed model + attachments: shows only fixed text (no attachment summary) [90m(0.1214ms)[39m[39m
+  [32m✔ listModels returns all four models [90m(0.0971ms)[39m[39m
+  [32m✔ testConnection always succeeds (returns empty string) [90m(0.092ms)[39m[39m
+  [31m✖ get_providers bridge includes mock entry [90m(2.2592ms)[39m[39m
+[31m✖ MockProvider — app recipe provider [90m(4.2356ms)[39m[39m
+▶ MockProvider — pipeline integration
+  [32m✔ recipe with provider=mock, model=echo runs without error [90m(0.2273ms)[39m[39m
+  [32m✔ recipe with provider=mock, model=fixed returns systemPrompt [90m(0.1207ms)[39m[39m
+  [32m✔ {content} substitution works with mock provider [90m(0.1621ms)[39m[39m
+  [32m✔ mock provider in chain: {result} flows from step 1 to step 2 [90m(0.1871ms)[39m[39m
+  [32m✔ mock provider with image attachment includes summary in output [90m(0.1323ms)[39m[39m
+  [32m✔ mock provider with audio attachment includes summary in output [90m(0.162ms)[39m[39m
+  [32m✔ mock recipe can be saved and loaded as a standard recipe entry [90m(4.3846ms)[39m[39m
+[32m✔ MockProvider — pipeline integration [90m(5.6505ms)[39m[39m
+▶ MockProvider — image modes
+  [32m✔ image-echo: returns first image as outputAttachment [90m(0.3962ms)[39m[39m
+  [32m✔ image-echo: output filename is prefixed with echo_ [90m(0.0931ms)[39m[39m
+  [32m✔ image-echo: base64 content of input is preserved in output [90m(0.0774ms)[39m[39m
+  [32m✔ image-echo: content text names the file [90m(0.1255ms)[39m[39m
+  [32m✔ image-echo: with no image returns error text and empty outputAttachments [90m(0.0922ms)[39m[39m
+  [32m✔ image-echo: multiple images — only first is returned [90m(0.0997ms)[39m[39m
+  [32m✔ image-echo: audio attachments are ignored (not treated as image) [90m(0.0825ms)[39m[39m
+  [32m✔ image-compose: first image is base, returns composed outputAttachment [90m(0.1576ms)[39m[39m
+  [32m✔ image-compose: content names base file and input count [90m(0.083ms)[39m[39m
+  [32m✔ image-compose: single image = base + 0 extra inputs [90m(0.1406ms)[39m[39m
+  [32m✔ image-compose: three images — base + 2 extra inputs [90m(0.116ms)[39m[39m
+  [32m✔ image-compose: no images → error text and empty outputAttachments [90m(0.0783ms)[39m[39m
+  [32m✔ image-compose: audio attachments are not counted as images [90m(0.0762ms)[39m[39m
+  [32m✔ image-compose: composed output preserves mimetype of base image [90m(0.1085ms)[39m[39m
+[32m✔ MockProvider — image modes [90m(2.2213ms)[39m[39m
+▶ MockProvider image modes — pipeline integration
+  [32m✔ image-echo: output image stored in historyStep.artifacts [90m(0.1976ms)[39m[39m
+  [32m✔ image-compose: composed image stored in historyStep.artifacts [90m(0.1381ms)[39m[39m
+  [32m✔ image-compose: output artifact in pipeline_completed event [90m(0.1665ms)[39m[39m
+  [32m✔ two-step: image-echo then echo — output text flows via {result} [90m(0.1617ms)[39m[39m
+[32m✔ MockProvider image modes — pipeline integration [90m(2.0987ms)[39m[39m
+▶ Drag-and-drop file processing logic
+  [32m✔ image files pass the filter [90m(0.1793ms)[39m[39m
+  [32m✔ audio files pass the filter [90m(0.0902ms)[39m[39m
+  [32m✔ video files pass the filter [90m(0.0621ms)[39m[39m
+  [32m✔ text files are rejected by the filter [90m(0.0574ms)[39m[39m
+  [32m✔ mixed drop: image + text — only image passes [90m(0.0576ms)[39m[39m
+  [32m✔ attachment object has correct shape after conversion [90m(0.0859ms)[39m[39m
+  [32m✔ multiple files produce multiple attachment objects [90m(0.0968ms)[39m[39m
+  [32m✔ file without path gets empty string path [90m(0.0759ms)[39m[39m
+  [32m✔ _dropZoneAttrs generates ondragover/ondragleave/ondrop (logic check) [90m(0.1054ms)[39m[39m
+  [32m✔ _dropZoneAttrs with stepIndex includes it in ondrop call [90m(0.0797ms)[39m[39m
+[32m✔ Drag-and-drop file processing logic [90m(1.2463ms)[39m[39m
+▶ Selection & Color logic
+  [32m✔ isAncestor: root is ancestor of child [90m(0.4199ms)[39m[39m
+  [32m✔ isAncestor: root is ancestor of grandchild [90m(0.0667ms)[39m[39m
+  [32m✔ isAncestor: same path is NOT ancestor [90m(0.0553ms)[39m[39m
+  [32m✔ isAncestor: different branch is NOT ancestor [90m(0.0579ms)[39m[39m
+  [32m✔ isAncestor: deeper path cannot be ancestor of shallower [90m(0.0515ms)[39m[39m
+  [32m✔ isAncestor: empty/null paths [90m(0.0524ms)[39m[39m
+  [32m✔ resultNodeClass: unselected node returns empty [90m(0.1239ms)[39m[39m
+  [32m✔ resultNodeClass: selected only returns orange [90m(0.1356ms)[39m[39m
+  [32m✔ resultNodeClass: selected + linked returns red [90m(0.0741ms)[39m[39m
+  [32m✔ resultNodeClass: unselected but has linkInfo returns lemon [90m(0.0609ms)[39m[39m
+  [32m✔ resultNodeClass: unselected but is selectedDataPath returns lemon [90m(0.0642ms)[39m[39m
+  [32m✔ resultNodeClass: selected but different path from linked returns orange [90m(0.0566ms)[39m[39m
+  [32m✔ stepNodeClass: selected returns green [90m(0.1506ms)[39m[39m
+  [32m✔ stepNodeClass: selected + parent is Processed returns orange (should not happen for steps) [90m(0.09ms)[39m[39m
+  [32m✔ stepNodeClass: unselected but descendant contains selectedDataPath returns gray [90m(0.0594ms)[39m[39m
+  [32m✔ stepNodeClass: unselected step with no linked descendant returns empty [90m(0.0632ms)[39m[39m
+  [32m✔ stepNodeClass: unselected with no link returns empty [90m(0.06ms)[39m[39m
+  [32m✔ stepNodeClass: unselected but is selectedDataPath ancestor returns gray [90m(0.0532ms)[39m[39m
+  [32m✔ buildLinkedSources finds sourcePath from linkInfo [90m(0.0479ms)[39m[39m
+  [32m✔ buildLinkedSources does not include unrelated paths [90m(0.0508ms)[39m[39m
+  [32m✔ recalcLinkMode: step IS ancestor of result → viewing mode (no link) [90m(0.0799ms)[39m[39m
+  [32m✔ recalcLinkMode: step is NOT ancestor of result → linking mode [90m(0.0725ms)[39m[39m
+[Wend Debug] 💾 NodeUpdated
+[Wend Debug] Select Node0
+[Wend Debug] 💾 NodeUpdated
+[Wend Debug] Select Node0/0/0
+[Wend Debug] 💾 NodeUpdated
+[Wend Debug] Select Node1
+[Wend Debug] 💾 NodeUpdated
+[Wend Debug] Select Node0/0/0
+[Wend Debug] 💾 NodeUpdated
+[Wend Debug] Select Node0
+[Wend Debug] 💾 NodeUpdated
+[Wend Debug] Select Node0/0/0
+[Wend Debug] 💾 NodeUpdated
+[Wend Debug] Select Node0/0/0
+[Wend Log] 📋 Recipe selected: Recipe B
+[Wend Debug] 💾 NodeUpdated
+[Wend Debug] 💾 NodeUpdated
+[Wend Log] ▶ ProcessingPrompt
+[Wend Log] ✅ Pipeline "Test Pipeline" completed
+[Wend Log] ✅ Pipeline "Test Pipeline" completed
+[Wend Log] 📦 Child node saved: "Test Pipeline"
+[Wend Log] 📋 Recipe added: New AI Recipe
+[Wend Log] ✏️ Recipe saved: Updated AI Recipe
+[Wend Debug] 💾 NodeUpdated
+[Wend Log] ▶ ProcessingPrompt
+[Wend Debug] 💾 NodeUpdated
+[Wend Log] ▶ ProcessingPrompt
+[Wend Log] ✏️ Tab and file renamed to "NewName.promptsbt"
+[Wend Log] 🗑 Run history discarded: Result B
+[Wend Log] 🗑 Run history discarded: Result B
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] 🌳 BTTypeSetTo
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] 🌳 BTTypeSetTo
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] 🌳 BTTypeSetTo
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] app math_res17runtext
+[App Log] 📋 BB[run:"math_res"].text ← "17"
+[App Log] 🔢 Math calculation: 2 + 3 * 5 = 17
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] app math_resfalseruntext
+[App Log] 📋 BB[run:"math_res"].text ← "false"
+[App Log] 🔢 Math calculation: 5 > 10 = false
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] app web_reshello worldruntext
+[App Log] 📋 BB[run:"web_res"].text ← "hello world"
+[App Log] 🌐 Web request to https://api.example.com/data succeeded
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] app my_varhello worldruntext
+[App Log] 📋 BB[run:"my_var"].text ← "hello world"
+[App Log] ✍️ Write to blackboard: "hello world"
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] 📖 BB["source_var"].text → "hello"
+[App Log] app target_varhello plus extraruntext
+[App Log] 📋 BB[run:"target_var"].text ← "hello plus extra"
+[App Log] ✍️ Write to blackboard: "hello plus extra"
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] app my_varhello clipboardruntext
+[App Log] 📋 BB[run:"my_var"].text ← "hello clipboard"
+[App Log] 📋 Copied to clipboard: "hello clipboard"
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] app my_varhello from clipboardruntext
+[App Log] 📋 BB[run:"my_var"].text ← "hello from clipboard"
+[App Log] 📋 Pasted from clipboard: "hello from clipboard"
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[RC-01] checkNodeTypeInvariants: Node Type Validation Error
+Operation: checkNodeTypeInvariants
+Tab: t
+Issues Found: 1
+Details:
+  • path="0": btType only valid on assemble/root nodes (nodeType="data")
+Action: Use repairNodeTypeInvariants() to auto-fix, or review node structure manually
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[RC-01] checkNodeTypeInvariants: Node Type Validation Error
+Operation: checkNodeTypeInvariants
+Tab: t
+Issues Found: 1
+Details:
+  • path="0": unknown btType="decorator"
+Action: Use repairNodeTypeInvariants() to auto-fix, or review node structure manually
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+  [32m✔ Gemini call sends X-Goog-Api-Key header [90m(4.5398ms)[39m[39m
+  [31m✖ VM-based tests: selectNode and buildTreeHTML behavior matches design specs [90m(28.3508ms)[39m[39m
+  [31m✖ VM-based tests: clicking data node does not overwrite a different active op-node [90m(1.495ms)[39m[39m
+  [32m✔ VM-based tests: renderInput logic loads correct inputData based on mode [90m(1.5241ms)[39m[39m
+  [32m✔ VM-based tests: node type color class invariants are satisfied for all selections [90m(1.5096ms)[39m[39m
+  [31m✖ VM-based tests: data node with originalOpNode and inputAttachments redirects operation pane and input pane correctly [90m(5.3526ms)[39m[39m
+  [32m✔ REGRESSION: data node viewing mode must show input from when data node was created [90m(2.9163ms)[39m[39m
+  [31m✖ REGRESSION: combined mode must show linked mode label in red in input pane [90m(1.291ms)[39m[39m
+  [32m✔ REGRESSION: send detail panel must display URL and JSON request body [90m(1.4224ms)[39m[39m
+  [32m✔ REGRESSION: provider capabilities are displayed in recipe manager [90m(2.2683ms)[39m[39m
+  [32m✔ VM-based tests: recipe customParams can be edited, parsed as JSON, and sent in payload [90m(4.1565ms)[39m[39m
+  [32m✔ VM-based tests: tab renaming via renameTab [90m(1.6464ms)[39m[39m
+  [32m✔ VM-based tests: custom providers and custom formats integration [90m(1.5343ms)[39m[39m
+  [31m✖ VM-based tests: discardCurrentOutput(idx) when Processed placeholder exists [90m(1.5478ms)[39m[39m
+  [31m✖ VM-based tests: discardCurrentOutput(idx) when Processed placeholder does not exist [90m(1.3196ms)[39m[39m
+  [32m✔ VM-based tests: input pane attachment shows view button for images [90m(2.5124ms)[39m[39m
+  [32m✔ VM-based tests: prompt pane machine attachments shows view button for images [90m(1.2027ms)[39m[39m
+  [32m✔ VM-based tests: viewing mode attachment shows view button for images [90m(1.4668ms)[39m[39m
+  [32m✔ VM-based tests: non-image attachments do not show view button [90m(2.0465ms)[39m[39m
+[31m✖ Selection & Color logic [90m(71.7544ms)[39m[39m
+▶ Custom Providers Loading
+  [32m✔ loadCustomProviders creates sample and loads valid .js provider [90m(3.6104ms)[39m[39m
+[32m✔ Custom Providers Loading [90m(3.7359ms)[39m[39m
+▶ Builtin Providers Loading
+  [32m✔ loadBuiltinProviders loads all provider files from providers/ directory [90m(10.6364ms)[39m[39m
+  [32m✔ each builtin provider has correct name() and defaultModels() [90m(2.953ms)[39m[39m
+[32m✔ Builtin Providers Loading [90m(13.7755ms)[39m[39m
+▶ PaneOrganization — selectNode state machine
+  [32m✔ isDataNodePath: assemble node returns false [90m(0.384ms)[39m[39m
+  [32m✔ isDataNodePath: placeholder node returns false (no ancestor is placeholder) [90m(0.0677ms)[39m[39m
+  [32m✔ isDataNodePath: data node with nodeType=data returns true [90m(0.0609ms)[39m[39m
+  [32m✔ isDataNodePath: data node detected via pipelineMeta when nodeType absent [90m(0.1025ms)[39m[39m
+  [32m✔ isDataNodePath: data node detected via ancestor placeholder without nodeType [90m(0.1441ms)[39m[39m
+  [32m✔ isDataNodePath: empty path returns false [90m(0.0579ms)[39m[39m
+  [32m✔ selecting assemble node from blank: op-only mode [90m(0.1252ms)[39m[39m
+  [32m✔ selecting same assemble node again: toggles off (neither selected) [90m(0.0679ms)[39m[39m
+  [32m✔ selecting data node from blank: data-only mode [90m(0.0879ms)[39m[39m
+  [32m✔ selecting assemble node while data node selected: combined mode [90m(0.0836ms)[39m[39m
+  [32m✔ selecting data node while assemble node selected: combined mode [90m(0.0748ms)[39m[39m
+  [32m✔ selecting same data node again: toggles data path off, stays op-only [90m(0.0629ms)[39m[39m
+  [32m✔ selecting root node: clears both paths [90m(0.0591ms)[39m[39m
+  [32m✔ selecting placeholder node: clears both paths [90m(0.0602ms)[39m[39m
+  [32m✔ outputPaneMode: none when both paths empty [90m(0.0674ms)[39m[39m
+  [32m✔ outputPaneMode: op-only when only opPath set [90m(0.052ms)[39m[39m
+  [32m✔ outputPaneMode: data-only when only dataPath set [90m(0.0482ms)[39m[39m
+  [32m✔ outputPaneMode: combined when both paths set [90m(0.0497ms)[39m[39m
+  [32m✔ getRunResults: finds data nodes inside placeholder child [90m(0.1001ms)[39m[39m
+  [32m✔ getRunResults: returns empty array when assemble node has no children [90m(0.0877ms)[39m[39m
+  [32m✔ getRunResults: returns direct children when no placeholder wrapper [90m(0.0786ms)[39m[39m
+  [32m✔ getRunResults: detects legacy Processed node by title when nodeType absent [90m(0.0887ms)[39m[39m
+  [32m✔ getRunResults: returns empty array when placeholder has no children [90m(0.0668ms)[39m[39m
+  [32m✔ getRunResults: null opNode returns empty array [90m(0.0599ms)[39m[39m
+  [32m✔ getRunResults: opNode with no children returns empty array [90m(0.0583ms)[39m[39m
+  [32m✔ op-only mode: getRunResults + outputPaneMode gives linked run history [90m(0.0675ms)[39m[39m
+  [32m✔ combined mode: also shows linked run history (same branch as op-only) [90m(0.071ms)[39m[39m
+  [32m✔ REGRESSION: selectNode must NOT auto-call showHistory for assemble node selection [90m(1.8046ms)[39m[39m
+  [32m✔ REGRESSION: selectNode sets selectedOpPath for assemble nodeType [90m(1.6408ms)[39m[39m
+  [31m✖ REGRESSION: renderOutput op-only branch must call renderLinkedRunHistory (not show empty) [90m(2.0198ms)[39m[39m
+  [31m✖ REGRESSION: renderOutput combined mode must also call renderLinkedRunHistory [90m(1.8833ms)[39m[39m
+[31m✖ PaneOrganization — selectNode state machine [90m(10.6497ms)[39m[39m
+▶ _buildMeta outputAttachments in pipeline_completed
+  [32m✔ step with no artifacts yields outputAttachments: [] [90m(0.402ms)[39m[39m
+  [32m✔ step with image artifacts carries outputAttachments into meta [90m(0.1563ms)[39m[39m
+  [32m✔ multiple steps each carry their own outputAttachments [90m(0.115ms)[39m[39m
+  [32m✔ PipelineRunner emits outputAttachments in pipeline_completed when provider returns images [90m(0.2126ms)[39m[39m
+[32m✔ _buildMeta outputAttachments in pipeline_completed [90m(1.2371ms)[39m[39m
+▶ run_pipeline provider registration
+  [32m✔ ai step provider is registered before run [90m(0.19ms)[39m[39m
+  [32m✔ non-ai steps are skipped during registration [90m(0.1172ms)[39m[39m
+  [32m✔ provider with no saved config uses name as format [90m(0.1023ms)[39m[39m
+  [32m✔ multi-step pipeline registers each unique provider [90m(0.1161ms)[39m[39m
+[32m✔ run_pipeline provider registration [90m(0.6716ms)[39m[39m
+▶ save_config defaultImageFit
+  [32m✔ defaultImageFit is persisted when set [90m(3.6062ms)[39m[39m
+  [32m✔ defaultImageFit defaults to contain when omitted [90m(3.4743ms)[39m[39m
+  [32m✔ all four fit modes can be saved and loaded [90m(6.8786ms)[39m[39m
+[32m✔ save_config defaultImageFit [90m(14.1871ms)[39m[39m
+▶ Behavior Tree
+  [32m✔ treeCtxSetBtType sets btType on assemble node [90m(5.5543ms)[39m[39m
+  [32m✔ treeCtxSetBtType sets btType on root node [90m(1.8449ms)[39m[39m
+  [32m✔ treeCtxSetBtType with "leaf" removes btType [90m(1.704ms)[39m[39m
+  [32m✔ treeCtxSetBtType ignores data nodes [90m(1.6495ms)[39m[39m
+  [32m✔ Sequence: all succeed → returns true [90m(3.1728ms)[39m[39m
+  [32m✔ Sequence: first fails → stops and returns false [90m(2.115ms)[39m[39m
+  [32m✔ Sequence: second fails → returns false [90m(2.0209ms)[39m[39m
+  [32m✔ Selector: first succeeds → returns true without running second [90m(2.1589ms)[39m[39m
+  [32m✔ Selector: first fails, second succeeds → returns true [90m(1.9713ms)[39m[39m
+  [32m✔ Selector: all fail → returns false [90m(1.6658ms)[39m[39m
+  [32m✔ Parallel: all succeed → returns true [90m(1.9441ms)[39m[39m
+  [32m✔ Parallel: one fails → returns false [90m(1.8461ms)[39m[39m
+  [32m✔ Leaf (no btType): success when output non-empty [90m(1.7872ms)[39m[39m
+  [32m✔ Leaf (no btType): success when output is true (string) [90m(4.1851ms)[39m[39m
+  [32m✔ Leaf (no btType): success when output is true with punctuation [90m(1.8723ms)[39m[39m
+  [32m✔ Leaf (no btType): failure when output is false (string) [90m(1.7769ms)[39m[39m
+  [32m✔ Leaf (no btType): failure when output is false with punctuation [90m(1.7987ms)[39m[39m
+  [32m✔ Leaf (no btType): success when output empty (successful call) [90m(1.6513ms)[39m[39m
+  [32m✔ Leaf (no btType): failure when API call fails [90m(1.6138ms)[39m[39m
+  [32m✔ Leaf (Math): evaluates basic expression successfully [90m(3.0119ms)[39m[39m
+  [32m✔ Leaf (Math): evaluates boolean condition returning false [90m(2.9102ms)[39m[39m
+  [32m✔ Leaf (Web): runs GET request successfully [90m(2.3729ms)[39m[39m
+  [32m✔ Leaf (Misc): writes static text to blackboard [90m(2.7297ms)[39m[39m
+  [32m✔ Leaf (Misc): reads blackboard variable and writes to another key [90m(2.3885ms)[39m[39m
+  [32m✔ Leaf (Misc): copies text to clipboard [90m(1.9896ms)[39m[39m
+  [32m✔ Leaf (Misc): pastes text from clipboard [90m(2.3476ms)[39m[39m
+  [32m✔ Assemble Node: writes AI result to blackboard output key [90m(2.5662ms)[39m[39m
+  [32m✔ Assemble Node (Manual): manual pipeline completion writes to blackboard and logs [90m(2.4969ms)[39m[39m
+  [32m✔ Nested: Sequence containing Selector [90m(2.6219ms)[39m[39m
+  [32m✔ checkNodeTypeInvariants: valid btType on assemble passes [90m(6.5832ms)[39m[39m
+  [32m✔ checkNodeTypeInvariants: valid btType on root passes [90m(2.3559ms)[39m[39m
+  [32m✔ checkNodeTypeInvariants: btType on data node is flagged [90m(1.863ms)[39m[39m
+  [32m✔ checkNodeTypeInvariants: unknown btType is flagged [90m(1.8026ms)[39m[39m
+  [32m✔ invert flips failure to success [90m(1.9314ms)[39m[39m
+  [32m✔ repeater runs child N times [90m(2.1077ms)[39m[39m
+  [32m✔ repeater stops early on child failure [90m(1.7557ms)[39m[39m
+  [32m✔ retry succeeds after failure [90m(1.6794ms)[39m[39m
+  [32m✔ retry exhausts all retries [90m(1.7019ms)[39m[39m
+  [32m✔ alwaysSucceed masks failure [90m(2.1023ms)[39m[39m
+  [32m✔ alwaysFail masks success [90m(2.009ms)[39m[39m
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] ⛔ Guard "nonexistent" failed (value=null)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] ✅ Guard "mykey" passed
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[RC-01] checkNodeTypeInvariants: Node Type Validation Error
+Operation: checkNodeTypeInvariants
+Tab: t
+Issues Found: 1
+Details:
+  • path="0": unknown btType="bogus+selector"
+Action: Use repairNodeTypeInvariants() to auto-fix, or review node structure manually
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[RC-01] checkNodeTypeInvariants: Node Type Validation Error
+Operation: checkNodeTypeInvariants
+Tab: t
+Issues Found: 1
+Details:
+  • path="0": unknown btType="repeater+leaf"
+Action: Use repairNodeTypeInvariants() to auto-fix, or review node structure manually
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] BT Target: Root
+[App Log] ▶ BT execution started
+[App Log] app first_var100runtext
+[App Log] 📋 BB[run:"first_var"].text ← "100"
+[App Log] ✍️ Write to blackboard: "100"
+[App Log] 📖 BB["first_var"].text → "100"
+[App Log] app second_var100 + 20runtext
+[App Log] 📋 BB[run:"second_var"].text ← "100 + 20"
+[App Log] ✍️ Write to blackboard: "100 + 20"
+[App Log] 📖 BB["second_var"].text → "100 + 20"
+[App Log] app check_oktrueruntext
+[App Log] 📋 BB[run:"check_ok"].text ← "true"
+[App Log] 🔢 Math calculation: (100 + 20) === 120 = true
+[App Log] ✅ Cycle 1 succeeded
+[App Log] app media_var[object Object]runmedia
+[App Log] 📋 BB[run:"media_var"].media ← 1 item(s)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] [BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[BT Engine] Using custom BehaviorTreeEngine (bt.js)
+[App Log] app var1val1runtext
+[App Log] 📋 BB[run:"var1"].text ← "val1"
+  [32m✔ delay executes child after wait [90m(14.1429ms)[39m[39m
+  [32m✔ maxTime succeeds when child finishes quickly [90m(2.3674ms)[39m[39m
+  [32m✔ guard blocks child when condition missing [90m(1.9074ms)[39m[39m
+  [32m✔ guard passes child when condition exists [90m(1.8601ms)[39m[39m
+  [32m✔ memSequence runs children in order [90m(1.7263ms)[39m[39m
+  [32m✔ memSelector picks first success [90m(1.8142ms)[39m[39m
+  [32m✔ repeater+sequence compound [90m(1.9753ms)[39m[39m
+  [32m✔ repeater+invert+sequence 3-part chain [90m(1.804ms)[39m[39m
+  [32m✔ decorator order matters: invert+retry+sequence vs retry+invert+sequence [90m(3.5741ms)[39m[39m
+  [32m✔ checkNodeTypeInvariants: compound type on assemble passes [90m(1.717ms)[39m[39m
+  [32m✔ checkNodeTypeInvariants: compound type on root passes [90m(1.611ms)[39m[39m
+  [32m✔ checkNodeTypeInvariants: invalid decorator in chain flagged [90m(1.6699ms)[39m[39m
+  [32m✔ checkNodeTypeInvariants: non-composite at chain end flagged [90m(1.5542ms)[39m[39m
+  [32m✔ Integration: set/get between nodes and check result with math node, and check non-text type error [90m(2.7542ms)[39m[39m
+  [32m✔ Integration: blackboard read/write/remove/create events update blackboard dialog [90m(1.667ms)[39m[39m
+[32m✔ Behavior Tree [90m(138.6129ms)[39m[39m
+▶ Behavior3 Advanced Decorators
+  [32m✔ MaxTime: returns child status if completed in time [90m(1.3654ms)[39m[39m
+  [32m✔ MaxTime: times out if duration exceeded [90m(32.2703ms)[39m[39m
+  [32m✔ Guard: blocks execution when condition not met [90m(1.8399ms)[39m[39m
+  [32m✔ Guard: truthy check when expectedValue is undefined [90m(1.5385ms)[39m[39m
+  [32m✔ Guard: negates condition when negate is true [90m(1.4701ms)[39m[39m
+  [32m✔ Limiter: allows execution under limit and blocks when limit reached [90m(1.5951ms)[39m[39m
+  [32m✔ Limiter: manages running count for multiple concurrent runs [90m(1.2965ms)[39m[39m
+  [32m✔ Delay: returns RUNNING initially, then executes child after delay [90m(37.9146ms)[39m[39m
+  [32m✔ Retry: retries child on failure up to maxRetries [90m(2.3188ms)[39m[39m
+  [32m✔ Retry: returns FAILURE when retries exhausted [90m(3.1989ms)[39m[39m
+[32m✔ Behavior3 Advanced Decorators [90m(85.7857ms)[39m[39m
+▶ Behavior3 Concurrency and Parallel Execution
+  [32m✔ Parallel: require_all succeeds only when all children succeed [90m(2.3274ms)[39m[39m
+  [32m✔ Parallel: require_one succeeds if at least one child succeeds [90m(1.4446ms)[39m[39m
+  [32m✔ Parallel + Limiter: restricts concurrent execution in parallel branches [90m(2.4749ms)[39m[39m
+  [32m✔ HTTP Queue: respects maxConcurrentLLMCalls rate limiting [90m(65.7746ms)[39m[39m
+  [32m✔ HTTP Queue: continues processing when tasks fail [90m(0.5186ms)[39m[39m
+[B3 App Log] [14:55:59] [B3] 🔧 Behavior3Adapter initialized
+[14:55:59] [B3] 🔧 Behavior3Adapter initialized
+[B3 App Log] [14:55:59] [B3] bbWrite("var1", "val1...", scope=run, field=text)
+[14:55:59] [B3] bbWrite("var1", "val1...", scope=run, field=text)
+[B3 App Log] [14:55:59] [B3] 🔧 Behavior3Adapter initialized
+[14:55:59] [B3] 🔧 Behavior3Adapter initialized
+[B3 App Log] [14:55:59] [B3] setTarget()
+[14:55:59] [B3] setTarget()
+[B3 App Log] [14:55:59] [B3] ✅ Node found: Root
+[14:55:59] [B3] ✅ Node found: Root
+[B3 App Log] [14:55:59] [B3] Converting tree to B3 format...
+[14:55:59] [B3] Converting tree to B3 format...
+[B3 App Log] [14:55:59] [B3] ✅ Tree converted: 2 nodes
+[14:55:59] [B3] ✅ Tree converted: 2 nodes
+[B3 App Log] [14:55:59] [B3] Registering custom action nodes...
+[14:55:59] [B3] Registering custom action nodes...
+[B3 App Log] [14:55:59] [B3] ✅ ProcessPromptAction registered
+[14:55:59] [B3] ✅ ProcessPromptAction registered
+[B3 App Log] [14:55:59] [B3] ✅ LoadLocalFileAction registered
+[14:55:59] [B3] ✅ LoadLocalFileAction registered
+[B3 App Log] [14:55:59] [B3] BT Target: Root
+[14:55:59] [B3] BT Target: Root
+[B3 App Log] ▶ BT execution started
+[B3 App Log] [14:55:59] [B3] 🔄 Cycle 1: Blackboard reset
+[14:55:59] [B3] 🔄 Cycle 1: Blackboard reset
+[B3 App Log] [14:55:59] [B3] _executeTreeTick: Building b3 tree...
+[14:55:59] [B3] _executeTreeTick: Building b3 tree...
+[B3 App Log] [14:55:59] [B3] Building B3 tree: root=n-0, nodes=2
+[14:55:59] [B3] Building B3 tree: root=n-0, nodes=2
+[B3 App Log] [14:55:59] [B3]   ✓ Instantiated Sequence (n-0)
+[14:55:59] [B3]   ✓ Instantiated Sequence (n-0)
+[B3 App Log] [14:55:59] [B3]   ✓ Instantiated ProcessPromptAction (n-1)
+[14:55:59] [B3]   ✓ Instantiated ProcessPromptAction (n-1)
+[B3 App Log] [14:55:59] [B3] ✅ B3 tree built successfully
+[14:55:59] [B3] ✅ B3 tree built successfully
+[B3 App Log] [14:55:59] [B3] Executing tree tick #1...
+[14:55:59] [B3] Executing tree tick #1...
+[ProcessPromptAction] tick: nodeId=n-1, isExecuting=false
+[ProcessPromptAction] FIRST TICK: Initiating prompt execution
+[ProcessPromptAction] Prompt: "Generate a greeting..."
+[ProcessPromptAction] Input: key="undefined", type="undefined"
+[ProcessPromptAction] Output: key="greeting", type="text"
+[ProcessPromptAction] window.app not available!
+[ProcessPromptAction] Returning RUNNING, waiting for pipeline...
+[B3 App Log] [14:55:59] [B3]   Tree tick returned status: 3 (SUCCESS=1, RUNNING=3, FAILURE=2)
+[14:55:59] [B3]   Tree tick returned status: 3 (SUCCESS=1, RUNNING=3, FAILURE=2)
+[B3 App Log] [14:55:59] [B3] ⏳ Tree returned RUNNING - waiting for pipeline completion...
+[14:55:59] [B3] ⏳ Tree returned RUNNING - waiting for pipeline completion...
+  [32m✔ Execution Queue: respects maxParallel run rate limiting [90m(106.8954ms)[39m[39m
+[32m✔ Behavior3 Concurrency and Parallel Execution [90m(180.0643ms)[39m[39m
+▶ Behavior3 Integration Tests with Mock & Mock Recipes
+  [32m✔ Integration: Behavior3 blackboard read/write/remove/create events update blackboard dialog [90m(7.7199ms)[39m[39m

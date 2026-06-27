@@ -1,5 +1,7 @@
 const https = require('https');
 const http = require('http');
+const tls = require('tls');
+const net = require('net');
 const fs = require('fs');
 const path = require('path');
 
@@ -47,94 +49,220 @@ function tryLogHttp(info) {
     try { if (_httpLogCallback) _httpLogCallback(redacted); } catch(e) { reportError(`HTTP Log Callback Error\nOperation: tryLogHttp\nError: ${e.message}\nAction: Check HTTP log callback implementation`); }
 }
 
-function httpRequest(url, method, headers, body, timeoutMs = 120000) {
+let proxyServerSetting = '';
+let proxyModeSetting = 'env';
+let proxyEnabledSetting = true;
+function setProxyServer(p, mode, enabled) {
+    proxyServerSetting = p;
+    proxyModeSetting = mode || 'env';
+    proxyEnabledSetting = (enabled !== false);
+}
+
+function getProxyUrl() {
+    if (!proxyEnabledSetting) return null;
+    let proxy = '';
+    if (proxyModeSetting === 'manual') {
+        proxy = proxyServerSetting;
+    } else {
+        proxy = process.env.http_proxy || process.env.HTTP_PROXY || process.env.https_proxy || process.env.HTTPS_PROXY || '';
+    }
+    if (!proxy) return null;
+    proxy = proxy.trim();
+    if (!/^https?:\/\//i.test(proxy)) {
+        proxy = 'http://' + proxy;
+    }
+    try {
+        return new URL(proxy);
+    } catch (e) {
+        console.error('[Proxy] Invalid proxy URL:', proxy, e.message);
+        return null;
+    }
+}
+
+function makeRequest(url, method, headers, body, timeoutMs, isBinary) {
     return new Promise((resolve, reject) => {
         const u = new URL(url);
-        const mod = u.protocol === 'https:' ? https : http;
+        const proxyUrl = getProxyUrl();
         const bodyStr = body || '';
-        const opts = {
-            hostname: u.hostname,
-            port: u.port || (u.protocol === 'https:' ? 443 : 80),
-            path: u.pathname + u.search,
+        
+        const isHttps = u.protocol === 'https:';
+        const defaultPort = isHttps ? 443 : 80;
+        const targetPort = u.port || defaultPort;
+        
+        let reqOpts = {
             method,
             headers: { ...(body ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {}), ...headers },
             timeout: timeoutMs,
         };
+        
         const startTime = Date.now();
-        const req = mod.request(opts, res => {
+        
+        const handleResponse = (res) => {
             const chunks = [];
             res.on('data', c => chunks.push(c));
             res.on('end', () => {
                 const bodyBuf = Buffer.concat(chunks);
-                const bodyText = bodyBuf.toString('utf8');
                 const elapsed = Date.now() - startTime;
+                
+                if (isBinary) {
+                    resolve(bodyBuf);
+                } else {
+                    const bodyText = bodyBuf.toString('utf8');
+                    tryLogHttp({ 
+                        url, 
+                        method, 
+                        statusCode: res.statusCode, 
+                        requestHeaders: reqOpts.headers,
+                        requestBody: bodyStr, 
+                        responseHeaders: res.headers,
+                        responseBody: bodyText, 
+                        elapsedMs: elapsed 
+                    });
+                    resolve(bodyText);
+                }
+            });
+        };
+        
+        const handleError = (err) => {
+            if (!isBinary) {
                 tryLogHttp({ 
                     url, 
                     method, 
-                    statusCode: res.statusCode, 
-                    requestHeaders: opts.headers,
+                    statusCode: 0, 
+                    requestHeaders: reqOpts.headers,
                     requestBody: bodyStr, 
-                    responseHeaders: res.headers,
-                    responseBody: bodyText, 
-                    elapsedMs: elapsed 
+                    error: `HTTP Request Error\nURL: ${url}\nMethod: ${method}\nError: ${err.message}` 
                 });
-                resolve(bodyText);
-            });
-        });
-        req.on('error', err => {
-            tryLogHttp({ 
-                url, 
-                method, 
-                statusCode: 0, 
-                requestHeaders: opts.headers,
-                requestBody: bodyStr, 
-                error: `HTTP Request Error\nURL: ${url}\nMethod: ${method}\nError: ${err.message}\nPossible causes: Network connectivity issue, DNS resolution failure, or connection refused` 
-            });
+            }
             reject(err);
-        });
-        req.on('timeout', () => { 
-            req.destroy(); 
-            tryLogHttp({ 
-                url, 
-                method, 
-                statusCode: 0, 
-                requestHeaders: opts.headers,
-                requestBody: bodyStr, 
-                error: `HTTP Request Timeout\nURL: ${url}\nMethod: ${method}\nTimeout: ${timeoutMs}ms\nPossible causes: Server not responding, network latency, or request too large` 
-            }); 
-            reject(new Error(`HTTP Request Timeout\nURL: ${url}\nMethod: ${method}\nTimeout: ${timeoutMs}ms\nPossible causes: Server not responding, network latency, or request too large`)); 
-        });
-        if (body) req.write(bodyStr);
-        req.end();
+        };
+        
+        const handleTimeout = (req) => {
+            req.destroy();
+            const errMsg = `HTTP Request Timeout\nURL: ${url}\nMethod: ${method}\nTimeout: ${timeoutMs}ms`;
+            if (!isBinary) {
+                tryLogHttp({ 
+                    url, 
+                    method, 
+                    statusCode: 0, 
+                    requestHeaders: reqOpts.headers,
+                    requestBody: bodyStr, 
+                    error: errMsg 
+                });
+            }
+            reject(new Error(errMsg));
+        };
+        
+        if (proxyUrl) {
+            const isProxyHttps = proxyUrl.protocol === 'https:';
+            if (isHttps) {
+                const proxyPort = proxyUrl.port || (isProxyHttps ? 443 : 80);
+                const proxyHostname = proxyUrl.hostname;
+                
+                const socket = isProxyHttps
+                    ? tls.connect({ host: proxyHostname, port: proxyPort, servername: proxyHostname, rejectUnauthorized: false })
+                    : net.connect({ host: proxyHostname, port: proxyPort });
+                
+                socket.setTimeout(timeoutMs);
+                socket.on('timeout', () => {
+                    socket.destroy();
+                    handleTimeout({ destroy: () => {} });
+                });
+                socket.on('error', handleError);
+                
+                let connectHeader = `CONNECT ${u.hostname}:${targetPort} HTTP/1.1\r\n` +
+                                    `Host: ${u.hostname}:${targetPort}\r\n`;
+                                    
+                if (proxyUrl.username && proxyUrl.password) {
+                    const auth = Buffer.from(`${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`).toString('base64');
+                    connectHeader += `Proxy-Authorization: Basic ${auth}\r\n`;
+                }
+                connectHeader += '\r\n';
+                
+                socket.write(connectHeader);
+                
+                let responseBuffer = Buffer.alloc(0);
+                function onData(chunk) {
+                    responseBuffer = Buffer.concat([responseBuffer, chunk]);
+                    const headerEnd = responseBuffer.indexOf('\r\n\r\n');
+                    if (headerEnd !== -1) {
+                        socket.off('data', onData);
+                        const headerText = responseBuffer.toString('utf8', 0, headerEnd);
+                        const statusLine = headerText.split('\r\n')[0];
+                        const match = statusLine.match(/^HTTP\/\d+\.\d+\s+(\d+)/i);
+                        if (!match || parseInt(match[1]) < 200 || parseInt(match[1]) >= 300) {
+                            socket.destroy();
+                            handleError(new Error(`Proxy tunneling failed: ${statusLine}`));
+                            return;
+                        }
+                        
+                        const secureSocket = tls.connect({
+                            socket: socket,
+                            servername: u.hostname,
+                        });
+                        
+                        secureSocket.on('error', handleError);
+                        secureSocket.once('secureConnect', () => {
+                            reqOpts.createConnection = () => secureSocket;
+                            
+                            const req = https.request({
+                                hostname: u.hostname,
+                                port: targetPort,
+                                path: u.pathname + u.search,
+                                ...reqOpts
+                            }, handleResponse);
+                            
+                            req.on('error', handleError);
+                            req.on('timeout', () => handleTimeout(req));
+                            
+                            if (body) req.write(bodyStr);
+                            req.end();
+                        });
+                    }
+                }
+                socket.on('data', onData);
+                
+            } else {
+                const proxyPort = proxyUrl.port || (isProxyHttps ? 443 : 80);
+                const proxyHostname = proxyUrl.hostname;
+                
+                reqOpts.hostname = proxyHostname;
+                reqOpts.port = proxyPort;
+                reqOpts.path = u.href;
+                reqOpts.headers.Host = u.host;
+                
+                if (proxyUrl.username && proxyUrl.password) {
+                    const auth = Buffer.from(`${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`).toString('base64');
+                    reqOpts.headers['Proxy-Authorization'] = `Basic ${auth}`;
+                }
+                
+                const req = isProxyHttps ? https.request(reqOpts, handleResponse) : http.request(reqOpts, handleResponse);
+                req.on('error', handleError);
+                req.on('timeout', () => handleTimeout(req));
+                if (body) req.write(bodyStr);
+                req.end();
+            }
+        } else {
+            const mod = isHttps ? https : http;
+            reqOpts.hostname = u.hostname;
+            reqOpts.port = targetPort;
+            reqOpts.path = u.pathname + u.search;
+            
+            const req = mod.request(reqOpts, handleResponse);
+            req.on('error', handleError);
+            req.on('timeout', () => handleTimeout(req));
+            if (body) req.write(bodyStr);
+            req.end();
+        }
     });
 }
 
+function httpRequest(url, method, headers, body, timeoutMs = 120000) {
+    return makeRequest(url, method, headers, body, timeoutMs, false);
+}
+
 function downloadBinary(url, headers = {}) {
-    return new Promise((resolve, reject) => {
-        const u = new URL(url);
-        const mod = u.protocol === 'https:' ? https : http;
-        const opts = {
-            hostname: u.hostname,
-            port: u.port || (u.protocol === 'https:' ? 443 : 80),
-            path: u.pathname + u.search,
-            method: 'GET',
-            headers,
-            timeout: 30000,
-        };
-        const req = mod.request(opts, res => {
-            const chunks = [];
-            res.on('data', c => chunks.push(c));
-            res.on('end', () => resolve(Buffer.concat(chunks)));
-        });
-        req.on('error', (err) => {
-            reject(new Error(`Download Error\nURL: ${url}\nError: ${err.message}\nPossible causes: Network connectivity issue, DNS resolution failure, or connection refused`));
-        });
-        req.on('timeout', () => { 
-            req.destroy(); 
-            reject(new Error(`Download Timeout\nURL: ${url}\nTimeout: 30000ms\nPossible causes: Server not responding, network latency, or file too large`)); 
-        });
-        req.end();
-    });
+    return makeRequest(url, 'GET', headers, null, 30000, true);
 }
 
 module.exports = {
@@ -146,4 +274,5 @@ module.exports = {
     getAppDataPath,
     setHttpLogCallback,
     setErrorCallback,
+    setProxyServer,
 };

@@ -56,7 +56,7 @@
           "btInputKey": "topic",
           "btInputType": "text",
           "btOutputKey": "article",
-          "btPrompt": "V3JpdGUgYSAyMDAtd29yZCByYWRpbyBESiBpbnRyb2R1Y3Rpb24gZm9yIGEgc2hvdyB3aXRoIHRoZW1lOiB7YmI6dG9waWN9"
+          "btPrompt": "V3JpdGUgYSA1LXdvcmQgcmFkaW8gREogaW50cm9kdWN0aW9uIGZvciBhIHNob3cgd2l0aCB0aGVtZToge2JiOnRvcGljfQ=="
         }
       ],
       "nodeType": "assemble",

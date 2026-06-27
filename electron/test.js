@@ -84,6 +84,42 @@ function getDefaultRecipes() {
     ];
 }
 
+// ---- Data migration (mirrors main.js) ----
+const DATA_VERSION = 1;
+
+function migrateData(data, migrations, label) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+    const startVersion = data.dataVersion || 0;
+    let version = startVersion;
+    const keys = Object.keys(migrations).map(Number).sort((a, b) => a - b);
+    for (const targetVersion of keys) {
+        if (version < targetVersion) {
+            console.log(`[migrate] ${label}: v${version} → v${targetVersion}`);
+            data = migrations[targetVersion](data);
+            data.dataVersion = targetVersion;
+            version = targetVersion;
+        }
+    }
+    return version !== startVersion;
+}
+
+const MIGRATIONS = {
+    config: { 1: (cfg) => cfg },
+    providers: {
+        1: (providers) => {
+            for (const p of Object.values(providers)) {
+                if (p && p.baseUrl === 'https://googleapis.com') {
+                    p.baseUrl = 'https://generativelanguage.googleapis.com';
+                }
+            }
+            return providers;
+        },
+    },
+    pipelines: { 1: (pl) => pl },
+    session: { 1: (s) => s },
+    projectBlackboard: { 1: (bb) => bb },
+};
+
 // ---- Storage (copy of main.js Storage class) ----
 class Storage {
     constructor() { this.basePath = ''; this.maxHistoryRuns = 50; }
@@ -100,8 +136,15 @@ class Storage {
     blobPath(rel) { return path.join(this.basePath, 'blobs', rel); }
     getBasePath()  { return this.basePath; }
 
-    loadSession()          { return readJson(path.join(this.basePath, 'session.json'), { tabs: [] }); }
-    saveSession(s)         { writeJson(path.join(this.basePath, 'session.json'), s); }
+    loadSession() {
+        const session = readJson(path.join(this.basePath, 'session.json'), { tabs: [], dataVersion: DATA_VERSION });
+        migrateData(session, MIGRATIONS.session, 'session');
+        return session;
+    }
+    saveSession(s) {
+        s.dataVersion = DATA_VERSION;
+        writeJson(path.join(this.basePath, 'session.json'), s);
+    }
 
     loadTabData(rel)       { return readJson(this.dataPath(rel), { title:'', content:'', mimetype:'text/plain', attachments:[], children:[] }); }
     saveTabData(rel, root) { writeJson(this.dataPath(rel), root); }
@@ -165,36 +208,33 @@ class Storage {
 
     loadProviders() {
         const providers = readJson(path.join(this.basePath, 'providers.json'), {});
-        let modified = false;
-        for (const [key, p] of Object.entries(providers)) {
-            if (p && p.baseUrl === 'https://googleapis.com') {
-                p.baseUrl = 'https://generativelanguage.googleapis.com';
-                modified = true;
-            }
-        }
-        if (modified) {
+        if (migrateData(providers, MIGRATIONS.providers, 'providers')) {
             this.saveProviders(providers);
         }
         return providers;
     }
     saveProviders(providers) {
-        for (const [key, p] of Object.entries(providers)) {
-            if (p && p.baseUrl === 'https://googleapis.com') {
-                p.baseUrl = 'https://generativelanguage.googleapis.com';
-            }
-        }
+        providers.dataVersion = DATA_VERSION;
         writeJson(path.join(this.basePath, 'providers.json'), providers);
         return true;
     }
 
-    loadPipelines()          { const o = readJson(path.join(this.basePath, 'pipelines.json'), { pipelines: [] }); return o.pipelines || o || []; }
-    savePipelines(pl)        { writeJson(path.join(this.basePath, 'pipelines.json'), { pipelines: pl }); }
+    loadPipelines() {
+        const o = readJson(path.join(this.basePath, 'pipelines.json'), { pipelines: [], dataVersion: DATA_VERSION });
+        migrateData(o, MIGRATIONS.pipelines, 'pipelines');
+        return o.pipelines || o || [];
+    }
+    savePipelines(pl)        { writeJson(path.join(this.basePath, 'pipelines.json'), { pipelines: pl, dataVersion: DATA_VERSION }); }
 
     loadRecentFiles()        { return readJson(path.join(this.basePath, 'recent_files.json'), []); }
     saveRecentFiles(f)       { writeJson(path.join(this.basePath, 'recent_files.json'), f); }
 
-    loadGeneralConfig()      { return readJson(path.join(this.basePath, 'config.json'), { historyRetention: 50, defaultProvider: 'openai', defaultModel: '', theme: 'dark' }); }
-    saveGeneralConfig(cfg)   { writeJson(path.join(this.basePath, 'config.json'), cfg); this.maxHistoryRuns = cfg.historyRetention || 50; return true; }
+    loadGeneralConfig() {
+        const cfg = readJson(path.join(this.basePath, 'config.json'), { historyRetention: 50, defaultProvider: 'openai', defaultModel: '', theme: 'dark', proxyServer: '', proxyMode: 'env' });
+        migrateData(cfg, MIGRATIONS.config, 'config');
+        return cfg;
+    }
+    saveGeneralConfig(cfg)   { cfg.dataVersion = DATA_VERSION; writeJson(path.join(this.basePath, 'config.json'), cfg); this.maxHistoryRuns = cfg.historyRetention || 50; return true; }
 
     loadRecipes() {
         const recipes = readJson(path.join(this.basePath, 'projectrecipes.json'), []);
@@ -583,7 +623,9 @@ describe('Storage', () => {
     test('loadSession defaults to empty tabs', () => {
         const st2 = new Storage();
         st2.init(makeTempDir());
-        assert.deepEqual(st2.loadSession(), { tabs: [] });
+        const loaded = st2.loadSession();
+        assert.deepEqual(loaded.tabs, []);
+        assert.equal(loaded.dataVersion, DATA_VERSION);
         rmrf(st2.basePath);
     });
 
@@ -1312,7 +1354,8 @@ describe('Bridge message handling', () => {
                 case 'get_providers': {
                     const provs = st.loadProviders();
                     if (!provs.mock) provs.mock = { apiKey: '', baseUrl: '', models: ['echo', 'fixed'] };
-                    post('providers_result', provs);
+                    const path = require('path').join(st.getBasePath(), 'providers.json');
+                    post('providers_result', { providers: provs, customMetadata: {}, path });
                     break;
                 }
                 case 'save_providers':
@@ -1350,12 +1393,34 @@ describe('Bridge message handling', () => {
                     st.saveGeneralConfig({ historyRetention: payload?.historyRetention || 50, defaultProvider: payload?.defaultProvider || 'openai', defaultModel: payload?.defaultModel || '' });
                     break;
                 case 'send_to_chest':
-                    if (payload?.chestName && payload?.content != null) st.saveToNamedChest(payload.chestName, payload.content);
+                    if (payload?.chestName && payload?.content != null) {
+                        st.saveToNamedChest(payload.chestName, payload.content);
+                        post('chest_list_updated', { chestList: st.listNamedChests() });
+                    }
                     break;
                 case 'view_chest':
                     if (payload?.chestName) {
                         const content = st.loadFromNamedChest(payload.chestName);
                         post('chest_view', { name: payload.chestName, content });
+                    }
+                    break;
+                case 'delete_chest':
+                    if (payload?.chestName) {
+                        const path = st._chestPath(payload.chestName);
+                        if (fs.existsSync(path)) {
+                            try { fs.unlinkSync(path); } catch (e) {}
+                        }
+                        post('chest_list_updated', { chestList: st.listNamedChests() });
+                    }
+                    break;
+                case 'rename_chest':
+                    if (payload?.oldName && payload?.newName) {
+                        const oldPath = st._chestPath(payload.oldName);
+                        const newPath = st._chestPath(payload.newName);
+                        if (fs.existsSync(oldPath)) {
+                            try { fs.renameSync(oldPath, newPath); } catch (e) {}
+                        }
+                        post('chest_list_updated', { chestList: st.listNamedChests() });
                     }
                     break;
                 case 'cancel_pipeline':
@@ -4011,12 +4076,12 @@ describe('Selection & Color logic', () => {
         assert.equal(app.state.selectedRecipe, 'Updated AI Recipe');
         assert.equal(mockNode.selectedRecipe, 'Updated AI Recipe');
 
-        // 3. Test invalid JSON alerts and does not save
+        // 3. Test invalid JSON errors and does not save
         uiValues['edit-custom-params'] = '{invalid_json}';
-        let alertCalled = false;
-        app._vmContext.alert = () => { alertCalled = true; };
+        let errorMsg = '';
+        app.showRecipeManagerError = (msg) => { errorMsg = msg; };
         app.saveEditRecipe(0);
-        assert.ok(alertCalled, 'Should alert on invalid JSON');
+        assert.ok(errorMsg, 'Should show error on invalid JSON');
         // Custom params should remain unmodified
         assert.equal(JSON.stringify(app.state.recipes[0].customParams), JSON.stringify({ aspect_ratio: '16:9' }));
 

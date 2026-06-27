@@ -3,7 +3,7 @@ const { httpRequest } = require('./utils');
 class OpenAIProvider {
     constructor(apiKey, baseUrl) {
         this.apiKey = apiKey;
-        this.baseUrl = baseUrl || 'https://api.openai.com';
+        this.baseUrl = (baseUrl || 'https://api.openai.com').replace(/\/+$/, '');
     }
     name() { return 'openai'; }
     defaultModels() { return ['gpt-4.1', 'gpt-4o-mini']; }

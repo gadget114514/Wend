@@ -3,7 +3,7 @@ const { httpRequest, downloadBinary } = require('./utils');
 class ReplicateProvider {
     constructor(apiKey, baseUrl) {
         this.apiKey = apiKey;
-        this.baseUrl = baseUrl || 'https://api.replicate.com';
+        this.baseUrl = (baseUrl || 'https://api.replicate.com').replace(/\/+$/, '');
     }
     name() { return 'replicate'; }
     defaultModels() { return ['stability-ai/sdxl', 'bytedance/animatediff']; }

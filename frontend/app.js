@@ -5872,6 +5872,11 @@ const app = {
             node.btManualChoices = document.getElementById('bt-manual-choices')?.value || '[]';
         }
 
+        // For invoke action, save invoke-specific fields
+        if (action === 'invoke') {
+            node.btWorkingDir = document.getElementById('bt-working-dir')?.value || '';
+        }
+
         // For processPrompt (no registry entry), always save recipe fields
         if (action === 'processPrompt') {
             node.btPrompt = document.getElementById('bt-node-prompt')?.value
@@ -5932,8 +5937,9 @@ const app = {
         const descriptionEl = document.getElementById('bt-action-description');
         const manualFields = document.getElementById('bt-manual-fields');
         const manualChoicesField = document.getElementById('bt-manual-choices-field');
+        const invokeFields = document.getElementById('bt-invoke-fields');
 
-        if (promptFields) promptFields.style.display = (isProcess || (fields.includes('prompt') && action !== 'manual')) ? 'block' : 'none';
+        if (promptFields) promptFields.style.display = (isProcess || (fields.includes('prompt') && action !== 'manual' && action !== 'invoke')) ? 'block' : 'none';
         if (localFileField) localFileField.style.display = fields.includes('localFilePath') ? 'block' : 'none';
         if (inputFields) inputFields.style.display = fields.includes('inputKey') ? 'flex' : 'none';
         if (inputTypeField) inputTypeField.style.display = (fields.includes('inputKey') && !config?.defaults?.inputType) ? 'block' : 'none';
@@ -5941,6 +5947,7 @@ const app = {
         if (outputTypeField) outputTypeField.style.display = (fields.includes('outputKey') && !config?.defaults?.outputType) ? 'block' : 'none';
         if (recipeSection) recipeSection.style.display = isProcess ? 'block' : 'none';
         if (manualFields) manualFields.style.display = action === 'manual' ? 'block' : 'none';
+        if (invokeFields) invokeFields.style.display = action === 'invoke' ? 'block' : 'none';
         if (descriptionEl) {
             descriptionEl.style.display = config?.description ? 'block' : 'none';
             if (config?.description) descriptionEl.textContent = config.description;
@@ -9346,8 +9353,9 @@ const app = {
                 <div class="bt-field bt-field-type" id="bt-input-type-field-top" style="display:${(fields.includes('inputKey') || isProcess) && !config?.defaults?.inputType ? 'block' : 'none'};flex:1">
                     <div class="bt-field-label">${this.t('Type')} (Input)</div>
                     <select id="bt-input-type" class="bt-type-select" ${this.state.selectedDataPath !== '' ? 'disabled' : ''}>
-                        <option value="text"  ${btInputType === 'text'  ? 'selected' : ''}>text</option>
-                        <option value="media" ${btInputType === 'media' ? 'selected' : ''}>media</option>
+                        <option value="text"    ${btInputType === 'text'    ? 'selected' : ''}>text</option>
+                        <option value="media"   ${btInputType === 'media'   ? 'selected' : ''}>media</option>
+                        <option value="filepath" ${btInputType === 'filepath' ? 'selected' : ''}>filepath</option>
                     </select>
                 </div>
                 <div class="bt-field bt-field-type" id="bt-output-type-field-top" style="display:${(isProcess || !config?.defaults?.outputType) ? 'block' : 'none'};flex:1">
@@ -9400,6 +9408,14 @@ const app = {
                 <div class="bt-field" id="bt-manual-choices-field" style="display:${btManualMode === 'choices' ? 'block' : 'none'}">
                     <div class="bt-field-label">Choices (JSON)</div>
                     <textarea id="bt-manual-choices" class="input-textarea" style="font-family:monospace;font-size:11px" placeholder='[{"label":"Option 1","action":"next"},{"label":"Option 2","action":"cancel"}]' ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>${this.escapeHtml(btManualChoices)}</textarea>
+                </div>
+            </div>
+
+            <!-- Invoke Command Fields -->
+            <div id="bt-invoke-fields" style="display:${btAction === 'invoke' ? 'block' : 'none'};margin-bottom:6px">
+                <div class="bt-field">
+                    <div class="bt-field-label">Working Directory</div>
+                    <input id="bt-working-dir" class="bt-key-input" value="${this.escapeHtml(node?.btWorkingDir || '')}" placeholder="/path/to/working/dir" ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>
                 </div>
             </div>
 

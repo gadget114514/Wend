@@ -3,7 +3,7 @@ const { httpRequest } = require('./utils');
 class OllamaProvider {
     constructor(apiKey, baseUrl) {
         this.apiKey = apiKey;
-        this.baseUrl = baseUrl || 'http://localhost:11434';
+        this.baseUrl = (baseUrl || 'http://localhost:11434').replace(/\/+$/, '');
     }
     name() { return 'ollama'; }
     defaultModels() { return ['llama3.2', 'mistral']; }

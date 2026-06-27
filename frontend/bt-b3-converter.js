@@ -149,6 +149,9 @@ class B3TreeConverter {
             if (promptsNode.btManualMode) properties.manualMode = promptsNode.btManualMode;
             if (promptsNode.btManualPrompt) properties.manualPrompt = promptsNode.btManualPrompt;
             if (promptsNode.btManualChoices) properties.manualChoices = promptsNode.btManualChoices;
+        } else if (promptsNode.btAction === 'invoke') {
+            // Preserve invoke action fields
+            if (promptsNode.btWorkingDir) properties.workingDir = promptsNode.btWorkingDir;
         } else if (nodeName.startsWith('Repeat')) {
             // Pre-composed decorator+composite: inherit repeater configuration
             if (promptsNode.btRepeatCount) {
@@ -285,6 +288,9 @@ class B3TreeConverter {
                 }
                 if (b3Node.properties.manualChoices) {
                     promptsNode.btManualChoices = b3Node.properties.manualChoices;
+                }
+                if (b3Node.properties.workingDir) {
+                    promptsNode.btWorkingDir = b3Node.properties.workingDir;
                 }
                 if (b3Node.properties.maxLoop) {
                     promptsNode.btRepeatCount = b3Node.properties.maxLoop.toString();

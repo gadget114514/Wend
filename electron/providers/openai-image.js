@@ -3,7 +3,7 @@ const { httpRequest } = require('./utils');
 class OpenAIImageProvider {
     constructor(apiKey, baseUrl) {
         this.apiKey = apiKey;
-        this.baseUrl = baseUrl || 'https://api.openai.com';
+        this.baseUrl = (baseUrl || 'https://api.openai.com').replace(/\/+$/, '');
     }
     name() { return 'openai-image'; }
     defaultModels() { return ['dall-e-3', 'dall-e-2']; }

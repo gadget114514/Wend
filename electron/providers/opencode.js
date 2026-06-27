@@ -3,7 +3,7 @@ const { httpRequest } = require('./utils');
 class OpenCodeProvider {
     constructor(apiKey, baseUrl) {
         this.apiKey = apiKey;
-        this.baseUrl = baseUrl || 'https://opencode.ai/zen/v1';
+        this.baseUrl = (baseUrl || 'https://opencode.ai/zen/v1').replace(/\/+$/, '');
     }
     name() { return 'opencode'; }
     defaultModels() { return ['gpt-5.5', 'gpt-5.5-pro', 'gpt-5.4', 'gpt-5.4-pro', 'glm-5.2', 'glm-5.1']; }

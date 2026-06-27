@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
+const net = require('net');
 
 const PORT = 8765;
 const MOCK_DIR = __dirname;
@@ -419,6 +420,31 @@ const server = http.createServer((req, res) => {
         // Default fallback
         res.writeHead(404, { 'Content-Type': 'text/plain' });
         res.end('Not Found');
+    });
+});
+
+server.on('connect', (req, clientSocket, head) => {
+    console.log(`[Mock Server Proxy CONNECT] ${req.url}`);
+    const parts = req.url.split(':');
+    const hostname = parts[0];
+    const port = parseInt(parts[1]) || 443;
+    
+    const serverSocket = net.connect(port, hostname, () => {
+        clientSocket.write('HTTP/1.1 200 Connection Established\r\n' +
+                            'Proxy-agent: Wend-Mock-Proxy\r\n' +
+                            '\r\n');
+        serverSocket.write(head);
+        serverSocket.pipe(clientSocket);
+        clientSocket.pipe(serverSocket);
+    });
+    
+    serverSocket.on('error', (err) => {
+        console.error(`[Mock Server Proxy CONNECT Error] ${err.message}`);
+        clientSocket.end('HTTP/1.1 500 Internal Server Error\r\n\r\n');
+    });
+    
+    clientSocket.on('error', () => {
+        serverSocket.end();
     });
 });
 

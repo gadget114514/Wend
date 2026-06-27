@@ -3,7 +3,7 @@ const { httpRequest } = require('./utils');
 class LMStudioProvider {
     constructor(apiKey, baseUrl) {
         this.apiKey = apiKey;
-        this.baseUrl = baseUrl || 'http://localhost:1234/v1';
+        this.baseUrl = (baseUrl || 'http://localhost:1234/v1').replace(/\/+$/, '');
     }
 
     name() { return 'lmstudio'; }
