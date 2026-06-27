@@ -47,7 +47,11 @@ const app = {
         maintainRecipe: '',
         logHttpHeaders: false,
         viewOnlyMode: false,
-        startMockServer: false
+        startMockServer: false,
+        proxyServer: '',
+        proxyMode: 'env',
+        envProxy: '',
+        proxyEnabled: true
     },
 
     init() {
@@ -63,6 +67,7 @@ const app = {
         this._taskMetricsInterval = null;  // Phase G: Task Manager auto-update timer
         this._taskMetrics = { activeCount: 0, queuedCount: 0, completedCount: 0, failedCount: 0, groups: {}, runs: {} };  // Task Manager state
         this._dirty = false;
+        this._pendingArtifactPreview = null;
         this.setupBridge();
         this.loadLanguage(this.state.language);
         this.setupHints();
@@ -163,6 +168,14 @@ const app = {
                         this.state.projectsRoot = msg.payload.config.projectsRoot;
                     if (msg.payload.config.projectsRootDefault !== undefined)
                         this.state.projectsRootDefault = msg.payload.config.projectsRootDefault;
+                    if (msg.payload.config.proxyServer !== undefined)
+                        this.state.proxyServer = msg.payload.config.proxyServer;
+                    if (msg.payload.config.proxyMode !== undefined)
+                        this.state.proxyMode = msg.payload.config.proxyMode;
+                    if (msg.payload.config.envProxy !== undefined)
+                        this.state.envProxy = msg.payload.config.envProxy;
+                    if (msg.payload.config.proxyEnabled !== undefined)
+                        this.state.proxyEnabled = msg.payload.config.proxyEnabled;
                 }
                 if (msg.payload.appIconDataUrl)
                     this.state.appIconDataUrl = msg.payload.appIconDataUrl;
@@ -250,6 +263,17 @@ const app = {
             case 'open_file_dialog_result':
                 this.onFileSelected(msg.payload);
                 break;
+            case 'read_artifact_file_result':
+                if (msg.payload && msg.payload.path) {
+                    if (msg.payload.error) {
+                        this.outputMessage(`Read artifact error: ${msg.payload.error}`);
+                    } else if (this._pendingArtifactPreview) {
+                        const a = this._pendingArtifactPreview;
+                        this._pendingArtifactPreview = null;
+                        this.showMediaViewerForArtifact(a, msg.payload);
+                    }
+                }
+                break;
             case 'file_dialog_result':
                 if (msg.payload && msg.payload.purpose === 'import_pipeline') {
                     this.onImportPipelineResult(msg.payload);
@@ -271,7 +295,8 @@ const app = {
                 this.onPipelineCompleted(msg.payload);
                 break;
             case 'manual_step_pause':
-                this.showManualStep(msg.payload);
+            case 'bt_manual_pause':
+                this.showManualStep(msg.payload, msg.type === 'bt_manual_pause');
                 break;
             case 'wizard_step_pause':
                 this.showPipelineWizardStep(msg.payload);
@@ -282,6 +307,9 @@ const app = {
                 if (msg.payload && typeof msg.payload === 'object' && msg.payload.hasOwnProperty('customMetadata') && msg.payload.hasOwnProperty('providers')) {
                     payloadProviders = msg.payload.providers;
                     customMetadata = msg.payload.customMetadata;
+                }
+                if (msg.payload && msg.payload.path) {
+                    this.state.providersPath = msg.payload.path;
                 }
                 this.state.providers = payloadProviders || {};
                 this.onProvidersResult(this.state.providers, customMetadata);
@@ -297,7 +325,10 @@ const app = {
                     this.state.providerModels[msg.payload.provider] = msg.payload.models;
                     // Update model inputs in Recipe Manager if open
                     if (document.getElementById('recipe-modal')?.classList.contains('visible')) {
-                        this.updateRecipeManagerModels(msg.payload.provider);
+                        this.updateRecipeManagerModels(msg.payload.provider, msg.payload.error);
+                    }
+                    if (msg.payload.error) {
+                        this.outputMessage(`Model list error for ${msg.payload.provider}: ${msg.payload.error}`);
                     }
                 }
                 break;
@@ -402,7 +433,20 @@ const app = {
             case 'chest_view':
                 if (!this._chestCache) this._chestCache = {};
                 if (msg.payload.content != null) this._chestCache[msg.payload.name] = msg.payload.content;
-                this.showChestContent(msg.payload.name, msg.payload.content);
+                if (this._chestManagerActiveEditing === msg.payload.name) {
+                    this.renderChestEditor(msg.payload.name, msg.payload.content, false);
+                } else {
+                    this.showChestContent(msg.payload.name, msg.payload.content);
+                }
+                break;
+            case 'chest_list_updated':
+                this.state.chestList = msg.payload.chestList || [];
+                if (document.getElementById('chest-modal')?.classList.contains('visible')) {
+                    this.renderChestManager();
+                }
+                if (document.getElementById('app-config-panel')?.classList.contains('visible')) {
+                    this.renderGeneralConfig();
+                }
                 break;
             case 'save_run_state':
                 this.postMessage({ type: 'save_run_state', payload: msg.payload });
@@ -1105,6 +1149,7 @@ const app = {
     },
     onPipelineCompleted(meta) {
         this.state.pipelineRun.running = false;
+        this.renderPrompt();
         this.outputMessage(`✅ Pipeline "${meta.pipelineName}" completed`);
 
         let handledByBt = false;
@@ -1353,7 +1398,10 @@ const app = {
         this.outputTrace(`▶ Reproducing pipeline "${pipelineName}"...`);
     },
 
-    showManualStep(payload) {
+    _manualStepIsBt: false,
+
+    showManualStep(payload, isBt = false) {
+        this._manualStepIsBt = isBt;
         const { index, mode, prompt, content, choices } = payload;
         const modal = document.getElementById('manual-modal');
         document.getElementById('manual-step-badge').textContent = `Step ${index + 1}`;
@@ -1391,7 +1439,7 @@ const app = {
             }</div>`;
             actions.innerHTML = `<button onclick="app.cancelManual()">Cancel</button>`;
 
-        } else if (mode === 'select') {
+        } else if (mode === 'select' || mode === 'choices') {
             document.getElementById('manual-title').textContent = this.t('Select');
             // Show content preview if any
             body.innerHTML = content
@@ -1415,21 +1463,25 @@ const app = {
 
     resumeManual(content) {
         document.getElementById('manual-modal').classList.remove('visible');
-        this.postMessage({ type: 'manual_step_resume', payload: { content: content ?? '' } });
+        const msgType = this._manualStepIsBt ? 'bt_manual_resume' : 'manual_step_resume';
+        this.postMessage({ type: msgType, payload: { result: content ?? '' } });
     },
 
     resumeManualChoice(choice) {
         document.getElementById('manual-modal').classList.remove('visible');
         if (choice.action === 'cancel') {
-            this.postMessage({ type: 'manual_step_cancel' });
+            const msgType = this._manualStepIsBt ? 'bt_manual_cancel' : 'manual_step_cancel';
+            this.postMessage({ type: msgType });
         } else {
-            this.postMessage({ type: 'manual_step_resume', payload: { content: choice.label, action: choice.action, gotoStep: choice.index } });
+            const msgType = this._manualStepIsBt ? 'bt_manual_resume' : 'manual_step_resume';
+            this.postMessage({ type: msgType, payload: { result: choice.label, action: choice.action, gotoStep: choice.index } });
         }
     },
 
     cancelManual() {
         document.getElementById('manual-modal').classList.remove('visible');
-        this.postMessage({ type: 'manual_step_cancel' });
+        const msgType = this._manualStepIsBt ? 'bt_manual_cancel' : 'manual_step_cancel';
+        this.postMessage({ type: msgType });
     },
 
     // ── Pipeline Wizard Step ──────────────────────────────────────
@@ -1804,7 +1856,12 @@ const app = {
         if (!panel) return;
         panel.classList.add('visible');
         this.initAppConfigDrag();
-        this.renderGeneralConfig();
+        const defaultTabBtn = panel.querySelector(`.config-tab[onclick*="'general'"]`);
+        if (defaultTabBtn) {
+            this.switchConfigTab('general', defaultTabBtn);
+        } else {
+            this.renderGeneralConfig();
+        }
         this.renderThemeConfig();
         this.loadExecutionConfig();
         this.outputDebug('⚙ Application Config opened');
@@ -1909,6 +1966,9 @@ const app = {
             theme: this.state.theme,
             customThemeColors: this.themes.custom.colors,
             startMockServer: this.state.startMockServer,
+            proxyServer: this.state.proxyServer,
+            proxyMode: this.state.proxyMode,
+            proxyEnabled: this.state.proxyEnabled,
         }});
         panel.classList.remove('visible');
     },
@@ -1928,6 +1988,9 @@ const app = {
             theme: this.state.theme,
             customThemeColors: this.themes.custom.colors,
             startMockServer: this.state.startMockServer,
+            proxyServer: this.state.proxyServer,
+            proxyMode: this.state.proxyMode,
+            proxyEnabled: this.state.proxyEnabled,
         }});
         panel.classList.remove('visible');
     },
@@ -1947,7 +2010,10 @@ const app = {
             theme: this.state.theme,
             customThemeColors: this.themes.custom.colors,
             logHttpHeaders: enabled,
-            startMockServer: this.state.startMockServer
+            startMockServer: this.state.startMockServer,
+            proxyServer: this.state.proxyServer,
+            proxyMode: this.state.proxyMode,
+            proxyEnabled: this.state.proxyEnabled,
         }});
     },
 
@@ -1961,8 +2027,36 @@ const app = {
             theme: this.state.theme,
             customThemeColors: this.themes.custom.colors,
             logHttpHeaders: this.state.logHttpHeaders,
-            startMockServer: enabled
+            startMockServer: enabled,
+            proxyServer: this.state.proxyServer,
+            proxyMode: this.state.proxyMode,
+            proxyEnabled: this.state.proxyEnabled,
         }});
+    },
+
+    setProxyServer(val) {
+        this.state.proxyServer = val;
+    },
+
+    setProxyMode(val) {
+        this.state.proxyMode = val;
+        this.renderProxyConfig();
+    },
+
+    setProxyEnabled(val) {
+        this.state.proxyEnabled = val;
+        this.renderProxyConfig();
+    },
+
+    showRecipeManagerError(msg) {
+        const el = document.getElementById('recipe-manager-error');
+        if (el) {
+            const msgEl = el.querySelector('.error-msg');
+            if (msgEl) msgEl.textContent = msg;
+            el.style.display = msg ? 'flex' : 'none';
+        } else if (msg) {
+            alert(msg);
+        }
     },
 
     testMaintainAI() {
@@ -2471,9 +2565,33 @@ const app = {
         const modal = document.getElementById('recipe-modal');
         if (!modal) return;
         modal.classList.add('visible');
+
+        const panel = modal.querySelector ? modal.querySelector('.recipe-modal-content') : null;
+        if (panel) {
+            panel.style.position = 'absolute';
+            if (!panel.style.width) {
+                panel.style.width = '850px';
+                panel.style.maxWidth = 'none';
+                panel.style.minWidth = 'none';
+            }
+            if (!panel.style.height) {
+                panel.style.height = '580px';
+            }
+            if (!panel.style.left || !panel.style.top) {
+                const parentRect = modal.getBoundingClientRect();
+                const w = parseInt(panel.style.width) || 850;
+                const h = parseInt(panel.style.height) || 580;
+                panel.style.left = Math.max(0, (parentRect.width - w) / 2) + 'px';
+                panel.style.top = Math.max(0, (parentRect.height - h) / 2) + 'px';
+            }
+        }
+
+        this.initRecipeManagerDragAndResize();
+
         this.postMessage({ type: 'get_providers' });
         this._selectedManagerProvider = this._selectedManagerProvider || 'all';
         this.state.editingRecipeIndex = -1;
+        this.showRecipeManagerError('');
         this.renderRecipeManager();
     },
 
@@ -2721,6 +2839,7 @@ const app = {
 
         // Verified badge (AI recipes only — command recipes have no test path).
         let verifiedBadge = '';
+        let verifiedDate = '';
         if (r.type !== 'command') {
             if (r.verified && r.verifiedModel && r.model && r.verifiedModel !== r.model) {
                 verifiedBadge = `<span class="recipe-verified-badge verified-warn" title="${this.escapeHtml(r.verifiedModel)}">⚠ ${this.t('RecipeVerifiedOldModel')}</span>`;
@@ -2728,6 +2847,15 @@ const app = {
                 verifiedBadge = `<span class="recipe-verified-badge verified-ok">✓ ${this.t('RecipeVerified')}</span>`;
             } else {
                 verifiedBadge = `<span class="recipe-verified-badge verified-none">${this.t('RecipeUnverified')}</span>`;
+            }
+
+            if (r.verified && r.verifiedAt) {
+                const d = new Date(r.verifiedAt);
+                if (!isNaN(d.getTime())) {
+                    const pad = n => String(n).padStart(2, '0');
+                    const formatted = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                    verifiedDate = `<span class="recipe-verified-date" title="${this.t('VerifiedDate')}">${formatted}</span>`;
+                }
             }
         }
 
@@ -2742,6 +2870,7 @@ const app = {
                 <div class="recipe-mgr-item-header">
                     <span class="recipe-mgr-item-name">${typeIcon} ${this.escapeHtml(r.name)}</span>
                     ${verifiedBadge}
+                    ${verifiedDate}
                     <span class="recipe-mgr-item-type-badge ${r.type === 'command' ? 'type-command' : 'type-ai'}">${r.type === 'command' ? '⚙️ CMD' : '🤖 AI'}</span>
                 </div>
                 <div class="recipe-mgr-item-detail">${detail}</div>
@@ -2949,13 +3078,48 @@ const app = {
         this.postMessage({ type: 'fetch_models', payload: { provider } });
     },
 
-    updateRecipeManagerModels(provider) {
+    updateRecipeManagerModels(provider, error) {
         if (!provider) return;
         const models = (this.state.providerModels || {})[provider] || [];
-        if (models.length === 0) return;
         for (const id of ['rm-model', 'edit-model']) {
-            const el = document.getElementById(id);
-            if (!el || el.tagName === 'SELECT') continue;
+            let el = document.getElementById(id);
+            if (!el) continue;
+            // Clear previous error styling
+            el.style.borderColor = '';
+            el.title = '';
+            // If it is already a <select> but we have an error, revert to <input>
+            if (error) {
+                if (el.tagName === 'SELECT') {
+                    const inp = document.createElement('input');
+                    inp.type = 'text';
+                    inp.id = id;
+                    inp.placeholder = 'Model';
+                    inp.className = el.className;
+                    inp.style.cssText = el.style.cssText;
+                    inp.style.borderColor = '#e74c3c';
+                    inp.title = error;
+                    el.parentNode.replaceChild(inp, el);
+                } else {
+                    el.placeholder = 'Model';
+                    el.style.borderColor = '#e74c3c';
+                    el.title = error;
+                }
+                continue;
+            }
+            if (models.length === 0) {
+                // No models available (no error either) — reset to text input
+                if (el.tagName === 'SELECT') {
+                    const inp = document.createElement('input');
+                    inp.type = 'text';
+                    inp.id = id;
+                    inp.placeholder = 'Model';
+                    inp.className = el.className;
+                    inp.style.cssText = el.style.cssText;
+                    el.parentNode.replaceChild(inp, el);
+                }
+                continue;
+            }
+            if (el.tagName === 'SELECT') continue;
             const currentVal = el.value;
             const opts = '<option value="">Select model...</option>' +
                 models.map(m => `<option value="${this.escapeHtml(m)}" ${m === currentVal ? 'selected' : ''}>${this.escapeHtml(m)}</option>`).join('');
@@ -2998,12 +3162,13 @@ const app = {
                 try {
                     customParams = JSON.parse(customParamsStr);
                 } catch (e) {
-                    alert(this.t('InvalidJSONCustomParams'));
+                    this.showRecipeManagerError(this.t('InvalidJSONCustomParams') || 'Invalid JSON in Custom Parameters');
                     return;
                 }
             }
             this.state.projectRecipes.push({ type, name, provider, model, usecase, temperature: temp, systemPrompt, baseUrl, useCustomApiPath, apiPath, apiType, command: '', customParams });
         }
+        this.showRecipeManagerError('');
         this.renderRecipeManager();
         this.saveProjectRecipes();
         this.outputMessage(`📋 Recipe added: ${name}`);
@@ -3029,7 +3194,7 @@ const app = {
         if (oldName !== name) {
             const nameConflict = recipes.some((r, i2) => i2 !== index && r.name === name);
             if (nameConflict) {
-                alert(`A recipe named "${name}" already exists.`);
+                this.showRecipeManagerError(`A recipe named "${name}" already exists.`);
                 return;
             }
             recipe.name = name;
@@ -3085,13 +3250,14 @@ const app = {
                 try {
                     customParams = JSON.parse(customParamsStr);
                 } catch (e) {
-                    alert(this.t('InvalidJSONCustomParams'));
+                    this.showRecipeManagerError(this.t('InvalidJSONCustomParams') || 'Invalid JSON in Custom Parameters');
                     return;
                 }
             }
             recipe.customParams = customParams;
         }
         this.state.editingRecipeIndex = -1;
+        this.showRecipeManagerError('');
         this.renderRecipeManager();
         this.renderPrompt();
         if (source === 'defaults') {
@@ -3161,13 +3327,136 @@ const app = {
         document.onmouseup = () => { dragging = false; };
     },
 
+    initRecipeManagerDragAndResize() {
+        if (this._recipeDragInitialized) return;
+
+        const modal = document.getElementById('recipe-modal');
+        if (!modal) return;
+        const panel = modal.querySelector ? modal.querySelector('.recipe-modal-content') : null;
+        const handle = modal.querySelector ? modal.querySelector('.recipe-modal-header') : null;
+        if (!panel || !handle) return;
+
+        this._recipeDragInitialized = true;
+
+        // Apply styles to header for grab cursor
+        handle.style.cursor = 'grab';
+
+        let dragging = false;
+        let resizing = false;
+        let resizeDir = ''; // 'r', 'b', 'se'
+
+        let startX, startY, origX, origY, origW, origH;
+
+        // Dragging mousedown
+        handle.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.modal-close') || e.target.closest('button') || e.target.closest('input') || e.target.closest('select')) {
+                return;
+            }
+            dragging = true;
+            handle.style.cursor = 'grabbing';
+            startX = e.clientX;
+            startY = e.clientY;
+            origX = panel.offsetLeft;
+            origY = panel.offsetTop;
+            
+            panel.style.left = origX + 'px';
+            panel.style.top = origY + 'px';
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+            
+            e.preventDefault();
+        });
+
+        // Helper to add resize listeners
+        const setupResizeHandle = (el, dir) => {
+            if (!el) return;
+            el.addEventListener('mousedown', (e) => {
+                resizing = true;
+                resizeDir = dir;
+                startX = e.clientX;
+                startY = e.clientY;
+                origW = panel.offsetWidth;
+                origH = panel.offsetHeight;
+                origX = panel.offsetLeft;
+                origY = panel.offsetTop;
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        };
+
+        let resizeR = panel.querySelector('.resize-r');
+        let resizeB = panel.querySelector('.resize-b');
+        let resizeSE = panel.querySelector('.resize-se');
+
+        setupResizeHandle(resizeR, 'r');
+        setupResizeHandle(resizeB, 'b');
+        setupResizeHandle(resizeSE, 'se');
+
+        document.addEventListener('mousemove', (e) => {
+            if (dragging) {
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                let newX = origX + dx;
+                let newY = origY + dy;
+
+                const parentRect = modal.getBoundingClientRect();
+                const panelRect = panel.getBoundingClientRect();
+                const minX = 0;
+                const maxX = parentRect.width - panelRect.width;
+                const minY = 0;
+                const maxY = parentRect.height - panelRect.height;
+
+                newX = Math.max(minX, Math.min(maxX, newX));
+                newY = Math.max(minY, Math.min(maxY, newY));
+
+                panel.style.left = newX + 'px';
+                panel.style.top = newY + 'px';
+            } else if (resizing) {
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+
+                const parentRect = modal.getBoundingClientRect();
+                const minW = 500;
+                const minH = 350;
+                const maxW = parentRect.width - origX;
+                const maxH = parentRect.height - origY;
+
+                if (resizeDir === 'r' || resizeDir === 'se') {
+                    let newW = origW + dx;
+                    newW = Math.max(minW, Math.min(maxW, newW));
+                    panel.style.width = newW + 'px';
+                    panel.style.maxWidth = 'none';
+                    panel.style.minWidth = 'none';
+                }
+                if (resizeDir === 'b' || resizeDir === 'se') {
+                    let newH = origH + dy;
+                    newH = Math.max(minH, Math.min(maxH, newH));
+                    panel.style.height = newH + 'px';
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (dragging) {
+                dragging = false;
+                handle.style.cursor = 'grab';
+            }
+            if (resizing) {
+                resizing = false;
+            }
+        });
+    },
+
     switchConfigTab(name, btn) {
-        document.querySelectorAll('.config-tab-panel').forEach(p => p.style.display = 'none');
-        document.querySelectorAll('.config-tab').forEach(b => b.classList.remove('active'));
-        document.getElementById('config-tab-' + name).style.display = '';
+        const container = btn.closest('.config-body') || document;
+        container.querySelectorAll('.config-tab-panel').forEach(p => p.style.display = 'none');
+        container.querySelectorAll('.config-tab').forEach(b => b.classList.remove('active'));
+        const target = container.querySelector('#config-tab-' + name) || document.getElementById('config-tab-' + name);
+        if (target) target.style.display = '';
         btn.classList.add('active');
         if (name === 'general') this.renderGeneralConfig();
         if (name === 'theme') this.renderThemeConfig();
+        if (name === 'proxy') this.renderProxyConfig();
     },
 
     renderGeneralConfig() {
@@ -3190,6 +3479,9 @@ const app = {
         // Projects root folder
         const projectsRootEl = document.getElementById('config-projects-root');
         if (projectsRootEl) projectsRootEl.value = this.state.projectsRoot || '';
+        // Proxy Server
+        const proxyServerEl = document.getElementById('config-proxy-server');
+        if (proxyServerEl) proxyServerEl.value = this.state.proxyServer || '';
         // Log HTTP headers
         const logHeadersEl = document.getElementById('config-log-http-headers');
         if (logHeadersEl) logHeadersEl.checked = this.state.logHttpHeaders || false;
@@ -3434,6 +3726,55 @@ const app = {
                 }
             } else {
                 customEl.style.display = 'none';
+            }
+        }
+    },
+
+    renderProxyConfig() {
+        const enabled = (this.state.proxyEnabled !== false);
+        const enabledCheckbox = document.getElementById('config-proxy-enabled');
+        if (enabledCheckbox) {
+            enabledCheckbox.checked = enabled;
+        }
+
+        const subContainer = document.getElementById('proxy-sub-options-container');
+        if (subContainer) {
+            subContainer.style.opacity = enabled ? '1' : '0.4';
+            subContainer.querySelectorAll('input').forEach(inp => {
+                inp.disabled = !enabled;
+            });
+        }
+
+        const mode = this.state.proxyMode || 'env';
+        const radios = document.getElementsByName('config-proxy-mode');
+        radios.forEach(r => {
+            if (enabled) {
+                r.checked = (r.value === mode);
+            }
+        });
+        
+        const proxyServerEl = document.getElementById('config-proxy-server');
+        if (proxyServerEl) {
+            proxyServerEl.value = this.state.proxyServer || '';
+            if (enabled) {
+                proxyServerEl.disabled = (mode === 'env');
+            }
+        }
+        
+        const manualContainer = document.getElementById('proxy-manual-input-container');
+        if (manualContainer) {
+            manualContainer.style.opacity = (!enabled || mode === 'env') ? '0.5' : '1';
+        }
+        
+        const envValEl = document.getElementById('config-proxy-env-val');
+        if (envValEl) {
+            const detected = this.state.envProxy || '';
+            if (detected) {
+                envValEl.textContent = detected;
+                envValEl.style.color = enabled ? 'var(--theme-accent, #007acc)' : '#888';
+            } else {
+                envValEl.textContent = this.t('ProxyEnvNone') || 'None';
+                envValEl.style.color = '#888';
             }
         }
     },
@@ -3819,40 +4160,131 @@ const app = {
         alert(`📦 Chest: ${name}\n\n${preview}`);
     },
 
+    editChestFromManager(name) {
+        this._chestManagerActiveEditing = name;
+        this.viewChest(name);
+    },
+
+    showCreateChestForm() {
+        this._chestManagerActiveEditing = '';
+        this.renderChestEditor('', '', true);
+    },
+
+    renderChestEditor(name, content, isNew) {
+        const body = document.getElementById('chest-modal-body');
+        if (!body) return;
+        const title = isNew ? 'Create New Chest' : 'Edit Chest';
+        body.innerHTML = `
+            <div class="chest-editor" style="padding: 4px;">
+                <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 13px; color: var(--theme-text); border-bottom: 1px solid var(--theme-border); padding-bottom: 6px;">📦 ${title}</h3>
+                <div style="margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px;">
+                    <label style="font-size: 11px; font-weight: bold; color: var(--theme-text2);">Chest Name</label>
+                    <input type="text" id="chest-edit-name" value="${this.escapeHtml(name)}" placeholder="my-data" style="background: var(--theme-bg); border: 1px solid var(--theme-border); color: var(--theme-text); padding: 6px; font-size: 12px; border-radius: 4px;">
+                </div>
+                <div style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px;">
+                    <label style="font-size: 11px; font-weight: bold; color: var(--theme-text2);">Content</label>
+                    <textarea id="chest-edit-content" style="width: 100%; height: 180px; background: var(--theme-bg); border: 1px solid var(--theme-border); color: var(--theme-text); padding: 8px; font-size: 12px; font-family: monospace; border-radius: 4px; resize: vertical; box-sizing: border-box;">${this.escapeHtml(content)}</textarea>
+                </div>
+                <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                    <button class="btn-primary" onclick="app.saveChestFromEditor('${this.escapeHtml(name)}', ${isNew})" style="padding: 4px 12px; font-size: 11px;">Save</button>
+                    <button class="btn" onclick="app.renderChestManager()" style="padding: 4px 12px; font-size: 11px;">Cancel</button>
+                </div>
+            </div>
+        `;
+    },
+
+    saveChestFromEditor(oldName, isNew) {
+        const nameInput = document.getElementById('chest-edit-name');
+        const contentInput = document.getElementById('chest-edit-content');
+        if (!nameInput || !contentInput) return;
+        const newName = nameInput.value.trim();
+        const content = contentInput.value;
+        if (!newName) {
+            alert('Chest name cannot be empty');
+            return;
+        }
+        if (isNew) {
+            this.postMessage({ type: 'send_to_chest', payload: { chestName: newName, content } });
+            if (!this.state.chestList) this.state.chestList = [];
+            if (!this.state.chestList.includes(newName)) this.state.chestList.push(newName);
+            this.outputMessage(`📦 Created chest "${newName}"`);
+        } else {
+            if (oldName !== newName) {
+                this.postMessage({ type: 'rename_chest', payload: { oldName, newName } });
+                this.postMessage({ type: 'send_to_chest', payload: { chestName: newName, content } });
+                if (this.state.chestList) {
+                    const idx = this.state.chestList.indexOf(oldName);
+                    if (idx >= 0) this.state.chestList[idx] = newName;
+                    else if (!this.state.chestList.includes(newName)) this.state.chestList.push(newName);
+                }
+                this.outputMessage(`📦 Renamed chest "${oldName}" to "${newName}" and saved changes`);
+            } else {
+                this.postMessage({ type: 'send_to_chest', payload: { chestName: newName, content } });
+                this.outputMessage(`📦 Saved changes to chest "${newName}"`);
+            }
+        }
+        if (!this._chestCache) this._chestCache = {};
+        this._chestCache[newName] = content;
+        if (oldName !== newName && oldName) {
+            delete this._chestCache[oldName];
+        }
+        this.renderChestManager();
+    },
+
     deleteChest(name) {
-        this.outputMessage(`🗑 Chest "${name}" will be deleted on next GC`);
+        if (!confirm(`Delete chest "${name}" permanently?`)) return;
+        this.postMessage({ type: 'delete_chest', payload: { chestName: name } });
+        if (this.state.chestList) {
+            this.state.chestList = this.state.chestList.filter(n => n !== name);
+        }
+        if (this._chestCache) {
+            delete this._chestCache[name];
+        }
+        this.renderChestManager();
+        this.outputMessage(`🗑 Chest "${name}" deleted`);
     },
 
     showChestManager() {
         const modal = document.getElementById('chest-modal');
         if (!modal) return;
         modal.classList.add('visible');
+        this._chestManagerActiveEditing = '';
         this.renderChestManager();
     },
 
     closeChestManager() {
         const modal = document.getElementById('chest-modal');
         if (modal) modal.classList.remove('visible');
+        this._chestManagerActiveEditing = '';
     },
 
     renderChestManager() {
         const body = document.getElementById('chest-modal-body');
         if (!body) return;
+        this._chestManagerActiveEditing = '';
         const chestNames = this.state.chestList || [];
+        
+        let html = `
+            <div style="margin-bottom: 12px; display: flex; justify-content: flex-end;">
+                <button class="btn-primary" onclick="app.showCreateChestForm()" style="font-size: 11px; padding: 4px 10px;">➕ New Chest</button>
+            </div>
+        `;
+        
         if (chestNames.length === 0) {
-            body.innerHTML = '<div class="chest-empty">No chests yet. Send output to a chest to create one.</div>';
+            html += '<div class="chest-empty">No chests yet. Send output to a chest or click "New Chest" to create one.</div>';
         } else {
-            body.innerHTML = chestNames.map(n =>
+            html += chestNames.map(n =>
                 `<div class="chest-mgr-item">
                     <span class="chest-mgr-name">📦 ${this.escapeHtml(n)}</span>
                     <div class="chest-mgr-actions">
-                        <button class="chest-view-btn" onclick="app.viewChest('${this.escapeHtml(n)}')">👁 View</button>
+                        <button class="chest-view-btn" onclick="app.editChestFromManager('${this.escapeHtml(n)}')">✏️ Edit</button>
                         <button class="chest-load-btn" onclick="app.loadFromChestConfig('${this.escapeHtml(n)}')">📂 Load</button>
                         <button class="chest-delete-btn" onclick="app.deleteChest('${this.escapeHtml(n)}')">✕</button>
                     </div>
                 </div>`
             ).join('');
         }
+        body.innerHTML = html;
     },
 
     clearStorageChest() {
@@ -3878,6 +4310,16 @@ const app = {
         }
         const list = document.getElementById('provider-list');
         if (!list) return;
+
+        const pathEl = document.getElementById('config-providers-path');
+        if (pathEl) {
+            if (this.state.providersPath) {
+                pathEl.style.display = 'block';
+                pathEl.innerHTML = `📁 <b>Data Path:</b> <span style="user-select: text; font-family: monospace; font-size: 10px;">${this.escapeHtml(this.state.providersPath)}</span>`;
+            } else {
+                pathEl.style.display = 'none';
+            }
+        }
 
         let formats = (this.state.defaultProviders || []).filter(p => !['mock','mock-http'].includes(p.id)).map(p => ({ id: p.id, label: p.formatLabel || p.label }));
 
@@ -4554,10 +4996,12 @@ const app = {
         const isAssemble = !isRoot && !isProcessed && !isData && node.nodeType === 'assemble';
         const dataMediaType = isData ? this._getDataNodeMediaType(node) : '';
         const dataIcon = isData
-            ? dataMediaType === 'image' ? '<span class="bt-icon bt-icon-data-image">🖼️</span>'
-            : dataMediaType === 'audio' ? '<span class="bt-icon bt-icon-data-audio">🎵</span>'
-            : dataMediaType === 'video' ? '<span class="bt-icon bt-icon-data-video">🎬</span>'
-            : '<span class="bt-icon bt-icon-data">📄</span>'
+            ? node._pending
+                ? '<span class="bt-icon bt-icon-data-pending">⏳</span>'
+                : dataMediaType === 'image' ? '<span class="bt-icon bt-icon-data-image">🖼️</span>'
+                : dataMediaType === 'audio' ? '<span class="bt-icon bt-icon-data-audio">🎵</span>'
+                : dataMediaType === 'video' ? '<span class="bt-icon bt-icon-data-video">🎬</span>'
+                : '<span class="bt-icon bt-icon-data">📄</span>'
             : '';
         const btIcon = isRoot
             ? '<span class="bt-icon bt-icon-root">🏠</span>' + typeIcon + (this._bt && this._bt.getConfig().mode === 'cycle' ? '<span class="bt-icon bt-icon-cycle">🔄</span>' : '')
@@ -4749,12 +5193,13 @@ const app = {
             console.error('[OutputCtxMenu] Menu element not found');
             return;
         }
-        const index = parseInt(element.dataset.artifactIndex);
-        const artifact = this._renderedArtifacts && this._renderedArtifacts[index];
+        const artId = element.dataset.artifactId;
+        const artifact = this._artifactsMap && this._artifactsMap[artId];
         if (!artifact) {
-            console.error('[OutputCtxMenu] Artifact not found at index:', index);
+            console.error('[OutputCtxMenu] Artifact not found for id:', artId);
             return;
         }
+        this._contextMenuArtifact = artifact;
         const fullPath = artifact.path ? this.getFileFullPath(artifact.path) : '';
         const label = artifact.file || artifact.label || (fullPath ? fullPath.split(/[/\\]/).pop() : 'artifact');
         console.log('[OutputCtxMenu] Path:', fullPath, 'Label:', label);
@@ -4767,10 +5212,7 @@ const app = {
             items += `<div class="ctx-item" style="color:#888;font-size:10px;cursor:default;max-width:300px;overflow:hidden;text-overflow:ellipsis;user-select:text;pointer-events:none;padding-bottom:4px;border-bottom:1px solid var(--theme-border)" title="${this.escapeHtml(label)}">${this.escapeHtml(label)}</div>`;
         }
         items += `<div class="ctx-sep"></div>`;
-        
-        const exportPayload = { path: fullPath, content: artifact.content || '', file: label };
-        const payloadStr = JSON.stringify(exportPayload).replace(/'/g, "\\'");
-        items += `<div class="ctx-item" onclick="app.exportArtifact(${payloadStr});app.hideOutputContextMenu()">📤 ${this.t('ExportArtifact') || 'Export Artifact'}</div>`;
+        items += `<div class="ctx-item" onclick="app.exportActiveArtifact();app.hideOutputContextMenu()">📤 ${this.t('ExportArtifact') || 'Export Artifact'}</div>`;
 
         menu.innerHTML = items;
         menu.style.display = 'block';
@@ -5303,6 +5745,9 @@ const app = {
         this.renderTree();
         this.markDirty();
         this.outputDebug(`🌳 ${this.t('BTTypeSetTo').replace('{type}', btType)}`);
+        if (path === this.state.currentNodePath) {
+            this.loadEditor(path);
+        }
     },
 
     treeCtxSetCustomBtType(path) {
@@ -5419,6 +5864,14 @@ const app = {
         node.btLocalFilePath = fields.includes('localFilePath') && document.getElementById('bt-local-file-path')
             ? document.getElementById('bt-local-file-path').value.trim() : node.btLocalFilePath || '';
 
+        // For manual action, save manual-specific fields
+        if (action === 'manual') {
+            node.btManualMode = document.getElementById('bt-manual-mode')?.value || 'view';
+            node.btManualPrompt = document.getElementById('bt-manual-prompt')?.value
+                ? btoa(document.getElementById('bt-manual-prompt').value) : '';
+            node.btManualChoices = document.getElementById('bt-manual-choices')?.value || '[]';
+        }
+
         // For processPrompt (no registry entry), always save recipe fields
         if (action === 'processPrompt') {
             node.btPrompt = document.getElementById('bt-node-prompt')?.value
@@ -5477,17 +5930,32 @@ const app = {
         const outputTypeField = document.getElementById('bt-output-type-field');
         const recipeSection = document.getElementById('bt-recipe-section');
         const descriptionEl = document.getElementById('bt-action-description');
+        const manualFields = document.getElementById('bt-manual-fields');
+        const manualChoicesField = document.getElementById('bt-manual-choices-field');
 
-        if (promptFields) promptFields.style.display = (isProcess || fields.includes('prompt')) ? 'block' : 'none';
+        if (promptFields) promptFields.style.display = (isProcess || (fields.includes('prompt') && action !== 'manual')) ? 'block' : 'none';
         if (localFileField) localFileField.style.display = fields.includes('localFilePath') ? 'block' : 'none';
         if (inputFields) inputFields.style.display = fields.includes('inputKey') ? 'flex' : 'none';
         if (inputTypeField) inputTypeField.style.display = (fields.includes('inputKey') && !config?.defaults?.inputType) ? 'block' : 'none';
         if (outputFields) outputFields.style.display = fields.includes('outputKey') ? 'flex' : 'none';
         if (outputTypeField) outputTypeField.style.display = (fields.includes('outputKey') && !config?.defaults?.outputType) ? 'block' : 'none';
         if (recipeSection) recipeSection.style.display = isProcess ? 'block' : 'none';
+        if (manualFields) manualFields.style.display = action === 'manual' ? 'block' : 'none';
         if (descriptionEl) {
             descriptionEl.style.display = config?.description ? 'block' : 'none';
             if (config?.description) descriptionEl.textContent = config.description;
+        }
+
+        // Update manual choices visibility if mode changes
+        if (action === 'manual') {
+            const modeSelect = document.getElementById('bt-manual-mode');
+            if (modeSelect) {
+                modeSelect.addEventListener('change', () => {
+                    if (manualChoicesField) {
+                        manualChoicesField.style.display = modeSelect.value === 'choices' ? 'block' : 'none';
+                    }
+                });
+            }
         }
 
         this._applyActionDefaults(action);
@@ -5822,6 +6290,9 @@ const app = {
                 this.state.selectedOpPath = '';
                 this.state.selectedDataPath = '';
                 this.state.selectedDataPaths = [];
+                if (isRoot) {
+                    this.flushDirty();
+                }
             } else if (this.isDataNodePath(path)) {
                 if (event && event.shiftKey) {
                     const idx = this.state.selectedDataPaths.indexOf(path);
@@ -6059,10 +6530,45 @@ const app = {
         }).join('');
     },
 
+    _getPromptFromDataNode(dataNode) {
+        if (!dataNode) return '';
+        if (dataNode.originalOpNode && dataNode.originalOpNode.content) {
+            try { return atob(dataNode.originalOpNode.content); } catch { return dataNode.originalOpNode.content; }
+        }
+        // Fallback: try to extract from pipelineMeta steps
+        if (dataNode.pipelineMeta) {
+            try {
+                const meta = JSON.parse(dataNode.pipelineMeta);
+                if (meta && meta.steps && meta.steps.length > 0) {
+                    const step = meta.steps[0];
+                    if (step.requestBody) {
+                        try {
+                            const req = typeof step.requestBody === 'string' ? JSON.parse(step.requestBody) : step.requestBody;
+                            if (req && req.userPrompt) {
+                                return req.userPrompt;
+                            }
+                        } catch {}
+                    }
+                }
+            } catch {}
+        }
+        return '';
+    },
+
     updateNode() {
         const nodePath = this.state.selectedDataPath || this.state.selectedOpPath || this.state.currentNodePath;
         const node = this.getNodeByPath(nodePath);
         if (!node) return;
+
+        if (this.state.selectedDataPath !== '') {
+            const title = document.getElementById('node-title');
+            if (title) node.title = this.safeB64(title.value);
+            this.renderTree();
+            this.renderList();
+            this.flushDirty();
+            return;
+        }
+
         const title = document.getElementById('node-title');
         const content = document.getElementById('node-content');
         if (title) node.title = this.safeB64(title.value);
@@ -6097,11 +6603,7 @@ const app = {
 
         this.renderTree();
         this.renderList();
-        const tab = this.state.tabs[this.state.activeTab];
-        if (tab && tab.file && tab.root) {
-            this.postMessage({ type: 'save_node', payload: { tabFile: tab.file, root: tab.root } });
-        }
-        this.outputDebug('💾 ' + this.t('NodeUpdated'));
+        this.flushDirty();
     },
 
     processPrompt() {
@@ -6192,6 +6694,7 @@ const app = {
 
                 this.postMessage({ type: 'run_command_recipe', payload: cmdPayload });
                 this.state.pipelineRun.running = true;
+                this.renderPrompt();
                 this.outputMessage(`▶ ${recipe.name || 'Command'}: ${recipe.command} ${recipe.options || ''}`.trim());
 
                 const opPath = this.getLogicalOpPath(this.state.currentNodePath);
@@ -6261,6 +6764,7 @@ const app = {
                 payload,
             });
             this.state.pipelineRun.running = true;
+            this.renderPrompt();
             this.outputMessage(`▶ ${this.t('ProcessingPrompt').replace('{provider}', recipe.provider).replace('{model}', recipe.model || '(default)')}`);
             // After execution starts, attachments are saved to pending node (input is retained)
             const pendingInputFiles = node.tempInputAttachments ? node.tempInputAttachments.files : (node.inputAttachments || []);
@@ -6355,8 +6859,12 @@ const app = {
         if (!node) return;
         if (!node.children) node.children = [];
         node.children.push({ title: '', content: '', mimetype: 'text/plain', attachments: [], children: [], nodeType: 'assemble' });
+        this.state.collapsedPaths.delete(this.state.currentNodePath);
+        this.state.currentNodePath = this.state.currentNodePath + '/' + (node.children.length - 1);
         this.renderTree();
         this.renderList();
+        this.loadEditor(this.state.currentNodePath);
+        this.markDirty();
         this.outputMessage('➕ ' + this.t('ChildAdded'));
     },
 
@@ -6493,6 +7001,7 @@ const app = {
     cancelPipeline() {
         this.postMessage({ type: 'cancel_pipeline' });
         this.state.pipelineRun.running = false;
+        this.renderPrompt();
         this.outputMessage('✕ ' + this.t('PipelineCanceled'));
     },
 
@@ -6696,6 +7205,7 @@ const app = {
         this.outputMessage(`Pipeline Error\nOperation: showError\nError: ${msg}\nAction: Review the error details and check provider/recipe configuration`);
         this._stopRunTimer();
         this.state.pipelineRun.running = false;
+        this.renderPrompt();
         const si = this.state.pipelineRun.selectedStep;
         const step = this.state.pipelineRun.steps[si];
         if (step) {
@@ -6970,7 +7480,10 @@ const app = {
     onStepDone(payload) {
         this.outputMessage(`✅ Step ${payload.index} done` + (payload.tokens ? ` (${payload.tokens} tokens)` : ''));
         this._stopRunTimer();
-        if (payload.status === 'completed') this.state.pipelineRun.running = false;
+        if (payload.status === 'completed') {
+            this.state.pipelineRun.running = false;
+            this.renderPrompt();
+        }
         // Store outputAttachments so next step's input pane can show them
         if (this.state.pipelineRun.steps.length > 0) {
             const step = this.state.pipelineRun.steps[payload.index];
@@ -8345,6 +8858,12 @@ const app = {
             return;
         }
 
+        if (this.isParentOrRootNode(node)) {
+            const isJa = (this.localization?.lang === 'ja');
+            inputEl.innerHTML = `<div class="empty">${isJa ? '制御・デコレーターノードは入力を受け付けません。' : 'Control / Decorator nodes do not accept input.'}</div>`;
+            return;
+        }
+
         const getRunResults = (opNode) => {
             if (!opNode || !opNode.children) return [];
             const container = this._dataContainer(opNode);
@@ -8352,6 +8871,8 @@ const app = {
         };
         const selectedDataPath = this.state.selectedDataPath;
         const selectedOpPath = this.state.selectedOpPath;
+
+        let inputData = undefined;
 
         if (selectedDataPath !== '') {
             // View mode (data node only selected): show text used for sending
@@ -8366,9 +8887,7 @@ const app = {
                     }
                 } catch(e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: renderInput\nData Node: ${dataNode.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); }
             }
-            if (!inputData && dataNode && dataNode.content) {
-                try { inputData = atob(dataNode.content); } catch { inputData = dataNode.content; }
-            }
+            inputData = inputData || '';
             const dataAttachments = dataNode ? (dataNode.inputAttachments || []) : [];
             const t = key => this.t(key);
             inputEl.innerHTML = `
@@ -8557,10 +9076,58 @@ const app = {
         } catch (e) { this.outputMessage('⚠ Failed to save pipeline step attachments: ' + (e.message || '')); }
     },
 
+    getBtTypeDescription(btType) {
+        if (!btType) return '';
+        const isJa = (this.localization?.lang === 'ja');
+        const descMap = isJa ? {
+            'sequence': 'Sequence（シーケンス）: 子ノードを左から右へ順に実行します。すべての子ノードが成功した場合のみ成功し、いずれかが失敗すると即座に失敗します。',
+            'selector': 'Selector（セレクター）: 子ノードを左から右へ順に実行します。いずれか1つの子ノードが成功すると即座に成功し、すべての子ノードが失敗した場合のみ失敗します。',
+            'parallel': 'Parallel（パラレル）: すべての子ノードを同時に並行実行します。すべて成功すれば成功、いずれかが失敗すれば失敗します。',
+            'memSequence': 'MemSequence（メモリシーケンス）: 実行状態を記憶するシーケンスです。前回「実行中」だった子ノードから再開します。',
+            'memSelector': 'MemSelector（メモリセレクター）: 実行状態を記憶するセレクターです。前回「実行中」だった子ノードから再開します。',
+            'invert': 'Invert（反転）: 子ノードの実行結果（成功/失敗）を反転させます。',
+            'repeater': 'Repeater（反復）: 子ノードを指定回数、または無限に繰り返し実行します。',
+            'retry': 'Retry（リトライ）: 子ノードが失敗した場合に、指定回数まで再試行します。',
+            'alwaysSucceed': 'AlwaysSucceed（常時成功）: 子ノードの結果に関わらず、常に成功を返します。',
+            'alwaysFail': 'AlwaysFail（常時失敗）: 子ノードの結果に関わらず、常に失敗を返します。',
+            'guard': 'Guard（ガード）: ブラックボードの変数の状態に基づいて、子ノードを実行するか判定します。',
+            'delay': 'Delay（遅延）: 子ノードの実行を指定時間だけ遅延させます。',
+            'maxTime': 'MaxTime（タイムアウト）: 子ノードの実行に制限時間を設けます。'
+        } : {
+            'sequence': 'Sequence: Executes child nodes sequentially from left to right. Succeeds only if all children succeed; fails immediately if any child fails.',
+            'selector': 'Selector: Executes child nodes sequentially from left to right. Succeeds as soon as one child succeeds; fails only if all children fail.',
+            'parallel': 'Parallel: Executes all child nodes concurrently. Succeeds if all children succeed; fails if any child fails.',
+            'memSequence': 'MemSequence: Sequence with memory. Resumes execution from the last running child instead of restarting from the first.',
+            'memSelector': 'MemSelector: Selector with memory. Resumes execution from the last running child instead of restarting from the first.',
+            'invert': 'Invert (Decorator): Negates the success/failure result of the child node.',
+            'repeater': 'Repeater (Decorator): Repeatedly executes the child node a specified number of times or infinitely.',
+            'retry': 'Retry (Decorator): Retries executing the child node if it fails, up to a specified limit.',
+            'alwaysSucceed': 'AlwaysSucceed (Decorator): Always returns success regardless of the child node\'s actual result.',
+            'alwaysFail': 'AlwaysFail (Decorator): Always returns failure regardless of the child node\'s actual result.',
+            'guard': 'Guard (Decorator): Conditional execution guard based on a blackboard variable state.',
+            'delay': 'Delay (Decorator): Delays execution of the child node by a specified duration.',
+            'maxTime': 'MaxTime (Decorator): Sets a maximum execution time limit for the child node.'
+        };
+
+        if (btType.includes('+')) {
+            const parts = btType.split('+');
+            const comp = parts[parts.length - 1];
+            const decos = parts.slice(0, -1);
+            const decosStr = decos.map(d => descMap[d] || d).join(', ');
+            const compStr = descMap[comp] || comp;
+            return isJa 
+                ? `デコレーター（${decosStr}）が適用された複合ノードです。\nベース動作: ${compStr}`
+                : `Composite node with Decorator(s) (${decosStr}) applied.\nBase behavior: ${compStr}`;
+        }
+
+        return descMap[btType] || `Custom BT Type: ${btType}`;
+    },
+
     renderPrompt() {
         const promptEl = document.getElementById('prompt-content');
         if (!promptEl) return;
         const t = key => this.t(key);
+        const isJa = (this.localization?.lang === 'ja');
 
         if (this.state.viewMode === 'pipeline') {
             this.renderPipelinePrompt(promptEl);
@@ -8572,25 +9139,40 @@ const app = {
             return;
         }
 
-        // If the selected node is a data/leaf node, show the parent operation node's prompt
-        const promptNodePath = this.state.selectedOpPath || this.state.currentNodePath;
-        let node = this.getNodeByPath(promptNodePath);
-        if (node && node.nodeType === 'data' && node.originalOpNode) {
-            node = node.originalOpNode;
-        }
-        if (!node || (node.nodeType === 'data')) {
-            const opPath = this.getLogicalOpPath(this.state.selectedDataPath || promptNodePath);
-            if (opPath) {
-                node = this.getNodeByPath(opPath);
+        let node = null;
+        let promptText = '';
+        let dataNode = null;
+        if (this.state.selectedDataPath !== '') {
+            dataNode = this.getNodeByPath(this.state.selectedDataPath);
+            if (dataNode) {
+                node = dataNode.originalOpNode || {
+                    nodeType: 'assemble',
+                    selectedRecipe: dataNode.selectedRecipe || '',
+                    btAction: 'processPrompt'
+                };
+                promptText = this._getPromptFromDataNode(dataNode);
+            }
+        } else {
+            const promptNodePath = this.state.selectedOpPath || this.state.currentNodePath;
+            node = this.getNodeByPath(promptNodePath);
+            if (node && node.nodeType === 'data' && node.originalOpNode) {
+                node = node.originalOpNode;
+            }
+            if (!node || (node.nodeType === 'data')) {
+                const opPath = this.getLogicalOpPath(promptNodePath);
+                if (opPath) {
+                    node = this.getNodeByPath(opPath);
+                }
+            }
+            if (node) {
+                promptText = node.content ? (() => { try { return atob(node.content); } catch { return node.content; } })() : '';
             }
         }
+
         if (!node) {
             promptEl.innerHTML = `<div class="empty">${t('EmptyNode')}</div>`;
             return;
         }
-
-        // Prompt text
-        const promptText = node.content ? (() => { try { return atob(node.content); } catch { return node.content; } })() : '';
 
         let meta = {};
         if (node.pipelineMeta) {
@@ -8605,13 +9187,13 @@ const app = {
         const recipeHtml = `<div id="bt-recipe-section" style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
             <span style="font-size:10px;color:#888;flex-shrink:0">${this.t('Recipe')}</span>
             <span style="flex:1;font-size:11px;color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${selIcon} ${selLabel}</span>
-            <button class="copy-btn" onclick="app.showRecipeSelectDialog()" ${this.state.viewOnlyMode ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''} style="font-size:10px;padding:2px 8px;flex-shrink:0">${this.t('SelectRecipe')}</button>
+            <button class="copy-btn" onclick="app.showRecipeSelectDialog()" ${this.state.viewOnlyMode || this.state.selectedDataPath !== '' ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''} style="font-size:10px;padding:2px 8px;flex-shrink:0">${this.t('SelectRecipe')}</button>
         </div>`;
 
         // Machine-level attachments (node.attachments = images/audio/video for prompt context)
-        const machineAttachments = node.attachments || [];
+        const machineAttachments = node.attachments || (dataNode ? (dataNode.inputAttachments || []) : []);
         const machineAttachHtml = machineAttachments.length > 0
-            ? `<div class="attach-thumb-row">${machineAttachments.map((a, i) => this._attachmentItemHtml(a, i, { removeCallback: 'app.removeMachineAttachment' })).join('')}</div>`
+            ? `<div class="attach-thumb-row">${machineAttachments.map((a, i) => this._attachmentItemHtml(a, i, this.state.selectedDataPath !== '' ? {} : { removeCallback: 'app.removeMachineAttachment' })).join('')}</div>`
             : `<div style="font-size:11px;color:#666;padding:4px">(none)</div>`;
 
         // Get values for BT config fields
@@ -8624,7 +9206,12 @@ const app = {
         const btOutputType = node.btOutputType || 'text';
         const btAction = node.btAction || 'processPrompt';
         const btLocalFilePath = node.btLocalFilePath || '';
-        const hasBtConfig = !!(btPromptText || btInputKey || btOutputKey || btAction !== 'processPrompt');
+        const btManualMode = node.btManualMode || 'view';
+        const btManualPrompt = node.btManualPrompt
+            ? (() => { try { return atob(node.btManualPrompt); } catch { return node.btManualPrompt; } })()
+            : '';
+        const btManualChoices = node.btManualChoices || '[]';
+        const hasBtConfig = !!(btPromptText || btInputKey || btOutputKey || btAction !== 'processPrompt' || btManualMode !== 'view' || btManualPrompt || btManualChoices !== '[]');
 
         // Build dropdown options from registry
         let actionOptions = `<option value="processPrompt" ${btAction === 'processPrompt' ? 'selected' : ''}>Process Prompt</option>`;
@@ -8639,27 +9226,112 @@ const app = {
         const config = !isProcess ? window.btActions?.get(btAction) : null;
         const description = config?.description || '';
 
-        promptEl.innerHTML = `
-            ${!this.state.viewOnlyMode ? `<button class="btn-primary prompt-editor-process-btn" onclick="app.processPrompt()" style="width:100%;padding:4px;font-size:11px;margin-bottom:6px">▶ ${this.t('Process')}</button>` : ''}
+        const isControlNode = this.isParentOrRootNode(node);
+
+        if (isControlNode) {
+            const btTypeStr = node.btType || (node.nodeType === 'root' ? 'sequence' : '');
+            const typeLabel = isJa ? '制御・デコレーターノード' : 'Control / Decorator Node';
+            promptEl.innerHTML = `
+                <div style="margin-bottom:12px">
+                    <div style="font-size:10px;color:#888;margin-bottom:4px">${typeLabel}</div>
+                    <div style="font-size:14px;font-weight:bold;color:var(--theme-accent, #007acc);margin-bottom:8px">
+                        🌳 ${this.escapeHtml(btTypeStr.toUpperCase())}
+                    </div>
+                    <div style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:10px; font-size:11px; line-height:1.4; color:#ccc; white-space:pre-wrap;">${this.escapeHtml(this.getBtTypeDescription(btTypeStr))}</div>
+                </div>
+                <details class="bt-node-accordion" open>
+                    <summary class="bt-node-accordion-summary">🌳 ${this.t('BTSettings')}</summary>
+                    <div class="bt-node-accordion-body">
+                        <div class="bt-field">
+                            <div class="bt-field-label">${this.t('BTAction')}</div>
+                            <select id="bt-action" class="bt-type-select" onchange="app.onBtActionChange()">
+                                ${actionOptions}
+                            </select>
+                        </div>
+                        <div id="bt-action-description" style="display:${description ? 'block' : 'none'};font-size:10px;color:#888;margin:4px 0">${this.escapeHtml(description)}</div>
+                        <div id="bt-local-file-field" style="display:${fields.includes('localFilePath') ? 'block' : 'none'}">
+                            <div class="bt-field">
+                                <div class="bt-field-label">${this.t('LocalFilePath')} <span class="bt-hint">${this.t('LocalFilePathHint')}</span></div>
+                                <div style="display:flex;gap:4px">
+                                    <input id="bt-local-file-path" class="bt-key-input" value="${this.escapeHtml(btLocalFilePath)}" placeholder="music.mp3" style="flex:1">
+                                    <button class="copy-btn" onclick="app.browseLocalFilePath()" title="${this.t('Browse')}" style="font-size:12px;padding:2px 8px">📂</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bt-field-row" id="bt-input-fields" style="display:${fields.includes('inputKey') ? 'flex' : 'none'}">
+                            <div class="bt-field bt-field-key">
+                                <div class="bt-field-label">${this.t('InputKey')} <span class="bt-hint">${this.t('InputKeyHint')}</span></div>
+                                <input id="bt-input-key" class="bt-key-input" value="${this.escapeHtml(btInputKey)}" placeholder="${this.t('VariableName')}">
+                            </div>
+                            <div class="bt-field bt-field-type" id="bt-input-type-field" style="display:${fields.includes('inputKey') && !config?.defaults?.inputType ? 'block' : 'none'}">
+                                <div class="bt-field-label">${this.t('Type')}</div>
+                                <select id="bt-input-type" class="bt-type-select">
+                                    <option value="text"  ${btInputType === 'text'  ? 'selected' : ''}>text</option>
+                                    <option value="media" ${btInputType === 'media' ? 'selected' : ''}>media</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="bt-prompt-fields" style="display:${isProcess || fields.includes('prompt') ? 'block' : 'none'}">
+                            <div class="bt-field">
+                                <div class="bt-field-label">${this.t('BTPrompt')} <span class="bt-hint">${this.t('BTPromptHint')}</span></div>
+                                <textarea id="bt-node-prompt" class="input-textarea bt-prompt-area" placeholder="${this.t('BTPromptPlaceholder')}">${this.escapeHtml(btPromptText)}</textarea>
+                            </div>
+                        </div>
+                        <div class="bt-field-row" id="bt-output-fields" style="display:${isProcess || fields.includes('outputKey') ? 'flex' : 'none'}">
+                            <div class="bt-field bt-field-key">
+                                <div class="bt-field-label">${this.t('OutputKey')} <span class="bt-hint">${this.t('OutputKeyHint')}</span></div>
+                                <input id="bt-output-key" class="bt-key-input" value="${this.escapeHtml(btOutputKey)}" placeholder="${this.t('VariableName')}">
+                            </div>
+                            <div class="bt-field bt-field-type" id="bt-output-type-field" style="display:${isProcess || !config?.defaults?.outputType ? 'block' : 'none'}">
+                                <div class="bt-field-label">${this.t('Type')}</div>
+                                <select id="bt-output-type" class="bt-type-select">
+                                    <option value="text"  ${btOutputType === 'text'  ? 'selected' : ''}>text</option>
+                                    <option value="t2a"   ${btOutputType === 't2a'   ? 'selected' : ''}>t2a (audio)</option>
+                                    <option value="media" ${btOutputType === 'media' ? 'selected' : ''}>media</option>
+                                    <option value="0"     ${btOutputType === '0'     ? 'selected' : ''}>0 (no output)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="bt-field-actions">
+                            <button class="copy-btn" onclick="app.saveBtNodeConfig()">💾 ${this.t('SaveBtn')}</button>
+                            <button class="copy-btn" onclick="app.btBlackboardDialog()">📋 ${this.t('Blackboard')}</button>
+                        </div>
+                    </div>
+                </details>
+            `;
+            return;
+        }
+
+        const usesPrompt = isProcess || fields.includes('prompt');
+        const runButtonLabel = isProcess 
+            ? `▶ ${this.t('Process')}` 
+            : `▶ ${isJa ? 'アクション実行' : 'Run Action'}`;
+
+        const promptEditorHtml = usesPrompt ? `
             <div style="margin-bottom:6px">
                 <div style="font-size:10px;color:#888;margin-bottom:2px">${this.t('PromptLabel')}</div>
-                <textarea id="node-content" class="input-textarea" ${this.state.viewOnlyMode ? 'readonly' : ''} placeholder="${this.t('PromptPlaceholder')}" style="min-height:100px;${this.state.viewOnlyMode ? 'opacity:0.7' : ''}">${this.escapeHtml(promptText)}</textarea>
+                <textarea id="node-content" class="input-textarea" ${this.state.viewOnlyMode || this.state.selectedDataPath !== '' ? 'readonly' : ''} placeholder="${this.t('PromptPlaceholder')}" style="min-height:100px;${this.state.viewOnlyMode || this.state.selectedDataPath !== '' ? 'opacity:0.7' : ''}">${this.escapeHtml(promptText)}</textarea>
             </div>
             ${recipeHtml}
             <div style="margin-top:6px">
                 <div style="font-size:10px;color:#888;margin-bottom:3px;border-bottom:1px solid #333;padding-bottom:2px;display:flex;align-items:center;justify-content:space-between">
                     <span>${this.t('OperationAttachments')}</span>
-                    ${!this.state.viewOnlyMode ? `<button class="copy-btn" onclick="app.addMachineAttachment()" style="font-size:10px;padding:1px 6px">＋</button>` : ''}
+                    ${!this.state.viewOnlyMode && this.state.selectedDataPath === '' ? `<button class="copy-btn" onclick="app.addMachineAttachment()" style="font-size:10px;padding:1px 6px">＋</button>` : ''}
                 </div>
-                <div id="machine-attachments-list" ${this._dropZoneAttrs('machine_attachment')}
+                <div id="machine-attachments-list" ${this.state.selectedDataPath === '' ? this._dropZoneAttrs('machine_attachment') : ''}
                      style="min-height:32px;border:1px dashed #3c3c3c;border-radius:3px;padding:2px">${machineAttachHtml}</div>
             </div>
+        ` : '';
+
+        promptEl.innerHTML = `
+            ${!this.state.viewOnlyMode && this.state.selectedDataPath === '' ? `<button class="btn-primary prompt-editor-process-btn" onclick="app.processPrompt()" style="width:100%;padding:4px;font-size:11px;margin-bottom:6px">${runButtonLabel}</button>` : ''}
+            ${promptEditorHtml}
             <details class="bt-node-accordion" ${hasBtConfig ? 'open' : ''}>
                 <summary class="bt-node-accordion-summary">🌳 ${this.t('BTSettings')}${hasBtConfig ? ` <span class="bt-configured-badge">${this.t('Configured')}</span>` : ''}</summary>
                 <div class="bt-node-accordion-body">
                     <div class="bt-field">
                         <div class="bt-field-label">${this.t('BTAction')}</div>
-                        <select id="bt-action" class="bt-type-select" onchange="app.onBtActionChange()">
+                        <select id="bt-action" class="bt-type-select" onchange="app.onBtActionChange()" ${this.state.selectedDataPath !== '' ? 'disabled' : ''}>
                             ${actionOptions}
                         </select>
                     </div>
@@ -8668,38 +9340,57 @@ const app = {
                         <div class="bt-field">
                             <div class="bt-field-label">${this.t('LocalFilePath')} <span class="bt-hint">${this.t('LocalFilePathHint')}</span></div>
                             <div style="display:flex;gap:4px">
-                                <input id="bt-local-file-path" class="bt-key-input" value="${this.escapeHtml(btLocalFilePath)}" placeholder="music.mp3" style="flex:1">
-                                <button class="copy-btn" onclick="app.browseLocalFilePath()" title="${this.t('Browse')}" style="font-size:12px;padding:2px 8px">📂</button>
+                                <input id="bt-local-file-path" class="bt-key-input" value="${this.escapeHtml(btLocalFilePath)}" placeholder="music.mp3" style="flex:1" ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>
+                                <button class="copy-btn" onclick="app.browseLocalFilePath()" title="${this.t('Browse')}" style="font-size:12px;padding:2px 8px;${this.state.selectedDataPath !== '' ? 'opacity:0.5;cursor:not-allowed' : ''}" ${this.state.selectedDataPath !== '' ? 'disabled' : ''}>📂</button>
                             </div>
                         </div>
                     </div>
                     <div class="bt-field-row" id="bt-input-fields" style="display:${fields.includes('inputKey') ? 'flex' : 'none'}">
                         <div class="bt-field bt-field-key">
                             <div class="bt-field-label">${this.t('InputKey')} <span class="bt-hint">${this.t('InputKeyHint')}</span></div>
-                            <input id="bt-input-key" class="bt-key-input" value="${this.escapeHtml(btInputKey)}" placeholder="${this.t('VariableName')}">
+                            <input id="bt-input-key" class="bt-key-input" value="${this.escapeHtml(btInputKey)}" placeholder="${this.t('VariableName')}" ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>
                         </div>
                         <div class="bt-field bt-field-type" id="bt-input-type-field" style="display:${fields.includes('inputKey') && !config?.defaults?.inputType ? 'block' : 'none'}">
                             <div class="bt-field-label">${this.t('Type')}</div>
-                            <select id="bt-input-type" class="bt-type-select">
+                            <select id="bt-input-type" class="bt-type-select" ${this.state.selectedDataPath !== '' ? 'disabled' : ''}>
                                 <option value="text"  ${btInputType === 'text'  ? 'selected' : ''}>text</option>
                                 <option value="media" ${btInputType === 'media' ? 'selected' : ''}>media</option>
                             </select>
                         </div>
                     </div>
-                    <div id="bt-prompt-fields" style="display:${isProcess || fields.includes('prompt') ? 'block' : 'none'}">
+                    <div id="bt-prompt-fields" style="display:${isProcess || (fields.includes('prompt') && btAction !== 'manual') ? 'block' : 'none'}">
                         <div class="bt-field">
                             <div class="bt-field-label">${this.t('BTPrompt')} <span class="bt-hint">${this.t('BTPromptHint')}</span></div>
-                            <textarea id="bt-node-prompt" class="input-textarea bt-prompt-area" placeholder="${this.t('BTPromptPlaceholder')}">${this.escapeHtml(btPromptText)}</textarea>
+                            <textarea id="bt-node-prompt" class="input-textarea bt-prompt-area" placeholder="${this.t('BTPromptPlaceholder')}" ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>${this.escapeHtml(btPromptText)}</textarea>
+                        </div>
+                    </div>
+                    <div id="bt-manual-fields" style="display:${btAction === 'manual' ? 'block' : 'none'}">
+                        <div class="bt-field">
+                            <div class="bt-field-label">Manual Mode</div>
+                            <select id="bt-manual-mode" class="bt-type-select" ${this.state.selectedDataPath !== '' ? 'disabled' : ''}>
+                                <option value="view" ${btManualMode === 'view' ? 'selected' : ''}>View</option>
+                                <option value="edit" ${btManualMode === 'edit' ? 'selected' : ''}>Edit</option>
+                                <option value="compare" ${btManualMode === 'compare' ? 'selected' : ''}>Compare</option>
+                                <option value="choices" ${btManualMode === 'choices' ? 'selected' : ''}>Choices</option>
+                            </select>
+                        </div>
+                        <div class="bt-field">
+                            <div class="bt-field-label">Manual Prompt</div>
+                            <textarea id="bt-manual-prompt" class="input-textarea bt-prompt-area" placeholder="Optional prompt to display during manual step" ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>${this.escapeHtml(btManualPrompt)}</textarea>
+                        </div>
+                        <div class="bt-field" id="bt-manual-choices-field" style="display:${btManualMode === 'choices' ? 'block' : 'none'}">
+                            <div class="bt-field-label">Choices (JSON)</div>
+                            <textarea id="bt-manual-choices" class="input-textarea" style="font-family:monospace;font-size:11px" placeholder='[{"label":"Option 1","action":"next"},{"label":"Option 2","action":"cancel"}]' ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>${this.escapeHtml(btManualChoices)}</textarea>
                         </div>
                     </div>
                     <div class="bt-field-row" id="bt-output-fields" style="display:${isProcess || fields.includes('outputKey') ? 'flex' : 'none'}">
                         <div class="bt-field bt-field-key">
                             <div class="bt-field-label">${this.t('OutputKey')} <span class="bt-hint">${this.t('OutputKeyHint')}</span></div>
-                            <input id="bt-output-key" class="bt-key-input" value="${this.escapeHtml(btOutputKey)}" placeholder="${this.t('VariableName')}">
+                            <input id="bt-output-key" class="bt-key-input" value="${this.escapeHtml(btOutputKey)}" placeholder="${this.t('VariableName')}" ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>
                         </div>
                         <div class="bt-field bt-field-type" id="bt-output-type-field" style="display:${isProcess || !config?.defaults?.outputType ? 'block' : 'none'}">
                             <div class="bt-field-label">${this.t('Type')}</div>
-                            <select id="bt-output-type" class="bt-type-select">
+                            <select id="bt-output-type" class="bt-type-select" ${this.state.selectedDataPath !== '' ? 'disabled' : ''}>
                                 <option value="text"  ${btOutputType === 'text'  ? 'selected' : ''}>text</option>
                                 <option value="t2a"   ${btOutputType === 't2a'   ? 'selected' : ''}>t2a (audio)</option>
                                 <option value="media" ${btOutputType === 'media' ? 'selected' : ''}>media</option>
@@ -8708,11 +9399,12 @@ const app = {
                         </div>
                     </div>
                     <div class="bt-field-actions">
-                        <button class="copy-btn" onclick="app.saveBtNodeConfig()">💾 ${this.t('SaveBtn')}</button>
+                        ${this.state.selectedDataPath === '' ? `<button class="copy-btn" onclick="app.saveBtNodeConfig()">💾 ${this.t('SaveBtn')}</button>` : ''}
                         <button class="copy-btn" onclick="app.btBlackboardDialog()">📋 ${this.t('Blackboard')}</button>
                     </div>
                 </div>
-            </details>`;
+            </details>
+        `;
 
         // Render pipeline meta if available
         this.renderPipelineMeta(node);
@@ -8965,6 +9657,33 @@ const app = {
         }
 
         const child = runs[selectedIdx];
+        if (child._pending) {
+            const isJa = (this.localization?.lang === 'ja');
+            const runOptions = runs.map((c, idx) => {
+                const title = c.title ? this.safeAtob(c.title) : `Run ${idx + 1}`;
+                return `<option value="${idx}" ${idx === selectedIdx ? 'selected' : ''}>${this.escapeHtml(title)}</option>`;
+            }).join('');
+            const processingLabel = isJa ? '処理中...' : 'Processing...';
+            el.innerHTML = `
+                <div class="output-toolbar">
+                    <span class="output-label">${t('Output')} (${runs.length})</span>
+                    <button class="output-save-btn" disabled style="opacity:0.5;cursor:not-allowed">${t('Save')}</button>
+                    <button class="output-discard-btn" disabled style="opacity:0.5;cursor:not-allowed">${t('Discard')}</button>
+                    <button class="output-chest-btn" disabled style="opacity:0.5;cursor:not-allowed">${t('SendToChest')}</button>
+                </div>
+                <div class="output-run-selector-row" style="margin: 8px; display: flex; align-items: center; gap: 8px; font-size: 11px;">
+                    <label for="output-run-selector" style="font-weight: bold; color: #858585;">${this.t('RunHistory')}:</label>
+                    <select id="output-run-selector" onchange="app.onOutputRunSelected(this.value)" style="background: #252526; color: #ccc; border: 1px solid #3c3c3c; padding: 2px; font-size: 11px; flex: 1;">
+                        ${runOptions}
+                    </select>
+                </div>
+                <div style="padding:24px; text-align:center; color:#aaa; font-size:12px; display:flex; align-items:center; justify-content:center; gap:8px;">
+                    <span class="bt-panel-dot" style="background:#64b5f6; display:inline-block; width:8px; height:8px; border-radius:50%; animation:taskPulse 1.5s ease-in-out infinite"></span>
+                    ⏳ ${processingLabel}
+                </div>`;
+            return;
+        }
+
         let receivedText = child.content ? (() => { try { return atob(child.content); } catch { return child.content; } })() : '';
         let aiComment = '';
 
@@ -9235,7 +9954,7 @@ const app = {
     // ── Output media grid ───────────────────────────────────────────
     renderOutputGrid(text, attachments, artifacts) {
         const cards = [];
-        this._renderedArtifacts = [];
+        this._artifactsMap = this._artifactsMap || {};
 
         // Text card
         if (text && text.trim()) {
@@ -9251,12 +9970,12 @@ const app = {
 
         // Attachment cards (outputAttachments from AI response)
         (attachments || []).forEach((a, i) => {
-            const index = this._renderedArtifacts.length;
-            this._renderedArtifacts.push(a);
+            const artId = 'art_' + Math.random().toString(36).substring(2, 11);
+            this._artifactsMap[artId] = a;
 
             const mime = a.mimetype || '';
             const label = this.escapeHtml(a.file || `attachment-${i}`);
-            const ctxMenu = `oncontextmenu="event.preventDefault();event.stopPropagation();app.showOutputContextMenu(event,this)" data-artifact-index="${index}"`;
+            const ctxMenu = `oncontextmenu="event.preventDefault();event.stopPropagation();app.showOutputContextMenu(event,this)" data-artifact-id="${artId}"`;
             const fullPath = a.path ? this.getFileFullPath(a.path) : '';
             const hintAttr = fullPath ? `data-hint="${this.escapeHtml(fullPath)}"` : '';
 
@@ -9294,8 +10013,8 @@ const app = {
 
         // Artifact cards (file paths)
         (artifacts || []).forEach(a => {
-            const index = this._renderedArtifacts.length;
-            this._renderedArtifacts.push(a);
+            const artId = 'art_' + Math.random().toString(36).substring(2, 11);
+            this._artifactsMap[artId] = a;
 
             const label = this.escapeHtml(a.label || a.path || '');
             const ext = (a.path || '').split('.').pop().toLowerCase();
@@ -9303,11 +10022,11 @@ const app = {
             const vidExts = ['mp4','webm','mov','avi','mkv'];
             const audExts = ['mp3','wav','ogg','flac','m4a'];
             let icon = '🔗';
-            let viewer = `app.openArtifact(${JSON.stringify(a)})`;
+            let viewer = `app.previewArtifact(${JSON.stringify(a)})`;
             if (imgExts.includes(ext)) icon = '🖼';
             else if (vidExts.includes(ext)) icon = '🎬';
             else if (audExts.includes(ext)) icon = '🎵';
-            const ctxMenu = `oncontextmenu="event.preventDefault();event.stopPropagation();app.showOutputContextMenu(event,this)" data-artifact-index="${index}"`;
+            const ctxMenu = `oncontextmenu="event.preventDefault();event.stopPropagation();app.showOutputContextMenu(event,this)" data-artifact-id="${artId}"`;
             const fullPath = a.path ? this.getFileFullPath(a.path) : '';
             const hintAttr = fullPath ? `data-hint="${this.escapeHtml(fullPath)}"` : '';
             cards.push(`
@@ -9570,7 +10289,7 @@ const app = {
         const artifacts = step.artifacts || [];
         const artifactsHtml = artifacts.length > 0
             ? `<div style="font-size:10px;color:#888;margin:8px 8px 3px;border-bottom:1px solid #333;padding-bottom:2px">${this.t('Artifacts')}</div>` +
-              artifacts.map(a => `<div style="font-size:11px;padding:2px 8px">🔗 <a style="color:#4fc3f7" href="#" onclick="app.openArtifact(${JSON.stringify(a)});return false">${this.escapeHtml(a.label || a.path || '')}</a></div>`).join('')
+              artifacts.map(a => `<div style="font-size:11px;padding:2px 8px">🔗 <a style="color:#4fc3f7" href="#" onclick="app.previewArtifact(${JSON.stringify(a)});return false">${this.escapeHtml(a.label || a.path || '')}</a></div>`).join('')
             : '';
         const outputAttachments = step.outputAttachments || [];
 
@@ -9701,9 +10420,65 @@ const app = {
         }
     },
 
+    previewArtifact(artifact) {
+        if (!artifact) return;
+        if (artifact.content) {
+            const mime = artifact.mimetype || (() => {
+                const ext = (artifact.path || '').split('.').pop().toLowerCase();
+                const mimeMap = { png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', webp:'image/webp', bmp:'image/bmp', svg:'image/svg+xml', mp4:'video/mp4', webm:'video/webm', mp3:'audio/mpeg', wav:'audio/wav', ogg:'audio/ogg', pdf:'application/pdf', txt:'text/plain', json:'application/json', md:'text/markdown' };
+                return mimeMap[ext] || 'application/octet-stream';
+            })();
+            this.showMediaViewerFromContent(mime, artifact.content, artifact.label || artifact.file || artifact.path || 'Artifact');
+        } else if (artifact.path) {
+            const fullPath = this.getFileFullPath(artifact.path);
+            if (fullPath) {
+                this._pendingArtifactPreview = artifact;
+                this.postMessage({ type: 'read_artifact_file', payload: { path: fullPath } });
+            }
+        }
+    },
+
+    showMediaViewerFromContent(mimetype, base64Content, label) {
+        if (mimetype.startsWith('image/')) {
+            this.showMediaViewer('image', `data:${mimetype};base64,${base64Content}`, label);
+        } else if (mimetype.startsWith('video/')) {
+            this.showMediaViewer('video', `data:${mimetype};base64,${base64Content}`, label);
+        } else if (mimetype.startsWith('audio/')) {
+            this.showMediaViewer('audio', `data:${mimetype};base64,${base64Content}`, label);
+        } else {
+            try {
+                const text = atob(base64Content);
+                this.showMediaViewer('text', text, label);
+            } catch {
+                this.showMediaViewer('text', base64Content, label);
+            }
+        }
+    },
+
+    showMediaViewerForArtifact(artifact, fileData) {
+        if (fileData.error) {
+            this.outputMessage(`Preview error: ${fileData.error}`);
+            return;
+        }
+        const label = artifact.label || artifact.file || artifact.path || 'Artifact';
+        this.showMediaViewerFromContent(fileData.mimetype, fileData.content, label);
+    },
+
     exportArtifact(artifact) {
         if (!artifact) return;
         this.postMessage({ type: 'export_artifact', payload: artifact });
+    },
+
+    exportActiveArtifact() {
+        const artifact = this._contextMenuArtifact;
+        if (!artifact) return;
+        const fullPath = artifact.path ? this.getFileFullPath(artifact.path) : '';
+        const label = artifact.file || artifact.label || (fullPath ? fullPath.split(/[/\\]/).pop() : 'artifact');
+        this.exportArtifact({
+            path: fullPath,
+            content: artifact.content || '',
+            file: label
+        });
     },
 
     // ── Chest Operations ───────────────────────────────────────────
@@ -10227,6 +11002,7 @@ const app = {
             customParams: recipe.customParams || {},
         };
 
+        this.showRecipeManagerError('');
         if (runBtn) { runBtn.disabled = true; runBtn.textContent = '⏳ ' + this.t('RtRunning'); }
         if (resultEl) resultEl.innerHTML = `<div class="rt-running">⏳ ${this.t('RtRunning')}</div>`;
         this.outputDebug(`🧪 ${this.t('RtRun')}: ${recipe.name}`);
@@ -10259,7 +11035,11 @@ const app = {
             const runBtn = document.getElementById('rm-test-btn-' + i);
             const resultEl = document.getElementById('rm-test-result-' + i);
             if (runBtn) { runBtn.disabled = false; runBtn.textContent = '▶ ' + this.t('TestRecipeBtn'); }
-            if (resultEl) resultEl.innerHTML = `<div class="rt-error">❌ ${this.escapeHtml(payload.error || 'Unknown error')}</div>`;
+            if (resultEl) {
+                resultEl.innerHTML = `<div class="rt-error">❌ ${this.escapeHtml(payload.error || 'Unknown error')}</div>`;
+            } else {
+                this.showRecipeManagerError(payload.error || 'Unknown error');
+            }
             return;
         }
 

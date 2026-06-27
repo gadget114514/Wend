@@ -485,4 +485,59 @@
         }
     });
 
+    // ── manual ────────────────────────────────────────────────
+    R.register('manual', {
+        label: 'Manual Operation',
+        description: 'Pause execution to wait for manual user input (view, edit, compare, or choice selection)',
+        fields: ['mode', 'prompt', 'choices'],
+        defaults: { mode: 'view', outputType: '0' },
+        handler: async (ctx) => {
+            const { bt, app, node, path, textInput, outputKey, outputScope } = ctx;
+            const mode = node?.btManualMode || 'view';
+            const prompt = node?.btManualPrompt
+                ? (() => { try { return atob(node.btManualPrompt); } catch { return node.btManualPrompt; } })()
+                : '';
+            const choicesJson = node?.btManualChoices || '[]';
+            let choices = [];
+            try {
+                choices = JSON.parse(choicesJson);
+                if (!Array.isArray(choices)) choices = [];
+            } catch (e) {
+                app.outputMessage(`❌ Manual step: Invalid choices JSON - ${e.message}`);
+                choices = [];
+            }
+
+            const content = textInput || '';
+
+            // Pause BT and show manual UI
+            return new Promise(resolve => {
+                const handler = (msg) => {
+                    if (msg.type === 'manual_operation_resume' || msg.type === 'bt_manual_resume') {
+                        app._removeMessageListener(handler);
+                        const result = msg.payload?.result ?? content;
+                        // Write result to output key if specified
+                        if (outputKey) {
+                            const outputType = node?.btOutputType || 'text';
+                            const scope = outputScope || 'run';
+                            bt.bbWrite(outputKey, result, scope, outputType);
+                        }
+                        app.outputMessage(`✓ Manual operation completed`);
+                        resolve(true);
+                    }
+                };
+                app._addMessageListener(handler);
+                app.postMessage({
+                    type: 'bt_manual_pause',
+                    payload: {
+                        mode,
+                        prompt,
+                        content,
+                        choices,
+                        nodePath: path
+                    }
+                });
+            });
+        }
+    });
+
 })();
