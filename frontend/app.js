@@ -9271,10 +9271,29 @@ const app = {
                                 </select>
                             </div>
                         </div>
-                        <div id="bt-prompt-fields" style="display:${isProcess || fields.includes('prompt') ? 'block' : 'none'}">
+                        <div id="bt-prompt-fields" style="display:${isProcess || (fields.includes('prompt') && btAction !== 'manual') ? 'block' : 'none'}">
                             <div class="bt-field">
                                 <div class="bt-field-label">${this.t('BTPrompt')} <span class="bt-hint">${this.t('BTPromptHint')}</span></div>
                                 <textarea id="bt-node-prompt" class="input-textarea bt-prompt-area" placeholder="${this.t('BTPromptPlaceholder')}">${this.escapeHtml(btPromptText)}</textarea>
+                            </div>
+                        </div>
+                        <div id="bt-manual-fields" style="display:${btAction === 'manual' ? 'block' : 'none'}">
+                            <div class="bt-field">
+                                <div class="bt-field-label">Manual Mode</div>
+                                <select id="bt-manual-mode" class="bt-type-select">
+                                    <option value="view" ${btManualMode === 'view' ? 'selected' : ''}>View</option>
+                                    <option value="edit" ${btManualMode === 'edit' ? 'selected' : ''}>Edit</option>
+                                    <option value="compare" ${btManualMode === 'compare' ? 'selected' : ''}>Compare</option>
+                                    <option value="choices" ${btManualMode === 'choices' ? 'selected' : ''}>Choices</option>
+                                </select>
+                            </div>
+                            <div class="bt-field">
+                                <div class="bt-field-label">Manual Prompt</div>
+                                <textarea id="bt-manual-prompt" class="input-textarea bt-prompt-area" placeholder="Optional prompt to display during manual step">${this.escapeHtml(btManualPrompt)}</textarea>
+                            </div>
+                            <div class="bt-field" id="bt-manual-choices-field" style="display:${btManualMode === 'choices' ? 'block' : 'none'}">
+                                <div class="bt-field-label">Choices (JSON)</div>
+                                <textarea id="bt-manual-choices" class="input-textarea" style="font-family:monospace;font-size:11px" placeholder='[{"label":"Option 1","action":"next"},{"label":"Option 2","action":"cancel"}]'>${this.escapeHtml(btManualChoices)}</textarea>
                             </div>
                         </div>
                         <div class="bt-field-row" id="bt-output-fields" style="display:${isProcess || fields.includes('outputKey') ? 'flex' : 'none'}">
