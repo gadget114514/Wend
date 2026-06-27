@@ -9322,17 +9322,104 @@ const app = {
         }
 
         const usesPrompt = isProcess || fields.includes('prompt');
-        const runButtonLabel = isProcess 
-            ? `▶ ${this.t('Process')}` 
+        const runButtonLabel = isProcess
+            ? `▶ ${this.t('Process')}`
             : `▶ ${isJa ? 'アクション実行' : 'Run Action'}`;
 
-        const promptEditorHtml = usesPrompt ? `
-            <div style="margin-bottom:6px">
-                <div style="font-size:10px;color:#888;margin-bottom:2px">${this.t('PromptLabel')}</div>
-                <textarea id="node-content" class="input-textarea" ${this.state.viewOnlyMode || this.state.selectedDataPath !== '' ? 'readonly' : ''} placeholder="${this.t('PromptPlaceholder')}" style="min-height:100px;${this.state.viewOnlyMode || this.state.selectedDataPath !== '' ? 'opacity:0.7' : ''}">${this.escapeHtml(promptText)}</textarea>
+        promptEl.innerHTML = `
+            ${!this.state.viewOnlyMode && this.state.selectedDataPath === '' ? `<button class="btn-primary prompt-editor-process-btn" onclick="app.processPrompt()" style="width:100%;padding:4px;font-size:11px;margin-bottom:6px">${runButtonLabel}</button>` : ''}
+
+            <!-- Action Selection -->
+            <div class="bt-field">
+                <div class="bt-field-label">${this.t('BTAction')}</div>
+                <select id="bt-action" class="bt-type-select" onchange="app.onBtActionChange()" ${this.state.selectedDataPath !== '' ? 'disabled' : ''}>
+                    ${actionOptions}
+                </select>
             </div>
-            ${recipeHtml}
-            <div style="margin-top:6px">
+            <div id="bt-action-description" style="display:${description ? 'block' : 'none'};font-size:10px;color:#888;margin:4px 0 8px 0">${this.escapeHtml(description)}</div>
+
+            <!-- Recipe (for processPrompt) -->
+            ${isProcess ? recipeHtml : ''}
+
+            <!-- Input/Output Types -->
+            <div class="bt-field-row" id="bt-io-types" style="display:${fields.includes('inputKey') || isProcess ? 'flex' : 'none'};gap:8px;margin-bottom:6px">
+                <div class="bt-field bt-field-type" id="bt-input-type-field-top" style="display:${(fields.includes('inputKey') || isProcess) && !config?.defaults?.inputType ? 'block' : 'none'};flex:1">
+                    <div class="bt-field-label">${this.t('Type')} (Input)</div>
+                    <select id="bt-input-type" class="bt-type-select" ${this.state.selectedDataPath !== '' ? 'disabled' : ''}>
+                        <option value="text"  ${btInputType === 'text'  ? 'selected' : ''}>text</option>
+                        <option value="media" ${btInputType === 'media' ? 'selected' : ''}>media</option>
+                    </select>
+                </div>
+                <div class="bt-field bt-field-type" id="bt-output-type-field-top" style="display:${(isProcess || !config?.defaults?.outputType) ? 'block' : 'none'};flex:1">
+                    <div class="bt-field-label">${this.t('Type')} (Output)</div>
+                    <select id="bt-output-type" class="bt-type-select" ${this.state.selectedDataPath !== '' ? 'disabled' : ''}>
+                        <option value="text"  ${btOutputType === 'text'  ? 'selected' : ''}>text</option>
+                        <option value="t2a"   ${btOutputType === 't2a'   ? 'selected' : ''}>t2a (audio)</option>
+                        <option value="media" ${btOutputType === 'media' ? 'selected' : ''}>media</option>
+                        <option value="0"     ${btOutputType === '0'     ? 'selected' : ''}>0 (no output)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Action-specific Parameters -->
+
+            <!-- Prompt (for processPrompt and other prompt-based actions) -->
+            <div id="bt-prompt-fields" style="display:${isProcess || (fields.includes('prompt') && btAction !== 'manual') ? 'block' : 'none'};margin-bottom:6px">
+                <div class="bt-field">
+                    <div class="bt-field-label">${this.t('BTPrompt')} <span class="bt-hint">${this.t('BTPromptHint')}</span></div>
+                    <textarea id="bt-node-prompt" class="input-textarea bt-prompt-area" placeholder="${this.t('BTPromptPlaceholder')}" ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>${this.escapeHtml(btPromptText)}</textarea>
+                </div>
+            </div>
+
+            <!-- Local File Path -->
+            <div id="bt-local-file-field" style="display:${fields.includes('localFilePath') ? 'block' : 'none'};margin-bottom:6px">
+                <div class="bt-field">
+                    <div class="bt-field-label">${this.t('LocalFilePath')} <span class="bt-hint">${this.t('LocalFilePathHint')}</span></div>
+                    <div style="display:flex;gap:4px">
+                        <input id="bt-local-file-path" class="bt-key-input" value="${this.escapeHtml(btLocalFilePath)}" placeholder="music.mp3" style="flex:1" ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>
+                        <button class="copy-btn" onclick="app.browseLocalFilePath()" title="${this.t('Browse')}" style="font-size:12px;padding:2px 8px;${this.state.selectedDataPath !== '' ? 'opacity:0.5;cursor:not-allowed' : ''}" ${this.state.selectedDataPath !== '' ? 'disabled' : ''}>📂</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manual Fields -->
+            <div id="bt-manual-fields" style="display:${btAction === 'manual' ? 'block' : 'none'};margin-bottom:6px">
+                <div class="bt-field">
+                    <div class="bt-field-label">Manual Mode</div>
+                    <select id="bt-manual-mode" class="bt-type-select" ${this.state.selectedDataPath !== '' ? 'disabled' : ''}>
+                        <option value="view" ${btManualMode === 'view' ? 'selected' : ''}>View</option>
+                        <option value="edit" ${btManualMode === 'edit' ? 'selected' : ''}>Edit</option>
+                        <option value="compare" ${btManualMode === 'compare' ? 'selected' : ''}>Compare</option>
+                        <option value="choices" ${btManualMode === 'choices' ? 'selected' : ''}>Choices</option>
+                    </select>
+                </div>
+                <div class="bt-field">
+                    <div class="bt-field-label">Manual Prompt</div>
+                    <textarea id="bt-manual-prompt" class="input-textarea bt-prompt-area" placeholder="Optional prompt to display during manual step" ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>${this.escapeHtml(btManualPrompt)}</textarea>
+                </div>
+                <div class="bt-field" id="bt-manual-choices-field" style="display:${btManualMode === 'choices' ? 'block' : 'none'}">
+                    <div class="bt-field-label">Choices (JSON)</div>
+                    <textarea id="bt-manual-choices" class="input-textarea" style="font-family:monospace;font-size:11px" placeholder='[{"label":"Option 1","action":"next"},{"label":"Option 2","action":"cancel"}]' ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>${this.escapeHtml(btManualChoices)}</textarea>
+                </div>
+            </div>
+
+            <!-- Input/Output Keys (Blackboard) -->
+            <div class="bt-field-row" id="bt-input-fields" style="display:${fields.includes('inputKey') ? 'flex' : 'none'};margin-bottom:6px;gap:8px">
+                <div class="bt-field bt-field-key" style="flex:1">
+                    <div class="bt-field-label">${this.t('InputKey')} <span class="bt-hint">${this.t('InputKeyHint')}</span></div>
+                    <input id="bt-input-key" class="bt-key-input" value="${this.escapeHtml(btInputKey)}" placeholder="${this.t('VariableName')}" ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>
+                </div>
+            </div>
+
+            <div class="bt-field-row" id="bt-output-fields" style="display:${isProcess || fields.includes('outputKey') ? 'flex' : 'none'};margin-bottom:6px;gap:8px">
+                <div class="bt-field bt-field-key" style="flex:1">
+                    <div class="bt-field-label">${this.t('OutputKey')} <span class="bt-hint">${this.t('OutputKeyHint')}</span></div>
+                    <input id="bt-output-key" class="bt-key-input" value="${this.escapeHtml(btOutputKey)}" placeholder="${this.t('VariableName')}" ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>
+                </div>
+            </div>
+
+            <!-- Machine Attachments -->
+            <div style="margin-bottom:6px">
                 <div style="font-size:10px;color:#888;margin-bottom:3px;border-bottom:1px solid #333;padding-bottom:2px;display:flex;align-items:center;justify-content:space-between">
                     <span>${this.t('OperationAttachments')}</span>
                     ${!this.state.viewOnlyMode && this.state.selectedDataPath === '' ? `<button class="copy-btn" onclick="app.addMachineAttachment()" style="font-size:10px;padding:1px 6px">＋</button>` : ''}
@@ -9340,89 +9427,12 @@ const app = {
                 <div id="machine-attachments-list" ${this.state.selectedDataPath === '' ? this._dropZoneAttrs('machine_attachment') : ''}
                      style="min-height:32px;border:1px dashed #3c3c3c;border-radius:3px;padding:2px">${machineAttachHtml}</div>
             </div>
-        ` : '';
 
-        promptEl.innerHTML = `
-            ${!this.state.viewOnlyMode && this.state.selectedDataPath === '' ? `<button class="btn-primary prompt-editor-process-btn" onclick="app.processPrompt()" style="width:100%;padding:4px;font-size:11px;margin-bottom:6px">${runButtonLabel}</button>` : ''}
-            ${promptEditorHtml}
-            <details class="bt-node-accordion" ${hasBtConfig ? 'open' : ''}>
-                <summary class="bt-node-accordion-summary">🌳 ${this.t('BTSettings')}${hasBtConfig ? ` <span class="bt-configured-badge">${this.t('Configured')}</span>` : ''}</summary>
-                <div class="bt-node-accordion-body">
-                    <div class="bt-field">
-                        <div class="bt-field-label">${this.t('BTAction')}</div>
-                        <select id="bt-action" class="bt-type-select" onchange="app.onBtActionChange()" ${this.state.selectedDataPath !== '' ? 'disabled' : ''}>
-                            ${actionOptions}
-                        </select>
-                    </div>
-                    <div id="bt-action-description" style="display:${description ? 'block' : 'none'};font-size:10px;color:#888;margin:4px 0">${this.escapeHtml(description)}</div>
-                    <div id="bt-local-file-field" style="display:${fields.includes('localFilePath') ? 'block' : 'none'}">
-                        <div class="bt-field">
-                            <div class="bt-field-label">${this.t('LocalFilePath')} <span class="bt-hint">${this.t('LocalFilePathHint')}</span></div>
-                            <div style="display:flex;gap:4px">
-                                <input id="bt-local-file-path" class="bt-key-input" value="${this.escapeHtml(btLocalFilePath)}" placeholder="music.mp3" style="flex:1" ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>
-                                <button class="copy-btn" onclick="app.browseLocalFilePath()" title="${this.t('Browse')}" style="font-size:12px;padding:2px 8px;${this.state.selectedDataPath !== '' ? 'opacity:0.5;cursor:not-allowed' : ''}" ${this.state.selectedDataPath !== '' ? 'disabled' : ''}>📂</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bt-field-row" id="bt-input-fields" style="display:${fields.includes('inputKey') ? 'flex' : 'none'}">
-                        <div class="bt-field bt-field-key">
-                            <div class="bt-field-label">${this.t('InputKey')} <span class="bt-hint">${this.t('InputKeyHint')}</span></div>
-                            <input id="bt-input-key" class="bt-key-input" value="${this.escapeHtml(btInputKey)}" placeholder="${this.t('VariableName')}" ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>
-                        </div>
-                        <div class="bt-field bt-field-type" id="bt-input-type-field" style="display:${fields.includes('inputKey') && !config?.defaults?.inputType ? 'block' : 'none'}">
-                            <div class="bt-field-label">${this.t('Type')}</div>
-                            <select id="bt-input-type" class="bt-type-select" ${this.state.selectedDataPath !== '' ? 'disabled' : ''}>
-                                <option value="text"  ${btInputType === 'text'  ? 'selected' : ''}>text</option>
-                                <option value="media" ${btInputType === 'media' ? 'selected' : ''}>media</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div id="bt-prompt-fields" style="display:${isProcess || (fields.includes('prompt') && btAction !== 'manual') ? 'block' : 'none'}">
-                        <div class="bt-field">
-                            <div class="bt-field-label">${this.t('BTPrompt')} <span class="bt-hint">${this.t('BTPromptHint')}</span></div>
-                            <textarea id="bt-node-prompt" class="input-textarea bt-prompt-area" placeholder="${this.t('BTPromptPlaceholder')}" ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>${this.escapeHtml(btPromptText)}</textarea>
-                        </div>
-                    </div>
-                    <div id="bt-manual-fields" style="display:${btAction === 'manual' ? 'block' : 'none'}">
-                        <div class="bt-field">
-                            <div class="bt-field-label">Manual Mode</div>
-                            <select id="bt-manual-mode" class="bt-type-select" ${this.state.selectedDataPath !== '' ? 'disabled' : ''}>
-                                <option value="view" ${btManualMode === 'view' ? 'selected' : ''}>View</option>
-                                <option value="edit" ${btManualMode === 'edit' ? 'selected' : ''}>Edit</option>
-                                <option value="compare" ${btManualMode === 'compare' ? 'selected' : ''}>Compare</option>
-                                <option value="choices" ${btManualMode === 'choices' ? 'selected' : ''}>Choices</option>
-                            </select>
-                        </div>
-                        <div class="bt-field">
-                            <div class="bt-field-label">Manual Prompt</div>
-                            <textarea id="bt-manual-prompt" class="input-textarea bt-prompt-area" placeholder="Optional prompt to display during manual step" ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>${this.escapeHtml(btManualPrompt)}</textarea>
-                        </div>
-                        <div class="bt-field" id="bt-manual-choices-field" style="display:${btManualMode === 'choices' ? 'block' : 'none'}">
-                            <div class="bt-field-label">Choices (JSON)</div>
-                            <textarea id="bt-manual-choices" class="input-textarea" style="font-family:monospace;font-size:11px" placeholder='[{"label":"Option 1","action":"next"},{"label":"Option 2","action":"cancel"}]' ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>${this.escapeHtml(btManualChoices)}</textarea>
-                        </div>
-                    </div>
-                    <div class="bt-field-row" id="bt-output-fields" style="display:${isProcess || fields.includes('outputKey') ? 'flex' : 'none'}">
-                        <div class="bt-field bt-field-key">
-                            <div class="bt-field-label">${this.t('OutputKey')} <span class="bt-hint">${this.t('OutputKeyHint')}</span></div>
-                            <input id="bt-output-key" class="bt-key-input" value="${this.escapeHtml(btOutputKey)}" placeholder="${this.t('VariableName')}" ${this.state.selectedDataPath !== '' ? 'readonly' : ''}>
-                        </div>
-                        <div class="bt-field bt-field-type" id="bt-output-type-field" style="display:${isProcess || !config?.defaults?.outputType ? 'block' : 'none'}">
-                            <div class="bt-field-label">${this.t('Type')}</div>
-                            <select id="bt-output-type" class="bt-type-select" ${this.state.selectedDataPath !== '' ? 'disabled' : ''}>
-                                <option value="text"  ${btOutputType === 'text'  ? 'selected' : ''}>text</option>
-                                <option value="t2a"   ${btOutputType === 't2a'   ? 'selected' : ''}>t2a (audio)</option>
-                                <option value="media" ${btOutputType === 'media' ? 'selected' : ''}>media</option>
-                                <option value="0"     ${btOutputType === '0'     ? 'selected' : ''}>0 (no output)</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="bt-field-actions">
-                        ${this.state.selectedDataPath === '' ? `<button class="copy-btn" onclick="app.saveBtNodeConfig()">💾 ${this.t('SaveBtn')}</button>` : ''}
-                        <button class="copy-btn" onclick="app.btBlackboardDialog()">📋 ${this.t('Blackboard')}</button>
-                    </div>
-                </div>
-            </details>
+            <!-- Save Actions -->
+            <div class="bt-field-actions">
+                ${this.state.selectedDataPath === '' ? `<button class="copy-btn" onclick="app.saveBtNodeConfig()">💾 ${this.t('SaveBtn')}</button>` : ''}
+                <button class="copy-btn" onclick="app.btBlackboardDialog()">📋 ${this.t('Blackboard')}</button>
+            </div>
         `;
 
         // Render pipeline meta if available
