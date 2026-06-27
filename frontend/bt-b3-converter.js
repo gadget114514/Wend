@@ -144,6 +144,11 @@ class B3TreeConverter {
             if (promptsNode.btLocalFilePath) properties.filePath = promptsNode.btLocalFilePath;
             if (promptsNode.btOutputKey) properties.outputKey = promptsNode.btOutputKey;
             if (promptsNode.btOutputType) properties.outputType = promptsNode.btOutputType;
+        } else if (promptsNode.btAction === 'manual') {
+            // Preserve manual action fields
+            if (promptsNode.btManualMode) properties.manualMode = promptsNode.btManualMode;
+            if (promptsNode.btManualPrompt) properties.manualPrompt = promptsNode.btManualPrompt;
+            if (promptsNode.btManualChoices) properties.manualChoices = promptsNode.btManualChoices;
         } else if (nodeName.startsWith('Repeat')) {
             // Pre-composed decorator+composite: inherit repeater configuration
             if (promptsNode.btRepeatCount) {
@@ -271,6 +276,15 @@ class B3TreeConverter {
                 }
                 if (b3Node.properties.filePath) {
                     promptsNode.btLocalFilePath = b3Node.properties.filePath;
+                }
+                if (b3Node.properties.manualMode) {
+                    promptsNode.btManualMode = b3Node.properties.manualMode;
+                }
+                if (b3Node.properties.manualPrompt) {
+                    promptsNode.btManualPrompt = b3Node.properties.manualPrompt;
+                }
+                if (b3Node.properties.manualChoices) {
+                    promptsNode.btManualChoices = b3Node.properties.manualChoices;
                 }
                 if (b3Node.properties.maxLoop) {
                     promptsNode.btRepeatCount = b3Node.properties.maxLoop.toString();
