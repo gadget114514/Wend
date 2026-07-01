@@ -35,16 +35,16 @@
             <div id="file-tree-content" class="pane-content" style="display:none"></div>
         </div>
         <div class="vertical-resize-handle" id="tree-resize-handle"></div>
-        <div id="prompt-pane" class="pane">
-            <div class="pane-header" onclick="app.togglePane('prompt-pane')">
+        <div id="operation-pane" class="pane">
+            <div class="pane-header" onclick="app.togglePane('operation-pane')">
                 🔧 <span data-i18n="Operator">Operation</span>
                 <span class="pane-meta" style="font-size:9px;color:#555;margin-left:4px">(op)</span>
-                <span class="pane-meta" id="prompt-meta"></span>
+                <span class="pane-meta" id="operation-meta"></span>
                 <span class="recipe-badge" id="recipe-badge"></span>
             </div>
-            <div id="prompt-content" class="pane-content stream-content"></div>
+            <div id="operation-content" class="pane-content stream-content"></div>
         </div>
-        <div class="vertical-resize-handle" id="prompt-resize-handle"></div>
+        <div class="vertical-resize-handle" id="operation-resize-handle"></div>
         <div id="input-pane" class="pane">
             <div class="pane-header" onclick="app.togglePane('input-pane')">
                 ▲ <span data-i18n="Input">Input</span>
@@ -582,6 +582,17 @@
                         <input type="number" id="config-task-polling-interval" value="10" min="1" max="60" onchange="app.setTaskPollingInterval(this.value)" style="width:50px;text-align:center;">
                         <button onclick="app.adjustTaskPollingInterval(1)" title="Increase">+</button>
                         <span style="font-size:11px;color:#888;">seconds (1-60)</span>
+                    </div>
+                    <!-- API Binding Address -->
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <label style="width:180px;font-size:12px;">API Binding Address</label>
+                        <input type="text" id="config-binding-address" value="127.0.0.1" onchange="app.setBindingAddress(this.value)" style="width:100px;background:#252526;color:#ccc;border:1px solid #3c3c3c;padding:2px 4px;font-size:11px;text-align:center;">
+                        <span style="font-size:11px;color:#888;">(Restart required)</span>
+                    </div>
+                    <!-- Disable HTTP Prompt Access -->
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input type="checkbox" id="config-use-ipc-for-prompt" onchange="app.setUseIpcForPrompt(this.checked)" style="background:#252526;color:#ccc;border:1px solid #3c3c3c;margin:0;">
+                        <label for="config-use-ipc-for-prompt" style="font-size:12px;cursor:pointer;">Disable HTTP Server Prompt Access (Use IPC)</label>
                     </div>
                 </div>
             </div>

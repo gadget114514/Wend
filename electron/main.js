@@ -1,5 +1,8 @@
 'use strict';
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell, nativeImage } = require('electron');
+app.name = 'Wend';
+app.setAppUserModelId('Wend');
+process.title = 'Wend';
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -1041,13 +1044,17 @@ class PipelineRunner {
         this.postBridge('step_started', JSON.stringify({ index: 0, name: steps[0]?.name || '' }));
         this._runNext().catch(e => {
             this.running = false;
+            let errMsg = e.message || String(e);
+            if (e.name === 'AggregateError' && e.errors) {
+                errMsg += '\n' + e.errors.map((err, i) => `  ${i + 1}. ${err.message}`).join('\n');
+            }
             try {
-                fs.appendFileSync(path.join(appDataPath, 'error.log'), `[${new Date().toISOString()}] Pipeline Error: ${e.message}\nStack: ${e.stack}\n\n`, 'utf8');
+                fs.appendFileSync(path.join(appDataPath, 'error.log'), `[${new Date().toISOString()}] Pipeline Error: ${errMsg}\nStack: ${e.stack}\n\n`, 'utf8');
             } catch (err) {
                 console.error('[Pipeline] Failed to write error log:', err.message);
             }
-            postToJS('log', JSON.stringify({ message: `❌ Pipeline Error: ${e.message}<details><summary>Call Stack</summary><pre style="margin:4px 0;font-size:11px;color:#ff6b6b;background:rgba(0,0,0,0.2);padding:6px;border-radius:4px;white-space:pre-wrap;">${e.stack}</pre></details>` }));
-            this.postBridge('pipeline_error', JSON.stringify({ message: String(e) }));
+            postToJS('log', JSON.stringify({ message: `❌ Pipeline Error: ${errMsg}<details><summary>Call Stack</summary><pre style="margin:4px 0;font-size:11px;color:#ff6b6b;background:rgba(0,0,0,0.2);padding:6px;border-radius:4px;white-space:pre-wrap;">${e.stack}</pre></details>` }));
+            this.postBridge('pipeline_error', JSON.stringify({ message: errMsg }));
         });
     }
 
@@ -1086,14 +1093,20 @@ class PipelineRunner {
             this.running = false;
             console.error('[Wend Pipeline Error]', e);
             const recipeInfo = step.params?.recipeName ? `\nRecipe: ${step.params.recipeName}` : '';
-            const nodeInfo = step.params?.nodeTitle ? `\nNode: ${step.params.nodeTitle} (${step.params.nodeId})` : '';
+            const nodeTitle = step.params?.nodeTitle || '(unnamed)';
+            const nodeInfo = `\nNode: ${nodeTitle} (${step.params?.nodeId || '?'})`;
+            let errMsg = e.message;
+            if (e.name === 'AggregateError' && e.errors) {
+                errMsg += '\n' + e.errors.map((err, i) => `  ${i + 1}. ${err.message}`).join('\n');
+            }
             try {
-                fs.appendFileSync(path.join(appDataPath, 'error.log'), `[${new Date().toISOString()}] Pipeline Error: ${e.message}${recipeInfo}${nodeInfo}\nStack: ${e.stack}\n\n`, 'utf8');
+                fs.appendFileSync(path.join(appDataPath, 'error.log'), `[${new Date().toISOString()}] Pipeline Error: ${errMsg}${recipeInfo}${nodeInfo}\nStack: ${e.stack}\n\n`, 'utf8');
             } catch (err) {
                 console.error('[Pipeline] Failed to write error log:', err.message);
             }
-            postToJS('log', JSON.stringify({ message: `❌ Step Error: ${e.message}${recipeInfo}${nodeInfo}<details><summary>Call Stack</summary><pre style="margin:4px 0;font-size:11px;color:#ff6b6b;background:rgba(0,0,0,0.2);padding:6px;border-radius:4px;white-space:pre-wrap;">${e.stack}</pre></details>` }));
-            this.postBridge('pipeline_error', JSON.stringify({ message: String(e) + recipeInfo + nodeInfo }));
+            const displayMsg = errMsg + recipeInfo + nodeInfo;
+            postToJS('log', JSON.stringify({ message: `❌ Step Error: ${displayMsg}<details><summary>Call Stack</summary><pre style="margin:4px 0;font-size:11px;color:#ff6b6b;background:rgba(0,0,0,0.2);padding:6px;border-radius:4px;white-space:pre-wrap;">${e.stack}</pre></details>` }));
+            this.postBridge('pipeline_error', JSON.stringify({ message: displayMsg }));
             return;
         }
 
@@ -1113,7 +1126,8 @@ class PipelineRunner {
             if (!provider) {
                 postToJS('log', JSON.stringify({ message: `[Backend] ERROR: Provider "${providerName}" NOT FOUND in registered providers: ${Object.keys(this.providers).join(', ')}` }));
                 const recipeContext = step.params?.recipeName ? `\nRecipe: ${step.params.recipeName}` : '';
-                const nodeContext = step.params?.nodeTitle ? `\nNode: ${step.params.nodeTitle} (${step.params.nodeId})` : '';
+                const nodeTitle = step.params?.nodeTitle || '(unnamed)';
+                const nodeContext = `\nNode: ${nodeTitle} (${step.params?.nodeId || '?'})`;
                 const loadErr = providerLoadErrors.find(le => le.startsWith(providerName + ':'));
                 const providerLoadDetails = loadErr ? `\nProvider Load Detail: ${loadErr}` : '';
                 throw new Error(`Provider Configuration Error\nStep: ${step.name || 'Step ' + idx}${recipeContext}${nodeContext}\nProvider: ${providerName}${providerLoadDetails}\nError: Provider not configured\nAvailable providers: ${Object.keys(this.providers).join(', ')}\nAction: Check Provider Settings and ensure "${providerName}" is properly configured with API key`);
@@ -1148,6 +1162,7 @@ class PipelineRunner {
                 model: step.params?.model || 'gpt-4.1',
                 systemPrompt: step.params?.systemPrompt || '',
                 userPrompt,
+                prompt: userPrompt,
                 temperature: parseFloat(step.params?.temperature || '0.7'),
                 maxTokens: parseInt(step.params?.maxTokens || '4096'),
                 attachments: reqAttachments,
@@ -1604,19 +1619,25 @@ let localization = { lang: 'en' };
 let embedded = false;
 let devMode = false;
 
+const browserClientEvents = [];
 function postToJS(type, payload) {
+    const payloadObj = typeof payload === 'string' ? JSON.parse(payload) : payload;
+    console.log(`[Backend] postToJS: sending event type="${type}" to frontend. hasMainWindow=${!!mainWindow}`);
     if (type === 'log') {
-        try {
-            const msg = typeof payload === 'string' ? JSON.parse(payload) : payload;
-            console.log('[Wend]', msg.message || payload);
-        } catch { console.log('[Wend]', payload); }
+        console.log('[Wend]', payloadObj.message || payloadObj);
     }
+    const msg = { type, payload: payloadObj };
     if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('bridge-message', JSON.stringify({ type, payload: typeof payload === 'string' ? JSON.parse(payload) : payload }));
+        mainWindow.webContents.send('bridge-message', JSON.stringify(msg));
+    }
+    browserClientEvents.push(msg);
+    if (browserClientEvents.length > 2000) {
+        browserClientEvents.shift();
     }
 }
 
 runner.setBridgeCallback((type, json) => {
+    console.log(`[Backend] runner setBridgeCallback: event type="${type}" triggered`);
     if (type === 'pipeline_completed') storage.saveHistory(json);
     postToJS('log', JSON.stringify({ message: '🏃 Pipeline: ' + type }));
     postToJS(type, JSON.parse(json));
@@ -1808,7 +1829,9 @@ function sendFullInit() {
             proxyServer: generalCfg.proxyServer || '',
             proxyMode: generalCfg.proxyMode || (generalCfg.proxyServer ? 'manual' : 'env'),
             envProxy: process.env.http_proxy || process.env.HTTP_PROXY || process.env.https_proxy || process.env.HTTPS_PROXY || '',
-            proxyEnabled: generalCfg.proxyEnabled !== false
+            proxyEnabled: generalCfg.proxyEnabled !== false,
+            bindingAddress: generalCfg.bindingAddress || '127.0.0.1',
+            useIpcForPrompt: generalCfg.useIpcForPrompt || false
         },
         defaultRecipes,
         projectRecipes,
@@ -2063,7 +2086,23 @@ let _mcpHealth = {
     servers: {},               // { [name]: { status, transport, lastChecked, error } }
 };
 
+
+function getLocalIPs() {
+    const interfaces = os.networkInterfaces();
+    const addresses = [];
+    for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name]) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                addresses.push(iface.address);
+            }
+        }
+    }
+    return addresses;
+}
+
 function startBtHttpServer() {
+    if (btHttpServer) return;
+
     btHttpServer = http.createServer((req, res) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -2075,14 +2114,89 @@ function startBtHttpServer() {
             return;
         }
 
+        const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const pathname = parsedUrl.pathname;
+
+        // HTTP Bridge Event Long-polling Fallback
+        if (pathname === '/bridge/events' && req.method === 'GET') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(browserClientEvents));
+            browserClientEvents.length = 0;
+            return;
+        }
+
+        // Static file serving fallback
+        const isApiRoute = pathname.startsWith('/bt/') || 
+                           pathname.startsWith('/mcp/') || 
+                           pathname.startsWith('/bridge') ||
+                           pathname === '/config' ||
+                           pathname === '/projects' ||
+                           pathname === '/tabs' ||
+                           pathname === '/recipes' ||
+                           pathname === '/providers' ||
+                           pathname === '/screenshot' ||
+                           pathname === '/promptProccss' ||
+                           pathname === '/runs' ||
+                           pathname.startsWith('/runs/') ||
+                           pathname.startsWith('/parallel/') ||
+                           pathname === '/metrics';
+
+        if (!isApiRoute) {
+            let safePath = path.normalize(pathname).replace(/^(\.\.[\/\\])+/, '');
+            if (safePath === '/' || safePath === '\\') safePath = '/index.html';
+            const filePath = path.join(FRONTEND_ROOT, safePath);
+
+            if (filePath.startsWith(FRONTEND_ROOT) && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+                const ext = path.extname(filePath).toLowerCase();
+                let contentType = 'text/plain';
+                if (ext === '.html') contentType = 'text/html';
+                else if (ext === '.js') contentType = 'application/javascript';
+                else if (ext === '.css') contentType = 'text/css';
+                else if (ext === '.json') contentType = 'application/json';
+                else if (ext === '.png') contentType = 'image/png';
+                else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+                else if (ext === '.ico') contentType = 'image/x-icon';
+                else if (ext === '.svg') contentType = 'image/svg+xml';
+
+                res.writeHead(200, { 'Content-Type': contentType });
+                fs.createReadStream(filePath).pipe(res);
+                return;
+            } else {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('Not Found');
+                return;
+            }
+        }
+
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', () => {
             try {
                 const payload = body ? JSON.parse(body) : {};
-                // Track external MCP client activity (the frontend talks over IPC, not HTTP,
-                // so any HTTP hit here is an external MCP client). Skip our own status/check
-                // routes so polling them doesn't self-trigger the "client connected" state.
+
+                // HTTP Bridge Send Fallback
+                if (pathname === '/bridge' && req.method === 'POST') {
+                    if (payload && payload.type) {
+                        const type = payload.type;
+                        const innerPayload = payload.payload;
+                        if (type === 'init_complete') {
+                            if (providerLoadErrors.length > 0) {
+                                postToJS('log', JSON.stringify({ message: `[ProviderLoader] ⚠️ Failed to load ${providerLoadErrors.length} provider(s):\n${providerLoadErrors.join('\n')}` }));
+                            }
+                            postToJS('log', JSON.stringify({ message: `[ProviderLoader] Loaded: ${Object.keys(builtinProviders).join(', ') || '(none)'}` }));
+                            sendFullInit();
+                            scheduleMcpHealthChecks();
+                        } else {
+                            handleBridgeMessage(type, innerPayload).catch(e => {
+                                postToJS('log', JSON.stringify({ message: `[Bridge Error] ${e.message}` }));
+                            });
+                        }
+                    }
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true }));
+                    return;
+                }
+
                 const pathOnly = req.url.split('?')[0];
                 if (pathOnly !== '/mcp/status' && pathOnly !== '/mcp/check') {
                     markMcpClientActivity();
@@ -2095,10 +2209,12 @@ function startBtHttpServer() {
         });
     });
 
-    btHttpServer.listen(BT_API_PORT, '127.0.0.1', () => {
+    const config = storage.loadGeneralConfig() || {};
+    const bindingAddress = config.bindingAddress || '127.0.0.1';
+    btHttpServer.listen(BT_API_PORT, bindingAddress, () => {
         _mcpHealth.bridgeListening = true;
         pushMcpStatus(true);
-        postToJS('log', JSON.stringify({ message: `[BT API] HTTP server running on http://127.0.0.1:${BT_API_PORT}` }));
+        postToJS('log', JSON.stringify({ message: `[BT API] HTTP server running on http://${bindingAddress}:${BT_API_PORT}` }));
     });
 
     btHttpServer.on('error', (err) => {
@@ -2247,6 +2363,7 @@ function handleBtApi(rawUrl, method, payload, res) {
         '/screenshot':   handleScreenshot,
         '/mcp/status':   handleMcpStatus,
         '/mcp/check':    handleMcpCheck,
+        '/promptProccss': handlePromptProccss,
     };
 
     // Phase B: Check exact route first, then pattern routes
@@ -2969,6 +3086,78 @@ function handleRecipes(method, payload, res) {
     }
 }
 
+function runPromptProcessInternal(payload) {
+    if (payload && payload.content !== undefined && payload.content !== null) {
+        console.log(`[Backend] Processing prompt for provider="${payload.provider || 'openai'}", model="${payload.model || 'gpt-4.1'}"`);
+        const step = {
+            name: new Date().toISOString(),
+            type: 'ai',
+            params: {
+                provider: payload.provider || 'openai',
+                model: payload.model || 'gpt-4.1',
+                systemPrompt: payload.systemPrompt || '',
+                userPrompt: payload.userPrompt || '{content}',
+                temperature: String(payload.temperature ?? 0.7),
+                baseUrl: payload.baseUrl || '',
+                apiPath: payload.apiPath || '',
+                customParams: payload.customParams || {},
+                recipeName: payload.recipeName || '',
+                nodeTitle: payload.nodeTitle || '',
+                nodeId: payload.nodeId || '',
+            },
+        };
+        
+        const providerName = payload.provider || 'openai';
+        const providers = storage.loadProviders();
+        const cfg = providers[providerName] || {};
+        const baseUrl = payload.baseUrl || cfg.baseUrl || '';
+        postToJS('log', JSON.stringify({ message: `[Backend] Registering provider: ${providerName}, apiFormat: ${cfg.apiFormat || providerName}, hasApiKey: ${!!cfg.apiKey}` }));
+        createProvider(cfg.apiFormat || providerName, cfg.apiKey || '', baseUrl);
+        runner.registerProvider(providerName, cfg.apiFormat || providerName, cfg.apiKey || '', baseUrl);
+        
+        const allAttachments = [
+            ...(payload.attachments || []),
+            ...(payload.inputAttachments || [])
+        ];
+        const requestContext = {
+            requestId: payload.requestId || null,
+            targetNodePath: payload.targetNodePath || null,
+            runId: payload.runId || null,
+        };
+        console.log(`[Backend] Invoking runner.run() with ${allAttachments.length} attachments`);
+        runner.run(new Date().toISOString(), [step], payload.content, allAttachments, 'child', requestContext);
+        postToJS('log', JSON.stringify({ message: `[Backend] runner.run() called — provider should now make HTTP request` }));
+    }
+}
+
+function handlePromptProccss(method, payload, res) {
+    if (method !== 'POST') {
+        res.writeHead(405, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Method not allowed' }));
+        return;
+    }
+
+    const generalCfg = storage.loadGeneralConfig();
+    if (generalCfg.useIpcForPrompt) {
+        console.warn(`[Backend API] POST /promptProccss blocked: useIpcForPrompt is enabled`);
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'HTTP prompt process access is disabled by configuration.' }));
+        return;
+    }
+
+    try {
+        console.log(`[Backend API] POST /promptProccss endpoint hit: provider=${payload?.provider}, model=${payload?.model}`);
+        postToJS('log', JSON.stringify({ message: `[Backend API] /promptProccss received: provider=${payload?.provider}, content.length=${(payload?.content||'').length}` }));
+        runPromptProcessInternal(payload);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+    } catch (e) {
+        console.error(`[Backend API] Error in /promptProccss: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+    }
+}
+
 function handleProviders(method, payload, res) {
     if (method === 'GET') {
         const providers = storage.loadProviders();
@@ -3407,50 +3596,7 @@ async function handleBridgeMessage(type, payload) {
         case 'run_prompt_process': {
             postToJS('log', JSON.stringify({ message: `[Backend] run_prompt_process received: provider=${payload?.provider}, content.length=${(payload?.content||'').length}` }));
             postToJS('log', JSON.stringify({ message: `[Backend] builtinProviders keys: ${Object.keys(builtinProviders).join(', ') || '(none)'}` }));
-            if (payload && payload.content !== undefined && payload.content !== null) {
-                const step = {
-                    name: new Date().toISOString(),
-                    type: 'ai',
-                    params: {
-                        provider: payload.provider || 'openai',
-                        model: payload.model || 'gpt-4.1',
-                        systemPrompt: payload.systemPrompt || '',
-                        userPrompt: payload.userPrompt || '{content}',
-                        temperature: String(payload.temperature ?? 0.7),
-                        baseUrl: payload.baseUrl || '',
-                        apiPath: payload.apiPath || '',
-                        customParams: payload.customParams || {},
-                        recipeName: payload.recipeName || '',
-                        nodeTitle: payload.nodeTitle || '',
-                        nodeId: payload.nodeId || '',
-                    },
-                };
-                
-                // Register provider before running
-                const providerName = payload.provider || 'openai';
-                const providers = storage.loadProviders();
-                const cfg = providers[providerName] || {};
-                const baseUrl = payload.baseUrl || cfg.baseUrl || '';
-                postToJS('log', JSON.stringify({ message: `[Backend] Registering provider: ${providerName}, apiFormat: ${cfg.apiFormat || providerName}, hasApiKey: ${!!cfg.apiKey}` }));
-                const createdProvider = createProvider(cfg.apiFormat || providerName, cfg.apiKey || '', baseUrl);
-                postToJS('log', JSON.stringify({ message: `[Backend] createProvider returned: ${createdProvider ? 'OK' : 'null'}` }));
-                runner.registerProvider(providerName, cfg.apiFormat || providerName, cfg.apiKey || '', baseUrl);
-                postToJS('log', JSON.stringify({ message: `[Backend] Registered providers: ${Object.keys(runner.providers).join(', ') || '(none)'}` }));
-                
-                // Merge machine-level (operation pane) and belt-level (input pane) attachments
-                const allAttachments = [
-                    ...(payload.attachments || []),
-                    ...(payload.inputAttachments || [])
-                ];
-                // Phase A: Pass requestId and targetNodePath for concurrent routing
-                const requestContext = {
-                    requestId: payload.requestId || null,
-                    targetNodePath: payload.targetNodePath || null,
-                    runId: payload.runId || null,
-                };
-                runner.run(new Date().toISOString(), [step], payload.content, allAttachments, 'child', requestContext);
-                postToJS('log', JSON.stringify({ message: `[Backend] runner.run() called — provider should now make HTTP request` }));
-            }
+            runPromptProcessInternal(payload);
             break;
         }
         case 'test_recipe': {
@@ -3471,6 +3617,7 @@ async function handleBridgeMessage(type, payload) {
                     model: payload?.model || 'gpt-4.1',
                     systemPrompt: payload?.systemPrompt || '',
                     userPrompt,
+                    prompt: userPrompt,
                     temperature: parseFloat(payload?.temperature ?? 0.7),
                     maxTokens: parseInt(payload?.maxTokens || '4096'),
                     attachments: [],
@@ -3849,6 +3996,12 @@ async function handleBridgeMessage(type, payload) {
             }
             if (payload?.proxyEnabled !== undefined) {
                 cfg.proxyEnabled = payload.proxyEnabled;
+            }
+            if (payload?.bindingAddress !== undefined) {
+                cfg.bindingAddress = payload.bindingAddress;
+            }
+            if (payload?.useIpcForPrompt !== undefined) {
+                cfg.useIpcForPrompt = payload.useIpcForPrompt;
             }
             if (providerUtils) {
                 providerUtils.setProxyServer(cfg.proxyServer || '', cfg.proxyMode || 'env', cfg.proxyEnabled !== false);
@@ -4561,12 +4714,12 @@ Return the updated JSON configuration.`;
                     const mimeMap = { png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', webp:'image/webp', bmp:'image/bmp', svg:'image/svg+xml', mp4:'video/mp4', webm:'video/webm', mov:'video/quicktime', avi:'video/x-msvideo', mkv:'video/x-matroska', mp3:'audio/mpeg', wav:'audio/wav', ogg:'audio/ogg', flac:'audio/flac', m4a:'audio/mp4', pdf:'application/pdf', txt:'text/plain', json:'application/json', xml:'application/xml', html:'text/html', css:'text/css', js:'application/javascript', py:'text/x-python', md:'text/markdown' };
                     const mimetype = mimeMap[ext] || 'application/octet-stream';
                     const size = fs.statSync(fp).size;
-                    postToJS('read_artifact_file_result', { path: fp, mimetype, content, size });
+                    postToJS('read_artifact_file_result', { ...payload, path: fp, mimetype, content, size });
                 } catch (e) {
-                    postToJS('read_artifact_file_result', { path: fp, error: e.message });
+                    postToJS('read_artifact_file_result', { ...payload, path: fp, error: e.message });
                 }
             } else {
-                postToJS('read_artifact_file_result', { path: fp || '', error: 'File not found' });
+                postToJS('read_artifact_file_result', { ...payload, path: fp || '', error: 'File not found' });
             }
             break;
         }
@@ -4962,7 +5115,6 @@ function buildMenu() {
                 { label: 'Execution Lock', click: send('bt_toggle_lock') },
                 { type: 'separator' },
                 { label: 'Blackboard Manager', click: send('bt_blackboard') },
-                { label: 'BT Settings...', click: send('bt_config') },
             ],
         },
 
@@ -5208,6 +5360,7 @@ app.whenReady().then(() => {
         try { postToJS('http_log', info); } catch (e) {}
     });
 
+    startBtHttpServer();
     createWindow();
 
     app.on('activate', () => {

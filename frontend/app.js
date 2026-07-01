@@ -55,6 +55,7 @@ const app = {
     },
 
     init() {
+        window.app = this;
         this._bt = new BehaviorTreeEngine(this);
         this.outputTrace('[BT Engine] Active engine: custom BehaviorTreeEngine');
         this._engines = new Map();      // Phase B: runId → BehaviorTreeEngine (multi-instance)
@@ -97,14 +98,62 @@ const app = {
 
     setupBridge() {
         const bridge = window.__promptsBridge || window.chrome?.webview;
-        if (!bridge) { console.error('No IPC bridge available'); return; }
+        if (!bridge) {
+            console.warn('No IPC bridge available. Initializing HTTP polling fallback bridge.');
+            this.setupHttpFallbackBridge();
+            return;
+        }
         bridge.addEventListener('message', (e) => {
             const msg = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
             this.handleBridge(msg);
         });
     },
 
+    setupHttpFallbackBridge() {
+        if (typeof window === 'undefined' || !window.location) {
+            console.log('[Bridge] Skipping HTTP fallback bridge in non-browser/test environment');
+            return;
+        }
+
+        // Expose a mock bridge interface so code calling window.__promptsBridge.postMessage works
+        window.__promptsBridge = {
+            postMessage: (obj) => {
+                fetch('/bridge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(obj)
+                }).catch(e => console.error('[HTTP Bridge] Failed to post message:', e));
+            }
+        };
+
+        // Start polling for events
+        const poll = () => {
+            fetch('/bridge/events')
+                .then(res => res.json())
+                .then(events => {
+                    if (Array.isArray(events)) {
+                        for (const ev of events) {
+                            this.handleBridge(ev);
+                        }
+                    }
+                    setTimeout(poll, 500); // Poll every 500ms
+                })
+                .catch(e => {
+                    console.error('[HTTP Bridge] Poll error:', e);
+                    setTimeout(poll, 2000); // retry after 2 seconds
+                });
+        };
+        
+        setTimeout(poll, 100);
+
+        // Tell the backend we are ready to initialize
+        setTimeout(() => {
+            window.__promptsBridge.postMessage({ type: 'init_complete', payload: {} });
+        }, 300);
+    },
+
     handleBridge(msg) {
+        console.log(`[Frontend] handleBridge: received event type="${msg?.type}"`, msg);
         switch (msg.type) {
             case 'init':
                 this.state.language = msg.payload.language || 'en';
@@ -113,6 +162,11 @@ const app = {
                 this.state.frontendRoot = msg.payload.frontendRoot || '';
                 this.state.activeProject = msg.payload.currentProject || 'Default';
                 this.loadLanguage(this.state.language);
+                if (msg.payload.collapsedPaths) {
+                    this.state.collapsedPaths = new Set(msg.payload.collapsedPaths);
+                } else {
+                    this.state.collapsedPaths = new Set();
+                }
                 if (msg.payload.tabs && msg.payload.tabs.length > 0) {
                     this.state.tabs = msg.payload.tabs.map(t => ({
                         name: t.name,
@@ -176,6 +230,10 @@ const app = {
                         this.state.envProxy = msg.payload.config.envProxy;
                     if (msg.payload.config.proxyEnabled !== undefined)
                         this.state.proxyEnabled = msg.payload.config.proxyEnabled;
+                    if (msg.payload.config.bindingAddress !== undefined)
+                        this.state.bindingAddress = msg.payload.config.bindingAddress;
+                    if (msg.payload.config.useIpcForPrompt !== undefined)
+                        this.state.useIpcForPrompt = msg.payload.config.useIpcForPrompt;
                 }
                 if (msg.payload.appIconDataUrl)
                     this.state.appIconDataUrl = msg.payload.appIconDataUrl;
@@ -188,11 +246,6 @@ const app = {
                 this._projectBlackboard = msg.payload.projectBlackboard || {};
                 if (msg.payload.placeholderArchiveName) {
                     this.state.placeholderArchiveName = msg.payload.placeholderArchiveName;
-                }
-                if (msg.payload.collapsedPaths) {
-                    this.state.collapsedPaths = new Set(msg.payload.collapsedPaths);
-                } else {
-                    this.state.collapsedPaths = new Set();
                 }
                 if (msg.payload.demos) {
                     this.state.demos = msg.payload.demos;
@@ -265,12 +318,21 @@ const app = {
                 break;
             case 'read_artifact_file_result':
                 if (msg.payload && msg.payload.path) {
-                    if (msg.payload.error) {
-                        this.outputMessage(`Read artifact error: ${msg.payload.error}`);
-                    } else if (this._pendingArtifactPreview) {
-                        const a = this._pendingArtifactPreview;
-                        this._pendingArtifactPreview = null;
-                        this.showMediaViewerForArtifact(a, msg.payload);
+                    if (msg.payload.purpose === 'thumbnail') {
+                        if (!msg.payload.error && msg.payload.content && msg.payload.elementId) {
+                            const el = document.getElementById(msg.payload.elementId);
+                            if (el) {
+                                el.outerHTML = `<img class="output-thumb" src="data:${msg.payload.mimetype};base64,${msg.payload.content}" onerror="this.src=''">`;
+                            }
+                        }
+                    } else {
+                        if (msg.payload.error) {
+                            this.outputMessage(`Read artifact error: ${msg.payload.error}`);
+                        } else if (this._pendingArtifactPreview) {
+                            const a = this._pendingArtifactPreview;
+                            this._pendingArtifactPreview = null;
+                            this.showMediaViewerForArtifact(a, msg.payload);
+                        }
                     }
                 }
                 break;
@@ -326,6 +388,22 @@ const app = {
                     // Update model inputs in Recipe Manager if open
                     if (document.getElementById('recipe-modal')?.classList.contains('visible')) {
                         this.updateRecipeManagerModels(msg.payload.provider, msg.payload.error);
+                    }
+                    // Display models on the recipe card if a pending check exists
+                    const pendingIdx = this._pendingModelCheckForRecipe;
+                    this._pendingModelCheckForRecipe = undefined;
+                    if (pendingIdx !== undefined) {
+                        const resultEl = document.getElementById('rm-test-result-' + pendingIdx);
+                        if (resultEl) {
+                            if (msg.payload.error) {
+                                resultEl.innerHTML = `<div class="rt-error">❌ ${this.escapeHtml(msg.payload.error)}</div>`;
+                            } else if (msg.payload.models.length === 0) {
+                                resultEl.innerHTML = `<div class="rt-error">⚠️ No models found — check ComfyUI's models/checkpoints/ directory</div>`;
+                            } else {
+                                const list = msg.payload.models.map(m => `<li>${this.escapeHtml(m)}</li>`).join('');
+                                resultEl.innerHTML = `<div class="rt-text" style="font-size:11px;max-height:200px;overflow-y:auto"><b>Available models (${msg.payload.models.length}):</b><ul style="margin:4px 0;padding-left:18px">${list}</ul></div>`;
+                            }
+                        }
                     }
                     if (msg.payload.error) {
                         this.outputMessage(`Model list error for ${msg.payload.provider}: ${msg.payload.error}`);
@@ -688,7 +766,26 @@ const app = {
         this._messageListeners = this._messageListeners.filter(h => h !== handler);
     },
 
+    syncCollapsedStateToTree(node, path = '') {
+        if (!node) return;
+        if (node.nodeType === 'assemble' || node.nodeType === 'placeholder') {
+            if (this.state.collapsedPaths.has(path)) {
+                node.collapsed = true;
+            } else {
+                delete node.collapsed;
+            }
+        }
+        if (node.children) {
+            node.children.forEach((child, idx) => {
+                this.syncCollapsedStateToTree(child, path + '/' + idx);
+            });
+        }
+    },
+
     postMessage(obj) {
+        if (obj && obj.type === 'save_node' && obj.payload && obj.payload.root) {
+            this.syncCollapsedStateToTree(obj.payload.root);
+        }
         const bridge = window.__promptsBridge || window.chrome?.webview;
         if (bridge) bridge.postMessage(obj);
     },
@@ -1969,6 +2066,8 @@ const app = {
             proxyServer: this.state.proxyServer,
             proxyMode: this.state.proxyMode,
             proxyEnabled: this.state.proxyEnabled,
+            bindingAddress: this.state.bindingAddress,
+            useIpcForPrompt: this.state.useIpcForPrompt,
         }});
         panel.classList.remove('visible');
     },
@@ -1991,6 +2090,8 @@ const app = {
             proxyServer: this.state.proxyServer,
             proxyMode: this.state.proxyMode,
             proxyEnabled: this.state.proxyEnabled,
+            bindingAddress: this.state.bindingAddress,
+            useIpcForPrompt: this.state.useIpcForPrompt,
         }});
         panel.classList.remove('visible');
     },
@@ -2014,6 +2115,8 @@ const app = {
             proxyServer: this.state.proxyServer,
             proxyMode: this.state.proxyMode,
             proxyEnabled: this.state.proxyEnabled,
+            bindingAddress: this.state.bindingAddress,
+            useIpcForPrompt: this.state.useIpcForPrompt,
         }});
     },
 
@@ -2031,6 +2134,8 @@ const app = {
             proxyServer: this.state.proxyServer,
             proxyMode: this.state.proxyMode,
             proxyEnabled: this.state.proxyEnabled,
+            bindingAddress: this.state.bindingAddress,
+            useIpcForPrompt: this.state.useIpcForPrompt,
         }});
     },
 
@@ -2100,12 +2205,13 @@ const app = {
                     <div style="font-size:11px;color:#f66;margin-bottom:8px;"><strong>Error:</strong> ${this.escapeHtml(error)}</div>
                     <div style="font-size:11px;color:#888;">Recipe: ${this.escapeHtml(recipeConfig?.name || 'Unknown')}</div>
                 </div>
-                <div style="font-size:12px;color:#ccc;margin-bottom:12px;">
-                    Use AI to analyze and fix this error?
+                <div id="ai-fix-status" style="font-size:12px;color:#ccc;margin-bottom:12px;">
+                    Use AI to analyze and suggest fixes for this error?
                 </div>
+                <div id="ai-fix-results" style="margin-top:12px;display:none;"></div>
                 <div style="display:flex;gap:8px;justify-content:flex-end;">
-                    <button onclick="app.applyAIFix()" class="btn-primary" style="padding:6px 16px;">Fix with AI</button>
-                    <button onclick="app.dismissAIFix()" style="padding:6px 16px;">Dismiss</button>
+                    <button id="ai-fix-action-btn" onclick="app.applyAIFix()" class="btn-primary" style="padding:6px 16px;">Ask error to AI</button>
+                    <button id="ai-fix-close-btn" onclick="app.dismissAIFix()" style="padding:6px 16px;">Dismiss</button>
                 </div>
             </div>
         `;
@@ -2116,12 +2222,23 @@ const app = {
     applyAIFix() {
         if (!this._pendingAIFix) return;
         const { error, recipeConfig, context } = this._pendingAIFix;
+        
+        const statusEl = document.getElementById('ai-fix-status');
+        if (statusEl) {
+            statusEl.innerHTML = '<span style="color:#64b5f6;">🤖 Analyzing error with AI, please wait...</span>';
+        }
+        const actionBtn = document.getElementById('ai-fix-action-btn');
+        if (actionBtn) {
+            actionBtn.disabled = true;
+            actionBtn.style.opacity = '0.5';
+            actionBtn.innerText = 'Analyzing...';
+        }
+        
         this.postMessage({
             type: 'ai_maintain_fix_error',
             payload: { error, recipeConfig, context }
         });
         this.outputMessage('🤖 Requesting AI fix...');
-        this.dismissAIFix();
     },
 
     dismissAIFix() {
@@ -2148,6 +2265,79 @@ const app = {
             }
         } else {
             this.outputMessage(`AI Maintenance Error\nOperation: onAIMaintainResult\nError: ${result.error}\nAction: Review the error details and check provider configuration`);
+        }
+
+        const modal = document.getElementById('ai-fix-modal');
+        if (modal) {
+            const statusEl = document.getElementById('ai-fix-status');
+            const resultsEl = document.getElementById('ai-fix-results');
+            const actionBtn = document.getElementById('ai-fix-action-btn');
+            const closeBtn = document.getElementById('ai-fix-close-btn');
+
+            if (result.success) {
+                if (statusEl) {
+                    statusEl.innerHTML = '<span style="color:#81c784;font-weight:bold;">✅ AI Analysis Complete</span>';
+                }
+                if (resultsEl) {
+                    resultsEl.style.display = 'block';
+                    let html = '';
+                    if (result.suggestion) {
+                        html += `
+                            <div style="margin-bottom:12px;">
+                                <strong style="color:#fff;">Analysis:</strong>
+                                <div style="color:#ccc;font-size:12px;margin-top:4px;white-space:pre-wrap;background:#252526;padding:8px;border-radius:4px;border:1px solid #3c3c3c;max-height:120px;overflow-y:auto;">${this.escapeHtml(result.suggestion.analysis)}</div>
+                            </div>
+                        `;
+                        if (result.suggestion.fixes && result.suggestion.fixes.length > 0) {
+                            html += `
+                                <div>
+                                    <strong style="color:#fff;">Suggested Fixes (${result.suggestion.fixes.length}):</strong>
+                                    <div style="max-height:120px;overflow-y:auto;background:#252526;border:1px solid #3c3c3c;border-radius:4px;padding:6px;margin-top:4px;font-family:monospace;font-size:11px;">
+                            `;
+                            result.suggestion.fixes.forEach(fix => {
+                                html += `
+                                    <div style="border-bottom:1px solid #3c3c3c;padding:4px 0;color:#ddd;margin-bottom:4px;">
+                                        <div><span style="color:#80cbc4;">Field:</span> ${this.escapeHtml(fix.field)}</div>
+                                        <div><span style="color:#ffb74d;">Change:</span> <span style="color:#ef5350;text-decoration:line-through;">${this.escapeHtml(fix.oldValue)}</span> → <span style="color:#81c784;">${this.escapeHtml(fix.newValue)}</span></div>
+                                        <div><span style="color:#90caf9;">Reason:</span> ${this.escapeHtml(fix.reason)}</div>
+                                    </div>
+                                `;
+                            });
+                            html += `
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            html += `<div style="color:#aaa;font-size:12px;font-style:italic;">No concrete configuration fixes were suggested.</div>`;
+                        }
+                    } else if (result.updated) {
+                        html += `
+                            <div style="color:#81c784;margin-bottom:8px;">Configuration successfully updated by AI!</div>
+                            ${result.filePath ? `<div style="font-size:11px;color:#aaa;">Saved to: ${this.escapeHtml(result.filePath)}</div>` : ''}
+                        `;
+                    }
+                    resultsEl.innerHTML = html;
+                }
+            } else {
+                if (statusEl) {
+                    statusEl.innerHTML = '<span style="color:#ef5350;font-weight:bold;">❌ Error Occurred</span>';
+                }
+                if (resultsEl) {
+                    resultsEl.style.display = 'block';
+                    resultsEl.innerHTML = `
+                        <div style="color:#ef5350;font-size:12px;white-space:pre-wrap;background:#2d1e1e;padding:8px;border-radius:4px;border:1px solid #5a3232;max-height:180px;overflow-y:auto;">${this.escapeHtml(result.error || 'Unknown error occurred during analysis.')}</div>
+                    `;
+                }
+            }
+
+            if (actionBtn) {
+                actionBtn.remove();
+            }
+            if (closeBtn) {
+                closeBtn.disabled = false;
+                closeBtn.style.opacity = '1';
+                closeBtn.innerText = 'Close';
+            }
         }
     },
 
@@ -2862,6 +3052,8 @@ const app = {
         // Inline test button + result panel (AI recipes only).
         const testBtn = r.type === 'command' ? '' :
             `<button class="recipe-btn" id="rm-test-btn-${i}" onclick="app.runRecipeTestForCard(${i})">▶ ${this.t('TestRecipeBtn')}</button>`;
+        const modelsBtn = (r.provider === 'comfyui' || r.customParams?.workflow) ?
+            `<button class="recipe-btn" id="rm-models-btn-${i}" onclick="app.checkRecipeModels(${i})" style="margin-left:4px">📦 ${this.t('CheckModels') || 'Models'}</button>` : '';
         const resultPanel = r.type === 'command' ? '' :
             `<div id="rm-test-result-${i}" class="rt-result"></div>`;
 
@@ -2875,7 +3067,7 @@ const app = {
                 </div>
                 <div class="recipe-mgr-item-detail">${detail}</div>
                 <div class="recipe-mgr-item-actions">
-                    ${testBtn}
+                    ${testBtn}${modelsBtn}
                     <button class="recipe-btn" onclick="app.editRecipe(${i})">✏️ Edit</button>
                     <button class="recipe-btn recipe-btn-danger" onclick="app.deleteRecipe(${i});app.renderRecipeManager()">🗑 Delete</button>
                     <span class="recipe-mgr-item-reorder">
@@ -3071,6 +3263,16 @@ const app = {
         if (!aiFields || !cmdFields) return;
         aiFields.style.display = type === 'command' ? 'none' : '';
         cmdFields.style.display = type === 'command' ? '' : 'none';
+    },
+
+    checkRecipeModels(index) {
+        const recipes = this.state.recipes || [];
+        const recipe = recipes[index];
+        if (!recipe) return;
+        const resultEl = document.getElementById('rm-test-result-' + index);
+        if (resultEl) resultEl.innerHTML = `<div class="rt-running">⏳ Fetching models...</div>`;
+        this._pendingModelCheckForRecipe = index;
+        this.fetchModelsForProvider(recipe.provider);
     },
 
     fetchModelsForProvider(provider) {
@@ -3491,6 +3693,12 @@ const app = {
         // Placeholder archive name
         const archiveNameEl = document.getElementById('config-placeholder-archive-name');
         if (archiveNameEl) archiveNameEl.value = this.state.placeholderArchiveName || 'archive';
+        // API Binding Address
+        const bindingAddressEl = document.getElementById('config-binding-address');
+        if (bindingAddressEl) bindingAddressEl.value = this.state.bindingAddress || '127.0.0.1';
+        // Disable HTTP prompt access (Use IPC)
+        const useIpcEl = document.getElementById('config-use-ipc-for-prompt');
+        if (useIpcEl) useIpcEl.checked = this.state.useIpcForPrompt || false;
         // Maintain recipe
         const maintainEl = document.getElementById('config-maintain-recipe');
         if (maintainEl) {
@@ -4061,6 +4269,14 @@ const app = {
         this.state.defaultImageFit = val;
     },
 
+    setBindingAddress(val) {
+        this.state.bindingAddress = val;
+    },
+
+    setUseIpcForPrompt(val) {
+        this.state.useIpcForPrompt = val;
+    },
+
     getRecipeSettings() {
         const recipeName = this.state.selectedRecipe;
         if (recipeName) {
@@ -4080,10 +4296,35 @@ const app = {
         };
     },
 
+    _recipeUsecaseToTypes(usecase) {
+        const map = {
+            'Text-to-Image (T2I)':             { inputType: 'text',  outputType: 'media' },
+            'Text-to-Video (T2V)':             { inputType: 'text',  outputType: 'media' },
+            'Image-to-Image (I2I)':            { inputType: 'media', outputType: 'media' },
+            'Image-to-Image (Multi-Ref)':      { inputType: 'media', outputType: 'media' },
+            'Video understanding to Image (V2I)': { inputType: 'media', outputType: 'media' },
+            'Text-to-Audio (T2A)':             { inputType: 'text',  outputType: 't2a' },
+            'Text-to-None (T20)':              { inputType: 'text',  outputType: '0' },
+            'Image-to-None (I20)':             { inputType: 'media', outputType: '0' },
+            'Audio-to-None (A20)':             { inputType: 'media', outputType: '0' },
+            'Video-to-None (V20)':             { inputType: 'media', outputType: '0' },
+        };
+        return map[usecase] || { inputType: 'text', outputType: 'text' };
+    },
+
+    _applyRecipeTypes(node, recipe) {
+        if (!node || !recipe) return;
+        const uc = this._classifyRecipeUsecase(recipe);
+        const types = this._recipeUsecaseToTypes(uc);
+        node.btInputType = types.inputType;
+        node.btOutputType = types.outputType;
+    },
+
     selectRecipe(index) {
         const recipes = this.state.recipes || [];
         if (index < 0 || index >= recipes.length) return;
-        this.state.selectedRecipe = recipes[index].name;
+        const recipe = recipes[index];
+        this.state.selectedRecipe = recipe.name;
         // Persist per-node recipe selection on logical parent op node
         let node = this.getNodeByPath(this.state.selectedOpPath || this.state.currentNodePath);
         if (node) {
@@ -4091,6 +4332,7 @@ const app = {
                 node = node.originalOpNode;
             }
             node.selectedRecipe = this.state.selectedRecipe;
+            this._applyRecipeTypes(node, recipe);
             this.markDirty();
         }
         this.renderPrompt();
@@ -4108,13 +4350,15 @@ const app = {
         const names = recipes.map(r => r.name);
         const idx = current ? names.indexOf(current) : -1;
         const nextIdx = (idx + 1) % names.length;
-        this.state.selectedRecipe = names[nextIdx];
+        const recipe = recipes[nextIdx];
+        this.state.selectedRecipe = recipe.name;
         let node = this.getNodeByPath(this.state.selectedOpPath || this.state.currentNodePath);
         if (node) {
             if (node.nodeType === 'data' && node.originalOpNode) {
                 node = node.originalOpNode;
             }
             node.selectedRecipe = this.state.selectedRecipe;
+            this._applyRecipeTypes(node, recipe);
             this.markDirty();
         }
         this.renderPrompt();
@@ -4862,6 +5106,18 @@ const app = {
         }
     },
 
+    rebuildCollapsedPaths(node, path = '') {
+        if (!node) return;
+        if ((node.nodeType === 'assemble' || node.nodeType === 'placeholder') && node.collapsed) {
+            this.state.collapsedPaths.add(path);
+        }
+        if (node.children) {
+            node.children.forEach((child, idx) => {
+                this.rebuildCollapsedPaths(child, path + '/' + idx);
+            });
+        }
+    },
+
     // Tree rendering
     renderTree() {
         if (this.state.viewMode === 'pipeline') {
@@ -4872,6 +5128,10 @@ const app = {
         if (!el) return;
         const tab = this.state.tabs[this.state.activeTab];
         if (!tab || !tab.root) { el.innerHTML = '<div class="empty">No data</div>'; return; }
+        
+        // Rebuild collapsedPaths based on tab tree's nodes
+        this.rebuildCollapsedPaths(tab.root, '');
+
         // Pre-compute whether the currently selected node is a leaf (data node)
         const selNode = this.getNodeByPath(this.state.currentNodePath);
         this._selectedIsLeaf = selNode ? (!selNode.children || selNode.children.length === 0) : false;
@@ -5027,11 +5287,15 @@ const app = {
     },
 
     treeToggleCollapse(path) {
+        const node = this.getNodeByPath(path);
         if (this.state.collapsedPaths.has(path)) {
             this.state.collapsedPaths.delete(path);
+            if (node) node.collapsed = false;
         } else {
             this.state.collapsedPaths.add(path);
+            if (node) node.collapsed = true;
         }
+        this.saveCurrentTab();
         this.renderTree();
     },
 
@@ -5209,7 +5473,11 @@ const app = {
             items += `<div class="ctx-item" style="color:#888;font-size:10px;cursor:default;max-width:300px;overflow:hidden;text-overflow:ellipsis;user-select:text;pointer-events:none;padding-bottom:4px;border-bottom:1px solid var(--theme-border)" title="${this.escapeHtml(fullPath)}">${this.escapeHtml(fullPath)}</div>`;
             items += `<div class="ctx-item" onclick="navigator.clipboard.writeText('${this.escapeHtml(fullPath).replace(/\\/g, '\\\\')}');app.hideOutputContextMenu();app.outputMessage('📋 ' + app.t('Copied'))">📋 ${this.t('CopyFullPath') || 'Copy Full Path'}</div>`;
         } else {
+            const contentText = artifact.content ? (() => { try { return atob(artifact.content); } catch { return artifact.content; } })() : '';
             items += `<div class="ctx-item" style="color:#888;font-size:10px;cursor:default;max-width:300px;overflow:hidden;text-overflow:ellipsis;user-select:text;pointer-events:none;padding-bottom:4px;border-bottom:1px solid var(--theme-border)" title="${this.escapeHtml(label)}">${this.escapeHtml(label)}</div>`;
+            if (contentText) {
+                items += `<div class="ctx-item" onclick="app.copyToClipboard(${JSON.stringify(contentText)});app.hideOutputContextMenu()">📋 ${this.t('CopyText') || 'Copy Text'}</div>`;
+            }
         }
         items += `<div class="ctx-sep"></div>`;
         items += `<div class="ctx-item" onclick="app.exportActiveArtifact();app.hideOutputContextMenu()">📤 ${this.t('ExportArtifact') || 'Export Artifact'}</div>`;
@@ -6594,7 +6862,7 @@ const app = {
         const btPromptEl = document.getElementById('bt-node-prompt');
         if (btPromptEl) {
             const promptRaw = btPromptEl.value || '';
-            targetNode.btPrompt = promptRaw ? btoa(promptRaw) : '';
+            targetNode.btPrompt = promptRaw ? this.safeB64(promptRaw) : '';
             targetNode.btInputKey = (document.getElementById('bt-input-key')?.value || '').trim();
             targetNode.btInputType = document.getElementById('bt-input-type')?.value || 'text';
             targetNode.btOutputKey = (document.getElementById('bt-output-key')?.value || '').trim();
@@ -6648,7 +6916,7 @@ const app = {
 
             const prompt = (ctx?.prompt != null)
                 ? ctx.prompt
-                : (document.getElementById('node-content')?.value || '');
+                : (document.getElementById('bt-node-prompt')?.value || document.getElementById('node-content')?.value || '');
 
             const rawUserInput = (ctx?.bbTextInput != null)
                 ? ctx.bbTextInput
@@ -6677,8 +6945,8 @@ const app = {
             const nodeTitle = node ? (node.title ? this.safeAtob(node.title) : this.getTitleFallback(node)) : 'Unknown Node';
 
             const allInputAttachments = [
-                ...(ctx ? [] : (node.tempInputAttachments ? node.tempInputAttachments.files : (node.inputAttachments || []))),
-                ...bbMediaFiles,
+                ...(ctx ? [] : (node.tempInputAttachments ? (node.tempInputAttachments.files || []) : (node.inputAttachments || []))),
+                ...(Array.isArray(bbMediaFiles) ? bbMediaFiles : []),
             ];
 
             if (recipe.type === 'command') {
@@ -6766,10 +7034,30 @@ const app = {
             payload.targetNodePath = ctx?.targetNodePath || this.state.currentNodePath;
             if (ctx?.runId) payload.runId = ctx.runId;
 
-            this.postMessage({
-                type: 'run_prompt_process',
-                payload,
-            });
+            console.log(`[Frontend] Prompt button clicked. Initiating execution for recipe: ${recipeName || recipe.name || 'Default'}`);
+             if (typeof fetch === 'function' && !this.state.useIpcForPrompt) {
+                console.log('[Frontend] Sending HTTP POST request to /promptProccss...');
+                fetch('http://127.0.0.1:18765/promptProccss', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).then(res => {
+                    console.log(`[Frontend] /promptProccss HTTP response received, status: ${res.status}, ok: ${res.ok}`);
+                    return res.json().then(data => {
+                        console.log('[Frontend] /promptProccss response body:', data);
+                    }).catch(e => {
+                        console.warn('[Frontend] Could not parse response JSON:', e);
+                    });
+                }).catch(err => {
+                    console.error('Failed to invoke promptProccss HTTP access:', err);
+                });
+            } else {
+                console.log(`[Frontend] Using IPC for prompt execution (useIpcForPrompt=${!!this.state.useIpcForPrompt}, fetchAvailable=${typeof fetch === 'function'})`);
+                this.postMessage({
+                    type: 'run_prompt_process',
+                    payload,
+                });
+            }
             this.state.pipelineRun.running = true;
             this.renderPrompt();
             this.outputMessage(`▶ ${this.t('ProcessingPrompt').replace('{provider}', recipe.provider).replace('{model}', recipe.model || '(default)')}`);
@@ -7038,6 +7326,22 @@ const app = {
         }
         el.appendChild(div);
         el.scrollTop = el.scrollHeight;
+    },
+
+    copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            this.outputMessage('📋 ' + this.t('Copied'));
+        }).catch(() => {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            this.outputMessage('📋 ' + this.t('Copied'));
+        });
     },
 
     outputDebug(text) {
@@ -8139,18 +8443,8 @@ const app = {
                 item('🔒 ' + t('MenuExecutionLock'), 'bt_toggle_lock') +
                 sep +
                 item('📋 ' + t('MenuBlackboard'), 'bt_blackboard') +
-                item('⚙ ' + t('MenuBTSettings'), 'bt_config') +
                 sep +
                 item('🚀 Task Manager', 'task_manager')
-            )}
-            ${sep}
-            ${section('Pipeline',
-                item('▶ ' + t('RunPipeline'),     'run_pipeline',      'F5') +
-                item('🔧 Pipeline Manager',        'pipeline_manager') +
-                item('📜 ' + t('History'), 'pipeline_history') +
-                sep +
-                item('📤 Export Pipelines',        'export_pipeline') +
-                item('📥 Import Pipeline',         'import_pipeline')
             )}
             ${sep}
             ${section(t('MenuSettings'),
@@ -8899,7 +9193,15 @@ const app = {
             const t = key => this.t(key);
             inputEl.innerHTML = `
                 <div style="margin-bottom:6px">
-                    <div style="font-size:10px;color:#888;margin-bottom:2px">${this.t('InputText')}</div>
+                    <div style="font-size:10px;color:#888;margin-bottom:2px;display:flex;align-items:center;justify-content:space-between">
+                        <span>${this.t('InputText')}</span>
+                        ${!this.state.viewOnlyMode ? `
+                            <div style="display:flex;gap:4px">
+                                <button class="copy-btn" onclick="app.clearText()" style="font-size:10px;padding:1px 6px" title="${this.t('ClearText')}">⌫</button>
+                                <button class="copy-btn" onclick="app.clearInput()" style="font-size:10px;padding:1px 6px" title="${this.t('ClearInput')}">🗑</button>
+                            </div>
+                        ` : ''}
+                    </div>
                     <textarea id="input-textarea" class="input-textarea" placeholder="${t('NoInput')}" readonly style="opacity:0.7">${this.escapeHtml(inputData)}</textarea>
                 </div>
                 <div>
@@ -8931,7 +9233,12 @@ const app = {
             <div style="margin-bottom:6px">
                 <div style="font-size:10px;color:#888;margin-bottom:2px;display:flex;align-items:center;justify-content:space-between">
                     <span>${this.t('InputText')}</span>
-                    ${!this.state.viewOnlyMode ? `<button class="copy-btn" onclick="app.clearInput()" style="font-size:10px;padding:1px 6px" title="${this.t('ClearInput')}">🗑</button>` : ''}
+                    ${!this.state.viewOnlyMode ? `
+                        <div style="display:flex;gap:4px">
+                            <button class="copy-btn" onclick="app.clearText()" style="font-size:10px;padding:1px 6px" title="${this.t('ClearText')}">⌫</button>
+                            <button class="copy-btn" onclick="app.clearInput()" style="font-size:10px;padding:1px 6px" title="${this.t('ClearInput')}">🗑</button>
+                        </div>
+                    ` : ''}
                 </div>
                 <textarea id="input-textarea" class="input-textarea" ${this.state.viewOnlyMode ? 'readonly' : ''} placeholder="${t('NoInput')}" ${!this.state.viewOnlyMode ? 'oninput="app.onTempContentInput(this.value)"' : ''} style="${this.state.viewOnlyMode ? 'opacity:0.7' : ''}">${this.escapeHtml(inputData)}</textarea>
             </div>
@@ -8946,15 +9253,86 @@ const app = {
     },
 
     clearInput() {
-        const srcPath = this.state.selectedOpPath || this.state.currentNodePath;
+        if (this.state.viewMode === 'pipeline') {
+            const si = this.state.pipelineRun.selectedStep;
+            if (this.state.pipelineRun.steps && this.state.pipelineRun.steps[si]) {
+                const step = this.state.pipelineRun.steps[si];
+                step.input = '';
+                step.attachments = [];
+                // Save to pipelineMeta
+                this._savePipelineStepAttachments(si);
+                const node = this.getNodeByPath(this.state.currentNodePath);
+                if (node && node.pipelineMeta) {
+                    try {
+                        const meta = JSON.parse(node.pipelineMeta);
+                        if (meta && meta.steps && meta.steps[si]) {
+                            meta.steps[si].input = '';
+                            node.pipelineMeta = JSON.stringify(meta);
+                        }
+                    } catch(e) {}
+                }
+                this.markDirty();
+                this.renderInput();
+                this.outputMessage('🗑 ' + this.t('InputCleared'));
+            }
+            return;
+        }
+
+        const srcPath = this.state.selectedDataPath || this.state.selectedOpPath || this.state.currentNodePath;
         const node = this.getNodeByPath(srcPath);
         if (!node) return;
-        if (!node.tempInputAttachments) node.tempInputAttachments = { text: '', files: [] };
-        node.tempInputAttachments.text = '';
-        node.tempInputAttachments.files = [];
+
+        if (node.nodeType === 'data') {
+            node.input = '';
+            node.inputAttachments = [];
+        } else {
+            if (!node.tempInputAttachments) node.tempInputAttachments = { text: '', files: [] };
+            node.tempInputAttachments.text = '';
+            node.tempInputAttachments.files = [];
+        }
         this.markDirty();
         this.renderInput();
         this.outputMessage('🗑 ' + this.t('InputCleared'));
+    },
+
+    clearText() {
+        if (this.state.viewMode === 'pipeline') {
+            const si = this.state.pipelineRun.selectedStep;
+            if (this.state.pipelineRun.steps && this.state.pipelineRun.steps[si]) {
+                const step = this.state.pipelineRun.steps[si];
+                step.input = '';
+                // Save to pipelineMeta
+                this._savePipelineStepAttachments(si);
+                const node = this.getNodeByPath(this.state.currentNodePath);
+                if (node && node.pipelineMeta) {
+                    try {
+                        const meta = JSON.parse(node.pipelineMeta);
+                        if (meta && meta.steps && meta.steps[si]) {
+                            meta.steps[si].input = '';
+                            node.pipelineMeta = JSON.stringify(meta);
+                        }
+                    } catch(e) {}
+                }
+                this.markDirty();
+                this.renderInput();
+                this.outputMessage('✏️ ' + this.t('TextCleared'));
+            }
+            return;
+        }
+
+        const srcPath = this.state.selectedDataPath || this.state.selectedOpPath || this.state.currentNodePath;
+        const node = this.getNodeByPath(srcPath);
+        if (!node) return;
+
+        if (node.nodeType === 'data') {
+            node.input = '';
+        } else {
+            if (!node.tempInputAttachments) node.tempInputAttachments = { text: '', files: [] };
+            node.tempInputAttachments.text = '';
+        }
+        this.markDirty();
+        this.renderInput();
+        this.outputMessage('✏️ ' + this.t('TextCleared'));
     },
 
     // ── Drag-and-drop file handling ──────────────────────────────
@@ -9042,7 +9420,13 @@ const app = {
             <div style="margin-bottom:6px">
                 <div style="font-size:10px;color:#888;margin-bottom:2px;display:flex;align-items:center;justify-content:space-between">
                     <span>${sourceLabel}</span>
-                    <button class="input-source-btn" onclick="app.showInputSourceDialog()">📂 ${t('Change')}</button>
+                    <div style="display:flex;gap:4px">
+                        <button class="input-source-btn" onclick="app.showInputSourceDialog()">📂 ${t('Change')}</button>
+                        ${!this.state.viewOnlyMode ? `
+                            <button class="copy-btn" onclick="app.clearText()" style="font-size:10px;padding:1px 6px" title="${this.t('ClearText')}">⌫</button>
+                            <button class="copy-btn" onclick="app.clearInput()" style="font-size:10px;padding:1px 6px" title="${this.t('ClearInput')}">🗑</button>
+                        ` : ''}
+                    </div>
                 </div>
                 <pre class="input-display" style="margin:0;background:#1a1a1a;border:1px solid #2d2d2d;padding:6px;white-space:pre-wrap;font-size:11px;max-height:120px;overflow-y:auto">${this.escapeHtml(inputText)}</pre>
                 ${prevMediaHtml}
@@ -9131,7 +9515,7 @@ const app = {
     },
 
     renderPrompt() {
-        const promptEl = document.getElementById('prompt-content');
+        const promptEl = document.getElementById('operation-content');
         if (!promptEl) return;
         const t = key => this.t(key);
         const isJa = (this.localization?.lang === 'ja');
@@ -9532,7 +9916,7 @@ const app = {
         if (!node || !node.pipelineMeta) return;
         let meta;
         try { meta = JSON.parse(node.pipelineMeta); } catch (e) {         this.outputMessage(`Pipeline Metadata Parse Error\nOperation: saveNodePipelineMeta\nNode: ${node.title || 'unknown'}\nError: ${e.message || 'Invalid JSON'}\nAction: Check pipeline metadata format`); return; }
-        const el = document.getElementById('prompt-content');
+        const el = document.getElementById('operation-content');
         if (!el) return;
 
         // Read inputs back into meta
@@ -9591,7 +9975,7 @@ const app = {
     },
 
     applyPromptEdits(stepIndex) {
-        const el = document.getElementById('prompt-content');
+        const el = document.getElementById('operation-content');
         if (!el || this.state.pipelineRun.steps.length === 0 || !this.state.pipelineRun.steps[stepIndex]) return;
         const step = this.state.pipelineRun.steps[stepIndex];
         // Collect from both textareas and inputs
@@ -9873,6 +10257,8 @@ const app = {
                     <div class="empty">${this.t('NoRunHistory')}</div>`;
         }
 
+        this._artifactsMap = this._artifactsMap || {};
+
         const selectedIdx = this.state.selectedOutputRunIndex ?? -1;
 
         const makeDetail = (child, idx) => {
@@ -9909,16 +10295,22 @@ const app = {
             }
             const inputTextId = inputText ? this._cacheText(inputText) : 0;
             const outputTextId = outputText ? this._cacheText(outputText) : 0;
+            const inputArtId = inputText ? 'linked_send_art_' + Math.random().toString(36).substring(2, 11) : '';
+            const outputArtId = outputText ? 'linked_recv_art_' + Math.random().toString(36).substring(2, 11) : '';
+            if (inputArtId) this._artifactsMap[inputArtId] = { label: t('Send'), content: btoa(inputText), mimetype: 'text/plain' };
+            if (outputArtId) this._artifactsMap[outputArtId] = { label: t('Receive'), content: btoa(outputText), mimetype: 'text/plain' };
+            const inputCtx = inputArtId ? `oncontextmenu="event.preventDefault();event.stopPropagation();app.showOutputContextMenu(event,this)" data-artifact-id="${inputArtId}"` : '';
+            const outputCtx = outputArtId ? `oncontextmenu="event.preventDefault();event.stopPropagation();app.showOutputContextMenu(event,this)" data-artifact-id="${outputArtId}"` : '';
             return `<div class="linked-run-detail">
                 <div id="linked-send-${idx}" style="display:none">
                     <div style="font-size:10px;color:#888;font-weight:bold;margin-bottom:2px">${t('Send')}</div>
-                    <div ${inputTextId ? `class="clickable-view" onclick="app._ov(${inputTextId})"` : ''}><pre class="output-display" style="max-height:120px;overflow-y:auto;font-size:11px">${this.escapeHtml(inputText)}</pre></div>
+                    <div ${inputTextId ? `class="clickable-view" onclick="app._ov(${inputTextId})"` : ''} ${inputCtx}><pre class="output-display" style="max-height:120px;overflow-y:auto;font-size:11px">${this.escapeHtml(inputText)}</pre></div>
                     ${this.renderOutputGrid('', inputAttachments, [])}
                     ${httpBodiesHtml}
                 </div>
                 <div id="linked-recv-${idx}" style="display:none">
                     <div style="font-size:10px;color:#888;font-weight:bold;margin-bottom:2px">${t('Receive')}</div>
-                    <div ${outputTextId ? `class="clickable-view" onclick="app._ov(${outputTextId})"` : ''}><pre class="output-display" style="max-height:120px;overflow-y:auto;font-size:11px">${this.escapeHtml(outputText)}</pre></div>
+                    <div ${outputTextId ? `class="clickable-view" onclick="app._ov(${outputTextId})"` : ''} ${outputCtx}><pre class="output-display" style="max-height:120px;overflow-y:auto;font-size:11px">${this.escapeHtml(outputText)}</pre></div>
                     ${this.renderOutputGrid('', outputAttachments, artifacts)}
                 </div>
             </div>`;
@@ -10003,10 +10395,13 @@ const app = {
 
         // Text card
         if (text && text.trim()) {
+            const textArtId = 'art_' + Math.random().toString(36).substring(2, 11);
+            this._artifactsMap[textArtId] = { label: this.t('TextOutput'), content: btoa(text), mimetype: 'text/plain' };
             const preview = this.escapeHtml(text.trim().substring(0, 120).replace(/\n/g, ' '));
-            const encoded = encodeURIComponent(text);
+            const encoded = encodeURIComponent(text).replace(/'/g, '%27');
+            const textCtx = `oncontextmenu="event.preventDefault();event.stopPropagation();app.showOutputContextMenu(event,this)" data-artifact-id="${textArtId}"`;
             cards.push(`
-                <div class="output-card" onclick="app.showMediaViewer('text',decodeURIComponent('${encoded}'),'${this.t('TextOutput')}')">
+                <div class="output-card" onclick="app.showMediaViewer('text',decodeURIComponent('${encoded}'),'${this.t('TextOutput').replace(/'/g, "\\'")}')" ${textCtx}>
                     <div class="output-card-icon">📄</div>
                     <div class="output-card-preview">${preview}</div>
                     <div class="output-card-label">${this.t('TextOutput')}</div>
@@ -10018,41 +10413,83 @@ const app = {
             const artId = 'art_' + Math.random().toString(36).substring(2, 11);
             this._artifactsMap[artId] = a;
 
-            const mime = a.mimetype || '';
+            const mime = a.mimetype || (() => {
+                const ext = (a.path || '').split('.').pop().toLowerCase();
+                const mimeMap = { png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', webp:'image/webp', bmp:'image/bmp', svg:'image/svg+xml', mp4:'video/mp4', webm:'video/webm', mp3:'audio/mpeg', wav:'audio/wav', ogg:'audio/ogg', pdf:'application/pdf', txt:'text/plain', json:'application/json', md:'text/markdown' };
+                return mimeMap[ext] || 'application/octet-stream';
+            })();
+
             const label = this.escapeHtml(a.file || `attachment-${i}`);
             const ctxMenu = `oncontextmenu="event.preventDefault();event.stopPropagation();app.showOutputContextMenu(event,this)" data-artifact-id="${artId}"`;
             const fullPath = a.path ? this.getFileFullPath(a.path) : '';
             const hintAttr = fullPath ? `data-hint="${this.escapeHtml(fullPath)}"` : '';
 
-            if (mime.startsWith('image/')) {
-                const src = `data:${mime};base64,${a.content || ''}`;
-                cards.push(`
-                    <div class="output-card" onclick="app.showMediaViewer('image','${src}','${label}')" ${ctxMenu} ${hintAttr}>
-                        <img class="output-thumb" src="${src}" onerror="this.src=''">
-                        <div class="output-card-label">${label}</div>
-                    </div>`);
-            } else if (mime.startsWith('video/')) {
-                const src = `data:${mime};base64,${a.content || ''}`;
-                cards.push(`
-                    <div class="output-card" onclick="app.showMediaViewer('video','${src}','${label}')" ${ctxMenu} ${hintAttr}>
-                        <div class="output-card-icon">🎬</div>
-                        <div class="output-card-label">${label}</div>
-                    </div>`);
-            } else if (mime.startsWith('audio/')) {
-                const src = `data:${mime};base64,${a.content || ''}`;
-                cards.push(`
-                    <div class="output-card" onclick="app.showMediaViewer('audio','${src}','${label}')" ${ctxMenu} ${hintAttr}>
-                        <div class="output-card-icon">🎵</div>
-                        <div class="output-card-label">${label}</div>
-                    </div>`);
-            } else {
-                const content = a.content ? atob(a.content) : '';
-                const encoded = encodeURIComponent(content);
-                cards.push(`
-                    <div class="output-card" onclick="app.showMediaViewer('text',decodeURIComponent('${encoded}'),'${label}')" ${ctxMenu} ${hintAttr}>
-                        <div class="output-card-icon">📎</div>
-                        <div class="output-card-label">${label}</div>
-                    </div>`);
+            const safeLabel = label.replace(/'/g, "\\'");
+            if (a.content) {
+                if (mime.startsWith('image/')) {
+                    const src = `data:${mime};base64,${a.content}`;
+                    cards.push(`
+                        <div class="output-card" onclick="app.showMediaViewer('image','${src}','${safeLabel}')" ${ctxMenu} ${hintAttr}>
+                            <img class="output-thumb" src="${src}" onerror="this.src=''">
+                            <div class="output-card-label">${label}</div>
+                        </div>`);
+                } else if (mime.startsWith('video/')) {
+                    const src = `data:${mime};base64,${a.content}`;
+                    cards.push(`
+                        <div class="output-card" onclick="app.showMediaViewer('video','${src}','${safeLabel}')" ${ctxMenu} ${hintAttr}>
+                            <div class="output-card-icon">🎬</div>
+                            <div class="output-card-label">${label}</div>
+                        </div>`);
+                } else if (mime.startsWith('audio/')) {
+                    const src = `data:${mime};base64,${a.content}`;
+                    cards.push(`
+                        <div class="output-card" onclick="app.showMediaViewer('audio','${src}','${safeLabel}')" ${ctxMenu} ${hintAttr}>
+                            <div class="output-card-icon">🎵</div>
+                            <div class="output-card-label">${label}</div>
+                        </div>`);
+                } else {
+                    try {
+                        const content = atob(a.content);
+                        const encoded = encodeURIComponent(content).replace(/'/g, '%27');
+                        cards.push(`
+                            <div class="output-card" onclick="app.showMediaViewer('text',decodeURIComponent('${encoded}'),'${label.replace(/'/g, "\\'")}')" ${ctxMenu} ${hintAttr}>
+                                <div class="output-card-icon">📎</div>
+                                <div class="output-card-label">${label}</div>
+                            </div>`);
+                    } catch {
+                        const encoded = encodeURIComponent(a.content).replace(/'/g, '%27');
+                        cards.push(`
+                            <div class="output-card" onclick="app.showMediaViewer('text',decodeURIComponent('${encoded}'),'${label.replace(/'/g, "\\'")}')" ${ctxMenu} ${hintAttr}>
+                                <div class="output-card-icon">📎</div>
+                                <div class="output-card-label">${label}</div>
+                            </div>`);
+                    }
+                }
+            } else if (a.path) {
+                const viewer = `app.previewArtifact(${JSON.stringify(a)})`;
+                if (mime.startsWith('image/')) {
+                    const placeholderId = `img-thumb-${artId}`;
+                    cards.push(`
+                        <div class="output-card" onclick="${viewer}" ${ctxMenu} ${hintAttr}>
+                            <div class="output-card-icon" id="${placeholderId}">🖼</div>
+                            <div class="output-card-label">${label}</div>
+                        </div>`);
+                    setTimeout(() => {
+                        if (fullPath) {
+                            this.postMessage({ type: 'read_artifact_file', payload: { path: fullPath, purpose: 'thumbnail', elementId: placeholderId } });
+                        }
+                    }, 0);
+                } else {
+                    let icon = '📎';
+                    if (mime.startsWith('video/')) icon = '🎬';
+                    else if (mime.startsWith('audio/')) icon = '🎵';
+                    else if (mime === 'application/pdf') icon = '📄';
+                    cards.push(`
+                        <div class="output-card" onclick="${viewer}" ${ctxMenu} ${hintAttr}>
+                            <div class="output-card-icon">${icon}</div>
+                            <div class="output-card-label">${label}</div>
+                        </div>`);
+                }
             }
         });
 
@@ -10068,52 +10505,150 @@ const app = {
             const audExts = ['mp3','wav','ogg','flac','m4a'];
             let icon = '🔗';
             let viewer = `app.previewArtifact(${JSON.stringify(a)})`;
-            if (imgExts.includes(ext)) icon = '🖼';
-            else if (vidExts.includes(ext)) icon = '🎬';
-            else if (audExts.includes(ext)) icon = '🎵';
             const ctxMenu = `oncontextmenu="event.preventDefault();event.stopPropagation();app.showOutputContextMenu(event,this)" data-artifact-id="${artId}"`;
             const fullPath = a.path ? this.getFileFullPath(a.path) : '';
             const hintAttr = fullPath ? `data-hint="${this.escapeHtml(fullPath)}"` : '';
-            cards.push(`
-                <div class="output-card" onclick="${viewer}" ${ctxMenu} ${hintAttr}>
-                    <div class="output-card-icon">${icon}</div>
-                    <div class="output-card-label">${label}</div>
-                </div>`);
+
+            if (imgExts.includes(ext)) {
+                icon = '🖼';
+                const placeholderId = `img-thumb-${artId}`;
+                cards.push(`
+                    <div class="output-card" onclick="${viewer}" ${ctxMenu} ${hintAttr}>
+                        <div class="output-card-icon" id="${placeholderId}">${icon}</div>
+                        <div class="output-card-label">${label}</div>
+                    </div>`);
+                setTimeout(() => {
+                    if (fullPath) {
+                        this.postMessage({ type: 'read_artifact_file', payload: { path: fullPath, purpose: 'thumbnail', elementId: placeholderId } });
+                    }
+                }, 0);
+            } else {
+                if (vidExts.includes(ext)) icon = '🎬';
+                else if (audExts.includes(ext)) icon = '🎵';
+                else if (ext === 'pdf') icon = '📄';
+                cards.push(`
+                    <div class="output-card" onclick="${viewer}" ${ctxMenu} ${hintAttr}>
+                        <div class="output-card-icon">${icon}</div>
+                        <div class="output-card-label">${label}</div>
+                    </div>`);
+            }
         });
 
         if (cards.length === 0) return '';
         return `<div class="output-grid">${cards.join('')}</div>`;
     },
 
+    initFloatPreviewDragAndResize(panel, handle, resizeHandle) {
+        let dragging = false;
+        let resizing = false;
+        let startX, startY, origX, origY, origW, origH;
+
+        // Position it centered initially
+        const w = panel.offsetWidth || 460;
+        const h = panel.offsetHeight || 360;
+        panel.style.left = Math.round((window.innerWidth - w) / 2) + 'px';
+        panel.style.top = Math.round((window.innerHeight - h) / 2) + 'px';
+
+        handle.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.float-preview-close') || e.target.closest('button') || e.target.closest('input') || e.target.closest('select')) {
+                return;
+            }
+            dragging = true;
+            handle.style.cursor = 'grabbing';
+            startX = e.clientX;
+            startY = e.clientY;
+            origX = panel.offsetLeft;
+            origY = panel.offsetTop;
+            e.preventDefault();
+        });
+
+        if (resizeHandle) {
+            resizeHandle.addEventListener('mousedown', (e) => {
+                resizing = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                origW = panel.offsetWidth;
+                origH = panel.offsetHeight;
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        }
+
+        const onMouseMove = (e) => {
+            if (dragging) {
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                let newX = origX + dx;
+                let newY = origY + dy;
+                newX = Math.max(0, Math.min(window.innerWidth - panel.offsetWidth, newX));
+                newY = Math.max(0, Math.min(window.innerHeight - panel.offsetHeight, newY));
+                panel.style.left = newX + 'px';
+                panel.style.top = newY + 'px';
+            } else if (resizing) {
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                let newW = origW + dx;
+                let newH = origH + dy;
+                newW = Math.max(200, newW);
+                newH = Math.max(80, newH);
+                panel.style.width = newW + 'px';
+                panel.style.height = newH + 'px';
+            }
+        };
+
+        const onMouseUp = () => {
+            if (dragging) {
+                dragging = false;
+                handle.style.cursor = 'grab';
+            }
+            if (resizing) {
+                resizing = false;
+            }
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+
+        panel._cleanupDragAndResize = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+    },
+
     showMediaViewer(type, src, label) {
         document.getElementById('media-viewer-overlay')?.remove();
         let body = '';
         if (type === 'text') {
-            body = `<pre class="media-viewer-text">${this.escapeHtml(src)}</pre>
-                    <button class="media-viewer-copy" onclick="navigator.clipboard.writeText(decodeURIComponent(encodeURIComponent(document.querySelector('.media-viewer-text').textContent))).then(()=>app.outputMessage('📋 ' + app.t('Copied')))">📋 ${this.t('CopyBtn')}</button>`;
+            body = `<pre class="float-preview-text">${this.escapeHtml(src)}</pre>
+                    <button class="media-viewer-copy" onclick="navigator.clipboard.writeText(decodeURIComponent(encodeURIComponent(document.querySelector('.float-preview-text').textContent))).then(()=>app.outputMessage('📋 ' + app.t('Copied')))">📋 ${this.t('CopyBtn')}</button>`;
         } else if (type === 'image') {
-            body = `<div class="media-viewer-img-wrap" id="media-viewer-img-wrap">
-                        <img src="${src}" class="media-viewer-img" id="media-viewer-img" alt="${this.escapeHtml(label)}">
+            body = `<div class="float-preview-img-wrap" id="media-viewer-img-wrap">
+                        <img src="${src}" class="float-preview-img" id="media-viewer-img" alt="${this.escapeHtml(label)}">
                     </div>`;
         } else if (type === 'video') {
-            body = `<video src="${src}" controls class="media-viewer-video"></video>`;
+            body = `<video src="${src}" controls class="float-preview-video"></video>`;
         } else if (type === 'audio') {
-            body = `<audio src="${src}" controls class="media-viewer-audio"></audio>`;
+            body = `<audio src="${src}" controls class="float-preview-audio"></audio>`;
+        } else if (type === 'pdf') {
+            body = `<iframe src="${src}" style="width:100%; height:100%; border:none; flex: 1;"></iframe>`;
         }
 
-        const overlay = document.createElement('div');
-        overlay.id = 'media-viewer-overlay';
-        overlay.className = 'media-viewer-overlay';
-        overlay.innerHTML = `
-            <div class="media-viewer-box">
-                <div class="media-viewer-header">
-                    <span>${this.escapeHtml(label)}</span>
-                    <button class="media-viewer-close" onclick="app.closeMediaViewer()">✕</button>
-                </div>
-                <div class="media-viewer-body">${body}</div>
-            </div>`;
-        overlay.addEventListener('click', e => { if (e.target === overlay) this.closeMediaViewer(); });
-        document.body.appendChild(overlay);
+        const panel = document.createElement('div');
+        panel.id = 'media-viewer-overlay';
+        panel.className = 'float-preview-panel';
+        panel.innerHTML = `
+            <div class="float-preview-header">
+                <span class="float-preview-title">${this.escapeHtml(label)}</span>
+                ${type === 'image' ? `<button class="float-preview-fit-btn" onclick="app.toggleImageNativeSize()">${this.t('SameSize')}</button>` : ''}
+                <button class="float-preview-close" onclick="app.closeMediaViewer()">✕</button>
+            </div>
+            <div class="float-preview-body">${body}</div>
+            <div class="float-preview-resize">⤾</div>`;
+        document.body.appendChild(panel);
+
+        const header = panel.querySelector('.float-preview-header');
+        const resizeHandle = panel.querySelector('.float-preview-resize');
+        this.initFloatPreviewDragAndResize(panel, header, resizeHandle);
 
         if (type === 'image') {
             const wrap = document.getElementById('media-viewer-img-wrap');
@@ -10188,7 +10723,47 @@ const app = {
     },
 
     closeMediaViewer() {
-        document.getElementById('media-viewer-overlay')?.remove();
+        const overlay = document.getElementById('media-viewer-overlay');
+        if (overlay) {
+            if (overlay._cleanupDragAndResize) {
+                overlay._cleanupDragAndResize();
+            }
+            overlay.remove();
+        }
+    },
+
+    toggleImageNativeSize() {
+        const img = document.getElementById('media-viewer-img');
+        const wrap = document.getElementById('media-viewer-img-wrap');
+        if (!img || !wrap) return;
+
+        const isNative = img.style.width === (img.naturalWidth + 'px');
+        img.style.transform = '';
+        img.style.transformOrigin = 'top left';
+
+        if (isNative) {
+            // Switch back to contain mode
+            img.style.width  = '';
+            img.style.height = '';
+            img.style.maxWidth  = '100%';
+            img.style.maxHeight = '100%';
+            wrap.style.alignItems     = 'center';
+            wrap.style.justifyContent = 'center';
+            wrap.style.cursor = 'zoom-in';
+            const btn = document.querySelector('.float-preview-fit-btn');
+            if (btn) btn.textContent = this.t('SameSize');
+        } else {
+            // Switch to native dot-by-dot mode
+            img.style.width  = img.naturalWidth  + 'px';
+            img.style.height = img.naturalHeight + 'px';
+            img.style.maxWidth  = 'none';
+            img.style.maxHeight = 'none';
+            wrap.style.alignItems     = 'flex-start';
+            wrap.style.justifyContent = 'flex-start';
+            wrap.style.cursor = 'zoom-in';
+            const btn = document.querySelector('.float-preview-fit-btn');
+            if (btn) btn.textContent = this.t('Fit');
+        }
     },
 
     _vc: {},
@@ -10348,6 +10923,12 @@ const app = {
                 : '';
         const outputTextId = (outputText && step.completed && outputText !== '(empty output)') ? this._cacheText(outputText) : 0;
         const outputClickable = outputTextId ? `class="clickable-view" onclick="app._ov(${outputTextId})"` : '';
+        const pipelineArtId = (outputText && step.completed && outputText !== '(empty output)') ? 'pipeline_art_' + Math.random().toString(36).substring(2, 11) : '';
+        if (pipelineArtId) {
+            this._artifactsMap = this._artifactsMap || {};
+            this._artifactsMap[pipelineArtId] = { label: this.t('PipelineOutput'), content: btoa(outputText), mimetype: 'text/plain' };
+        }
+        const outputPipelineCtx = pipelineArtId ? `oncontextmenu="event.preventDefault();event.stopPropagation();app.showOutputContextMenu(event,this)" data-artifact-id="${pipelineArtId}"` : '';
         const preClass = isError ? 'output-display output-display-error' : 'output-display';
 
         el.innerHTML = `
@@ -10357,9 +10938,9 @@ const app = {
                 ${step.completed ? `<button class="output-save-btn" onclick="app.savePipelineOutput(${si})">${t('Save')}</button>
                 <button class="output-chest-btn" onclick="app.sendToChestDialog()">${t('SendToChest')}</button>` : ''}
             </div>
-            <div ${outputClickable}><pre class="${preClass}" id="pipeline-output-${si}">${this.escapeHtml(outputText)}</pre></div>
+            <div ${outputClickable} ${outputPipelineCtx}><pre class="${preClass}" id="pipeline-output-${si}">${this.escapeHtml(outputText)}</pre></div>
             <div style="padding:4px 8px">${this.renderOutputGrid(outputText, outputAttachments, artifacts)}</div>
-            <div id="pipeline-artifacts-${si}"></div>`;
+            <div id="pipeline-artifacts-${si}">${artifactsHtml}</div>`;
     },
 
     // ── Input Source Dialog ────────────────────────────────────────
@@ -10490,6 +11071,8 @@ const app = {
             this.showMediaViewer('video', `data:${mimetype};base64,${base64Content}`, label);
         } else if (mimetype.startsWith('audio/')) {
             this.showMediaViewer('audio', `data:${mimetype};base64,${base64Content}`, label);
+        } else if (mimetype === 'application/pdf') {
+            this.showMediaViewer('pdf', `data:${mimetype};base64,${base64Content}`, label);
         } else {
             try {
                 const text = atob(base64Content);

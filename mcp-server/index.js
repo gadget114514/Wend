@@ -7,7 +7,7 @@ import {
     ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
-const BT_API_BASE = 'http://127.0.0.1:18765';
+const BT_API_BASE = process.env.WEND_API_URL || process.env.BT_API_URL || 'http://127.0.0.1:18765';
 
 async function btApiCall(endpoint, method = 'GET', payload = null) {
     const url = BT_API_BASE + endpoint;

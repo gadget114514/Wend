@@ -3554,6 +3554,112 @@ describe('Selection & Color logic', () => {
         assert.ok(renderedHtml.includes('historical input'));
     });
 
+    test('VM-based tests: renderInput displays clear button in all modes and clearInput/clearText clear correctly', () => {
+        const app = createMockAppContext();
+        app.state.tabs = [{ name: 'test', file: 'test.json', root: { title: '', content: '', mimetype: 'text/plain', nodeType: 'root', children: [
+            { title: b64('Step 1'), content: b64('step 1 template'), mimetype: 'text/plain', nodeType: 'assemble', children: [
+                { title: b64('Processed'), content: '', mimetype: 'text/plain', nodeType: 'placeholder', children: [
+                    { title: b64('Result A'), content: b64('out'), mimetype: 'text/plain', nodeType: 'data', 
+                      input: 'data input text', inputAttachments: ['dummy'],
+                      pipelineMeta: JSON.stringify({ steps: [{ input: 'step input text' }] }), children: [] }
+                ]}
+            ]}
+        ] } }];
+        app.state.activeTab = 0;
+        app.state.viewOnlyMode = false;
+        
+        let renderedHtml = '';
+        app._vmContext.document.getElementById = (id) => {
+            if (id === 'input-content') {
+                return {
+                    set innerHTML(html) { renderedHtml = html; },
+                    get innerHTML() { return renderedHtml; }
+                };
+            }
+            return { style: {}, classList: { remove: () => {}, add: () => {} }, appendChild: () => {} };
+        };
+
+        // --- 1. Data Node mode ---
+        app.state.currentNodePath = '0/0/0';
+        app.state.selectedDataPath = '0/0/0';
+        app.state.selectedOpPath = '';
+        const dataNode = app.getNodeByPath('0/0/0');
+        
+        // Test clearText
+        dataNode.input = 'data input text';
+        dataNode.inputAttachments = ['dummy'];
+        app.renderInput();
+        assert.ok(renderedHtml.includes('app.clearText()'), 'Data mode should render clearText button');
+        assert.ok(renderedHtml.includes('app.clearInput()'), 'Data mode should render clearInput button');
+        assert.ok(renderedHtml.includes('data input text'), 'Data mode should render input data');
+        
+        app.clearText();
+        assert.equal(dataNode.input, '', 'Data node input should be cleared by clearText');
+        assert.equal(dataNode.inputAttachments.length, 1, 'Data node inputAttachments should NOT be cleared by clearText');
+
+        // Test clearInput
+        dataNode.input = 'data input text';
+        dataNode.inputAttachments = ['dummy'];
+        app.clearInput();
+        assert.equal(dataNode.input, '', 'Data node input should be cleared by clearInput');
+        assert.equal(dataNode.inputAttachments.length, 0, 'Data node inputAttachments should be cleared by clearInput');
+
+        // --- 2. Op Node mode ---
+        app.state.currentNodePath = '0';
+        app.state.selectedDataPath = '';
+        app.state.selectedOpPath = '0';
+        const opNode = app.getNodeByPath('0');
+        
+        // Test clearText
+        opNode.tempInputAttachments = { text: 'op input text', files: ['dummy_file'] };
+        app.renderInput();
+        assert.ok(renderedHtml.includes('app.clearText()'), 'Op mode should render clearText button');
+        assert.ok(renderedHtml.includes('app.clearInput()'), 'Op mode should render clearInput button');
+        assert.ok(renderedHtml.includes('op input text'), 'Op mode should render temp input text');
+
+        app.clearText();
+        assert.equal(opNode.tempInputAttachments.text, '', 'Op node tempInput text should be cleared by clearText');
+        assert.equal(opNode.tempInputAttachments.files.length, 1, 'Op node tempInput files should NOT be cleared by clearText');
+
+        // Test clearInput
+        opNode.tempInputAttachments = { text: 'op input text', files: ['dummy_file'] };
+        app.clearInput();
+        assert.equal(opNode.tempInputAttachments.text, '', 'Op node tempInput text should be cleared by clearInput');
+        assert.equal(opNode.tempInputAttachments.files.length, 0, 'Op node tempInput files should be cleared by clearInput');
+
+        // --- 3. Pipeline mode ---
+        app.state.viewMode = 'pipeline';
+        app.state.currentNodePath = '0/0/0';
+        app.state.pipelineRun = {
+            running: false,
+            selectedStep: 0,
+            steps: [{
+                input: 'pipeline step input',
+                completed: false,
+                output: '',
+                status: 'pending',
+                attachments: ['dummy_attach']
+            }]
+        };
+        
+        // Test clearText
+        app.renderInput();
+        assert.ok(renderedHtml.includes('app.clearText()'), 'Pipeline mode should render clearText button');
+        assert.ok(renderedHtml.includes('app.clearInput()'), 'Pipeline mode should render clearInput button');
+        assert.ok(renderedHtml.includes('pipeline step input'), 'Pipeline mode should render step input');
+
+        app.clearText();
+        assert.equal(app.state.pipelineRun.steps[0].input, '', 'Pipeline step input should be cleared by clearText');
+        assert.equal(app.state.pipelineRun.steps[0].attachments.length, 1, 'Pipeline step attachments should NOT be cleared by clearText');
+
+        // Test clearInput
+        app.state.pipelineRun.steps[0].input = 'pipeline step input';
+        app.state.pipelineRun.steps[0].attachments = ['dummy_attach'];
+        app.clearInput();
+        assert.equal(app.state.pipelineRun.steps[0].input, '', 'Pipeline step input should be cleared by clearInput');
+        assert.equal(app.state.pipelineRun.steps[0].attachments.length, 0, 'Pipeline step attachments should be cleared by clearInput');
+    });
+
     test('VM-based tests: node type color class invariants are satisfied for all selections', () => {
         const app = createMockAppContext();
         app.state.tabs = [{ name: 'test', file: 'test.json', root: { title: '', content: '', mimetype: 'text/plain', nodeType: 'root', children: [
@@ -6694,6 +6800,7 @@ describe('Behavior3 Integration Tests with Mock & Mock Recipes', () => {
         
         const app = vm.runInContext('app', ctx);
         app._vmContext = ctx;
+        ctx.app = app;
         
         // stub UI methods
         app.renderTree  = () => {};

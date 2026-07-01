@@ -571,7 +571,9 @@ class BehaviorTreeEngine {
                 this._updateToolbar();
                 this._runState.set(path, 'error');
                 app.renderTree();
-                app.outputMessage(`⏸ Paused at error node [${path}]\n${errMsg}\n→ Fix the issue then click ↺ Retry Node, or ⏹ Stop`);
+                const errNode = app.getNodeByPath(path);
+                const errNodeLabel = errNode?.title ? app.safeAtob(errNode.title) : errNode?.btLabel || path;
+                app.outputMessage(`⏸ Paused at error node "${errNodeLabel}" [${path}]\n${errMsg}\n→ Fix the issue then click ↺ Retry Node, or ⏹ Stop`);
 
                 const signal = await new Promise(res => { this._stepResolve = res; });
                 if (signal === 'stop') throw new Error('BT_STOPPED');
@@ -1184,7 +1186,9 @@ class BehaviorTreeEngine {
         const fsmState = node.btFsmState?.trim() || '';
 
         if (!fsmState) {
-            app.outputMessage(`❌ leaf_next [${path}]: btFsmState is required`);
+            const nn = app.getNodeByPath(path);
+            const nl = nn?.title ? app.safeAtob(nn.title) : nn?.btLabel || path;
+            app.outputMessage(`❌ leaf_next "${nl}" [${path}]: btFsmState is required`);
             return false;
         }
 
