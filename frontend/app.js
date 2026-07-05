@@ -3069,6 +3069,7 @@ const app = {
                 <div class="recipe-mgr-item-actions">
                     ${testBtn}${modelsBtn}
                     <button class="recipe-btn" onclick="app.editRecipe(${i})">✏️ Edit</button>
+                    <button class="recipe-btn" onclick="app.duplicateRecipe(${i});app.renderRecipeManager()">📋 Duplicate</button>
                     <button class="recipe-btn recipe-btn-danger" onclick="app.deleteRecipe(${i});app.renderRecipeManager()">🗑 Delete</button>
                     <span class="recipe-mgr-item-reorder">
                         <button class="recipe-btn recipe-btn-sm" onclick="app.moveRecipeUp(${i});app.renderRecipeManager()" ${isFirstInFilter ? 'disabled' : ''}>▲</button>
@@ -4044,6 +4045,7 @@ const app = {
                 </div>
                 <div class="recipe-item-actions">
                     <button class="recipe-sm-btn" onclick="app.editRecipe(${i})">✏️</button>
+                    <button class="recipe-sm-btn" onclick="app.duplicateRecipe(${i});app.renderRecipesConfig()">📋</button>
                     <button class="recipe-sm-btn recipe-sm-btn-danger" onclick="app.deleteRecipe(${i})">🗑</button>
                     <button class="recipe-sm-btn" onclick="app.moveRecipeUp(${i});app.renderRecipesConfig()" ${i === 0 ? 'disabled' : ''}>▲</button>
                     <button class="recipe-sm-btn" onclick="app.moveRecipeDown(${i});app.renderRecipesConfig()" ${i === recipes.length - 1 ? 'disabled' : ''}>▼</button>
@@ -4141,6 +4143,38 @@ const app = {
         this.renderRecipesConfig();
         this.saveProjectRecipes();
         this.outputMessage(`📋 Recipe added: ${name}`);
+    },
+
+    duplicateRecipe(index) {
+        const recipes = this.state.recipes || [];
+        if (index < 0 || index >= recipes.length) return;
+        const original = recipes[index];
+        const copy = JSON.parse(JSON.stringify(original));
+        let newName = original.name + ' (Copy)';
+        let counter = 2;
+        while (recipes.some(r => r.name === newName)) {
+            newName = `${original.name} (Copy ${counter})`;
+            counter++;
+        }
+        copy.name = newName;
+
+        const defaultIdx = this.state.defaultRecipes.indexOf(original);
+        const projectIdx = this.state.projectRecipes.indexOf(original);
+        if (defaultIdx >= 0) {
+            this.state.defaultRecipes.splice(defaultIdx + 1, 0, copy);
+            this.saveDefaultRecipes();
+        } else if (projectIdx >= 0) {
+            this.state.projectRecipes.splice(projectIdx + 1, 0, copy);
+            this.saveProjectRecipes();
+        } else {
+            recipes.splice(index + 1, 0, copy);
+        }
+
+        this.renderRecipesConfig();
+        this.renderRecipeManager();
+        this.renderPrompt();
+        this.updateRecipeBadge();
+        this.outputMessage(`📋 Recipe duplicated: ${copy.name}`);
     },
 
     deleteRecipe(index) {

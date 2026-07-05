@@ -101,7 +101,7 @@
               "name": "ハーネスデータモデル実装",
               "qty": 1, "hours": 24, "assignee": "",
               "plan": { "start": "2026-06-26", "end": "2026-07-10" },
-              "actual": { "start": null, "end": null },
+              "actual": { "start": "2026-06-26", "end": null },
               "note": "harnesses/ ディレクトリ、systemPrompt/memory/skills/config/baseline"
             },
             {
@@ -131,15 +131,15 @@
               "name": "BT ノードと既存ステップの重複調査",
               "qty": 1, "hours": 16, "assignee": "",
               "plan": { "start": "2026-08-06", "end": "2026-08-12" },
-              "actual": { "start": null, "end": null },
-              "note": "BehaviorTree の sequence/selector/parallel/leaf と既存パイプラインステップの機能重複を洗い出し、統合方針を決定"
+              "actual": { "start": "2026-06-23", "end": "2026-06-24" },
+              "note": "BehaviorTree の sequence/selector/parallel/leaf と既存パイプラインステップ of 機能重複を洗い出し、統合方針を決定"
             },
             {
               "id": "3.2",
               "name": "BT 不足機能の実装",
               "qty": 1, "hours": 24, "assignee": "",
               "plan": { "start": "2026-08-13", "end": "2026-08-25" },
-              "actual": { "start": null, "end": null },
+              "actual": { "start": "2026-06-24", "end": "2026-06-26" },
               "note": "調査結果に基づき不足している BT ノードタイプ・実行ロジック・UI を実装。条件分岐・デコレーター等"
             }
           ]
@@ -337,7 +337,7 @@
               "name": "tool ステップ実装",
               "qty": 1, "hours": 32, "assignee": "",
               "plan": { "start": "2026-06-14", "end": "2026-06-22" },
-              "actual": { "start": "2026-06-14", "end": null },
+              "actual": { "start": "2026-06-14", "end": "2026-06-21" },
               "note": "外部GUIアプリ起動、WaitForSingleObject、resultAs (file/clipboard/attachment)"
             },
             {
@@ -345,7 +345,7 @@
               "name": "Blob GC 実装",
               "qty": 1, "hours": 16, "assignee": "",
               "plan": { "start": "2026-06-14", "end": "2026-06-18" },
-              "actual": { "start": "2026-06-14", "end": null },
+              "actual": { "start": "2026-06-14", "end": "2026-06-18" },
               "note": "起動時スキャン、未参照 blob 削除、history 参照考慮"
             },
             {
@@ -353,7 +353,7 @@
               "name": "Recent Files 実装",
               "qty": 1, "hours": 16, "assignee": "",
               "plan": { "start": "2026-06-14", "end": "2026-06-19" },
-              "actual": { "start": "2026-06-14", "end": null },
+              "actual": { "start": "2026-06-14", "end": "2026-06-19" },
               "note": "recent_files.json、init メッセージで送信、メニューサブメニュー"
             }
           ]

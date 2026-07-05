@@ -11,7 +11,7 @@ Stop wrangling prompts in scattered text files. **Design prompt pipelines as vis
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](COPYING.txt)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6?logo=windows)](#getting-started)
 [![Built with Electron](https://img.shields.io/badge/built%20with-Electron-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
-[![MCP Ready](https://img.shields.io/badge/MCP-29%20tools-8A2BE2)](#-let-claude-drive-mcp-server)
+[![MCP Ready](https://img.shields.io/badge/MCP-30%20tools-8A2BE2)](#-let-claude-drive-mcp-server)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#-contributing)
 [![Stars](https://img.shields.io/github/stars/gadget114514/Wend?style=social)](https://github.com/gadget114514/Wend/stargazers)
 
@@ -60,7 +60,7 @@ Behavior Trees were developed in game AI to control characters with hundreds of 
 
 No. That's the key insight behind Wend.
 
-Wend exposes its entire engine through an **MCP server with 29 tools**. This means Claude Code — or any MCP-compatible AI client — can design, build, and run the Behavior Tree for you, just by having a conversation:
+Wend exposes its entire engine through an **MCP server with 30 tools**. This means Claude Code — or any MCP-compatible AI client — can design, build, and run the Behavior Tree for you, just by having a conversation:
 
 ```
 You:   "Summarize every PDF in this folder and write the results to a spreadsheet.
@@ -80,7 +80,7 @@ Most "prompt tools" are either a single chat box or a cloud SaaS that wants your
 | | |
 |---|---|
 | 🌳 **Behavior Trees, not spaghetti** | Borrow battle-tested control flow from game AI. Compose prompts with `sequence`, `selector`, `parallel`, decorators, and loops — no glue code. |
-| 🤖 **Let Claude drive** | A built-in **MCP server with 29 tools** lets Claude (or any MCP client) create, run, and parallelize your pipelines autonomously. |
+| 🤖 **Let Claude drive** | A built-in **MCP server with 30 tools** lets Claude (or any MCP client) create, run, and parallelize your pipelines autonomously. |
 | ⚡ **Real parallelism** | `map` over inputs, `race` for the first good answer, `join` a fan-out, `reduce` results with code *or* AI. |
 | 🔌 **Bring any model** | OpenAI, Google Gemini, Anthropic Claude, or **any** OpenAI-compatible endpoint. Mix providers in one pipeline. |
 | 🔒 **Your keys never leave your machine** | Everything runs locally. API keys live in `%APPDATA%`, never in the cloud, never in git. |
@@ -96,9 +96,11 @@ Most "prompt tools" are either a single chat box or a cloud SaaS that wants your
 - **🔗 AI pipeline runner** — Chain LLM, filter, manual-review, and wizard steps into one pipeline. Output streams in real time.
 - **🧠 Behavior Tree engine** — Execute your tree as a real BT with decorators (Repeater, Inverter, Retry, Guard, MaxTime, Delay, Limiter), powered by [behavior3js](https://github.com/behavior3/behavior3js).
 - **🗂️ Blackboard state** — A shared, scoped key-value store (`run` → `tab` → `project` → `chest`) flows data between nodes.
-- **🤖 MCP server** — 29 tools that expose the whole engine to Claude and other MCP clients. [See below.](#-let-claude-drive-mcp-server)
+- **🤖 MCP server** — 30 tools that expose the whole engine to Claude and other MCP clients. [See below.](#-let-claude-drive-mcp-server)
 - **🔌 Multi-provider** — OpenAI · Gemini · Anthropic Claude · any OpenAI-compatible endpoint · a no-key Mock provider for testing.
+- **📂 Flexible input modalities** — Feed inputs to prompt nodes as plain `text`, `media` attachments, or reference them by `filepath` (absolute or relative).
 - **🖼️ Media attachments** — Attach images, audio, and video to nodes or pipeline inputs, with inline thumbnails.
+- **📤 Artifact copy & export** — Hover over output pane artifacts to view their local paths. Right-click to copy their full path, copy their text, or export them to a custom location.
 - **📋 Recipes** — Save reusable provider + model + parameter configs and apply them to any node.
 - **🪄 Pipeline optimizer** — Auto-propose prompt improvements with full version history and undo/redo.
 - **🕓 Execution history** — Every run saved, browsable, comparable, replayable.
@@ -202,7 +204,7 @@ Each op node can read a blackboard key **before** running and write one **after*
 
 ## 🤖 Let Claude drive (MCP Server)
 
-Wend ships an **MCP server that exposes the entire Behavior Tree engine as 29 tools** — so Claude (via Claude Code, Claude Desktop, or any MCP client) can build, run, and orchestrate your pipelines on its own.
+Wend ships an **MCP server that exposes the entire Behavior Tree engine as 30 tools** — so Claude (via Claude Code, Claude Desktop, or any MCP client) can build, run, and orchestrate your pipelines on its own.
 
 ```text
 BT operations      load_sample · create_bt · run_bt · step_bt · pause_bt · stop_bt
@@ -211,6 +213,7 @@ Project / recipes  list_projects · create_project · switch_project · list_rec
 Multi-run jobs     spawn_run · list_runs · stop_run
 Parallel           run_parallel · map_bt · join_runs · race_runs · reduce_results
 Control            get_config · set_config · get_metrics · set_retry_policy · cancel_run
+Screenshot         screenshot
 ```
 
 **Parallel execution primitives** make fan-out trivial:
@@ -325,6 +328,9 @@ Leaf nodes can set `btAction` to override the default `btType`-based behavior. W
 | `math` | `btPrompt` (expression) | `btOutputKey` | Evaluate a JavaScript expression. |
 | `web` | `btPrompt` (HTTP config) | `btOutputKey` | Make an HTTP request. |
 | `misc` | `btPrompt` / `btInputKey` | `btOutputKey` | Clipboard copy/paste, write to blackboard, etc. |
+| `manual` | Node config (`btManualMode`, `btManualPrompt`, `btManualChoices`) | `btOutputKey` as `btOutputType` (default `text`) | Pause execution to wait for manual user input (view, edit, compare parallel branches, or choice selection). |
+| `invoke` | `btPrompt` (system command) | `btOutputKey` as `btOutputType` (default `text`) | Execute a system terminal/shell command with input from the blackboard and optional `Working Directory`. |
+| `pipelineOutput` | `btInputKey` (blackboard media or text) | Final Output pane | Displays the specified blackboard data in the final output pane. |
 
 **Key distinction between `loadLocalFile` and `fileToMedia`:**
 - `loadLocalFile` gets the file path from the node's own `btLocalFilePath` — you type the path directly on the node. Output type is configurable via `btOutputType`.

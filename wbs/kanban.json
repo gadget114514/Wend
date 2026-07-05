@@ -7,16 +7,6 @@
       "color": "#6b7280",
       "cards": [
         {
-          "id": "k001",
-          "title": "ハーネスデータモデル実装",
-          "description": "harnesses/ ディレクトリ、systemPrompt/memory/skills/config/baseline。Phase 2 の基盤データ構造",
-          "assignee": "",
-          "priority": "medium",
-          "dueDate": "2026-07-10",
-          "tags": ["phase2", "harness", "backend"],
-          "done": false
-        },
-        {
           "id": "k002",
           "title": "ハーネス操作ステップ実装",
           "description": "harness_enhance / harness_reset / harness_save ステップの実装",
@@ -34,26 +24,6 @@
           "priority": "medium",
           "dueDate": "2026-08-05",
           "tags": ["phase2", "harness", "ui"],
-          "done": false
-        },
-        {
-          "id": "k004",
-          "title": "BT ノードと既存ステップの重複調査",
-          "description": "BehaviorTree の sequence/selector/parallel/leaf と既存パイプラインステップの機能重複を洗い出し、統合方針を決定",
-          "assignee": "",
-          "priority": "high",
-          "dueDate": "2026-08-12",
-          "tags": ["phase3", "bt", "investigation"],
-          "done": false
-        },
-        {
-          "id": "k005",
-          "title": "BT 不足機能の実装",
-          "description": "調査結果に基づき不足している BT ノードタイプ・実行ロジック・UI を実装。条件分岐・デコレーター等",
-          "assignee": "",
-          "priority": "high",
-          "dueDate": "2026-08-25",
-          "tags": ["phase3", "bt", "feature"],
           "done": false
         },
         {
@@ -181,33 +151,13 @@
       "color": "#f59e0b",
       "cards": [
         {
-          "id": "k026",
-          "title": "tool ステップ実装",
-          "description": "外部GUIアプリ起動、WaitForSingleObject、resultAs (file/clipboard/attachment)。Phase 8 から前倒し",
-          "assignee": "",
-          "priority": "high",
-          "dueDate": "2026-06-28",
-          "tags": ["phase8", "step", "tool", "pulled-forward"],
-          "done": false
-        },
-        {
-          "id": "k027",
-          "title": "Blob GC 実装",
-          "description": "起動時スキャン、未参照 blob 削除、history 参照考慮。Phase 8 から前倒し",
-          "assignee": "",
-          "priority": "high",
-          "dueDate": "2026-06-25",
-          "tags": ["phase8", "gc", "storage", "pulled-forward"],
-          "done": false
-        },
-        {
-          "id": "k028",
-          "title": "Recent Files 実装",
-          "description": "recent_files.json、init メッセージで送信、メニューサブメニュー。Phase 8 から前倒し",
+          "id": "k001",
+          "title": "ハーネスデータモデル実装",
+          "description": "harnesses/ ディレクトリ、systemPrompt/memory/skills/config/baseline。Phase 2 の基盤データ構造",
           "assignee": "",
           "priority": "medium",
-          "dueDate": "2026-06-22",
-          "tags": ["phase8", "ui", "recent-files", "pulled-forward"],
+          "dueDate": "2026-07-10",
+          "tags": ["phase2", "harness", "backend"],
           "done": false
         }
       ]
@@ -311,6 +261,56 @@
           "priority": "low",
           "dueDate": "2026-06-15",
           "tags": ["phase0", "bugfix"],
+          "done": true
+        },
+        {
+          "id": "k026",
+          "title": "tool ステップ実装",
+          "description": "外部GUIアプリ起動、WaitForSingleObject、resultAs (file/clipboard/attachment)。Phase 8 から前倒し",
+          "assignee": "",
+          "priority": "high",
+          "dueDate": "2026-06-28",
+          "tags": ["phase8", "step", "tool", "pulled-forward"],
+          "done": true
+        },
+        {
+          "id": "k027",
+          "title": "Blob GC 実装",
+          "description": "起動時スキャン、未参照 blob 削除、history 参照考慮。Phase 8 から前倒し",
+          "assignee": "",
+          "priority": "high",
+          "dueDate": "2026-06-25",
+          "tags": ["phase8", "gc", "storage", "pulled-forward"],
+          "done": true
+        },
+        {
+          "id": "k028",
+          "title": "Recent Files 実装",
+          "description": "recent_files.json、init メッセージで送信、メニューサブメニュー。Phase 8 から前倒し",
+          "assignee": "",
+          "priority": "medium",
+          "dueDate": "2026-06-22",
+          "tags": ["phase8", "ui", "recent-files", "pulled-forward"],
+          "done": true
+        },
+        {
+          "id": "k004",
+          "title": "BT ノードと既存ステップの重複調査",
+          "description": "BehaviorTree の sequence/selector/parallel/leaf と既存パイプラインステップの機能重複を洗い出し、統合方針を決定",
+          "assignee": "",
+          "priority": "high",
+          "dueDate": "2026-08-12",
+          "tags": ["phase3", "bt", "investigation"],
+          "done": true
+        },
+        {
+          "id": "k005",
+          "title": "BT 不足機能の実装",
+          "description": "調査結果に基づき不足している BT ノードタイプ・実行ロジック・UI を実装。条件分岐・デコレーター等",
+          "assignee": "",
+          "priority": "high",
+          "dueDate": "2026-08-25",
+          "tags": ["phase3", "bt", "feature"],
           "done": true
         }
       ]
