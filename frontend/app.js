@@ -6419,59 +6419,20 @@ const app = {
 
     onBtActionChange() {
         const action = document.getElementById('bt-action')?.value || 'processPrompt';
-        // Persist immediately so the node's btAction never desyncs from the
-        // dropdown. Previously btAction lived only in the DOM until a later
-        // save/run wrote it back (defaulting to 'processPrompt'), which corrupted
-        // action nodes (e.g. a playAudio node became processPrompt) on run start.
         let actionNode = this.getNodeByPath(this.state.currentNodePath);
         if (actionNode) {
             if (actionNode.nodeType === 'data' && actionNode.originalOpNode) actionNode = actionNode.originalOpNode;
             actionNode.btAction = action;
-        }
-        const fields = this._getActionFields(action);
-        const isProcess = action === 'processPrompt';
 
-        const config = !isProcess ? window.btActions?.get(action) : null;
-
-        const promptFields = document.getElementById('bt-prompt-fields');
-        const localFileField = document.getElementById('bt-local-file-field');
-        const inputFields = document.getElementById('bt-input-fields');
-        const inputTypeField = document.getElementById('bt-input-type-field');
-        const outputFields = document.getElementById('bt-output-fields');
-        const outputTypeField = document.getElementById('bt-output-type-field');
-        const recipeSection = document.getElementById('bt-recipe-section');
-        const descriptionEl = document.getElementById('bt-action-description');
-        const manualFields = document.getElementById('bt-manual-fields');
-        const manualChoicesField = document.getElementById('bt-manual-choices-field');
-        const invokeFields = document.getElementById('bt-invoke-fields');
-
-        if (promptFields) promptFields.style.display = (isProcess || (fields.includes('prompt') && action !== 'manual' && action !== 'invoke')) ? 'block' : 'none';
-        if (localFileField) localFileField.style.display = fields.includes('localFilePath') ? 'block' : 'none';
-        if (inputFields) inputFields.style.display = fields.includes('inputKey') ? 'flex' : 'none';
-        if (inputTypeField) inputTypeField.style.display = (fields.includes('inputKey') && !config?.defaults?.inputType) ? 'block' : 'none';
-        if (outputFields) outputFields.style.display = fields.includes('outputKey') ? 'flex' : 'none';
-        if (outputTypeField) outputTypeField.style.display = (fields.includes('outputKey') && !config?.defaults?.outputType) ? 'block' : 'none';
-        if (recipeSection) recipeSection.style.display = isProcess ? 'block' : 'none';
-        if (manualFields) manualFields.style.display = action === 'manual' ? 'block' : 'none';
-        if (invokeFields) invokeFields.style.display = action === 'invoke' ? 'block' : 'none';
-        if (descriptionEl) {
-            descriptionEl.style.display = config?.description ? 'block' : 'none';
-            if (config?.description) descriptionEl.textContent = config.description;
-        }
-
-        // Update manual choices visibility if mode changes
-        if (action === 'manual') {
-            const modeSelect = document.getElementById('bt-manual-mode');
-            if (modeSelect) {
-                modeSelect.addEventListener('change', () => {
-                    if (manualChoicesField) {
-                        manualChoicesField.style.display = modeSelect.value === 'choices' ? 'block' : 'none';
-                    }
-                });
+            const config = action !== 'processPrompt' ? window.btActions?.get(action) : null;
+            if (config?.defaults?.inputType) {
+                actionNode.btInputType = config.defaults.inputType;
+            }
+            if (config?.defaults?.outputType) {
+                actionNode.btOutputType = config.defaults.outputType;
             }
         }
-
-        this._applyActionDefaults(action);
+        this.renderPrompt();
     },
 
     btBlackboardDialog() {
