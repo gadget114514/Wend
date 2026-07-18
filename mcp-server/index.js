@@ -390,6 +390,134 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 description: 'Retrieve Behavior Tree runtime specifications: supported node types (Composite, Decorator, Leaf, Condition, Action), available AI recipe models, blackboard variable schemas, and execution constraints. Call this first before creating or editing trees to understand the environment capabilities.',
                 inputSchema: { type: 'object', properties: {} },
             },
+            // ── Phase 1: Registry & Incremental Tree ──
+            {
+                name: 'get_bt',
+                description: 'Get the behavior tree JSON for a specific tab index (default active tab)',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        tabIndex: { type: 'integer', description: 'Tab index' }
+                    }
+                }
+            },
+            {
+                name: 'add_node',
+                description: 'Add a new node to the tree',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        parentPath: { type: 'string', description: 'Path to parent node' },
+                        index: { type: 'integer', description: 'Position index under parent' },
+                        spec: { type: 'object', description: 'Node properties (title, btType, btAction, etc.)' }
+                    },
+                    required: ['parentPath', 'spec']
+                }
+            },
+            {
+                name: 'update_node',
+                description: 'Update node properties by path',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        path: { type: 'string', description: 'Path to node' },
+                        patch: { type: 'object', description: 'Properties to update' }
+                    },
+                    required: ['path', 'patch']
+                }
+            },
+            {
+                name: 'remove_node',
+                description: 'Remove a node by path',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        path: { type: 'string', description: 'Path to node' }
+                    },
+                    required: ['path']
+                }
+            },
+            {
+                name: 'move_node',
+                description: 'Move a node to a new parent',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        path: { type: 'string', description: 'Path to node' },
+                        newParentPath: { type: 'string', description: 'Path to new parent' },
+                        index: { type: 'integer', description: 'Position index' }
+                    },
+                    required: ['path', 'newParentPath', 'index']
+                }
+            },
+            {
+                name: 'set_param',
+                description: 'Set a parameter on a node',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        path: { type: 'string', description: 'Path to node' },
+                        name: { type: 'string', description: 'Parameter name' },
+                        value: { type: 'any', description: 'Parameter value' }
+                    },
+                    required: ['path', 'name', 'value']
+                }
+            },
+            {
+                name: 'list_node_types',
+                description: 'List all registered node types',
+                inputSchema: { type: 'object', properties: {} }
+            },
+            {
+                name: 'describe_node_type',
+                description: 'Describe details of a specific node type',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        type: { type: 'string', description: 'Node type name' }
+                    },
+                    required: ['type']
+                }
+            },
+            // ── Phase 2: Node Packs ──
+            {
+                name: 'list_node_packs',
+                description: 'List all loaded node packs (builtin and user-installed)',
+                inputSchema: { type: 'object', properties: {} }
+            },
+            {
+                name: 'get_node_pack',
+                description: 'Get the full JSON of a loaded node pack by its ID',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'string', description: 'Pack ID (e.g. wend.core)' }
+                    },
+                    required: ['id']
+                }
+            },
+            {
+                name: 'validate_node_pack',
+                description: 'Validate a node pack JSON structure against the pack schema',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        json: { type: 'object', description: 'Pack JSON object' }
+                    },
+                    required: ['json']
+                }
+            },
+            {
+                name: 'save_node_pack',
+                description: 'Save a node pack to the user packs directory and trigger hot-reloading',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        json: { type: 'object', description: 'Pack JSON object' }
+                    },
+                    required: ['json']
+                }
+            },
             // ── Screenshot ──────────────────────────────────────
             {
                 name: 'screenshot',
@@ -496,6 +624,8 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
                                 'Configuration': ['get_config', 'set_config', 'get_metrics', 'cancel_run', 'set_retry_policy'],
                                 'Parallel Primitives': ['run_parallel', 'map_bt', 'join_runs', 'race_runs', 'reduce_results'],
                                 'Screenshot': ['screenshot'],
+                                'BT Incremental/Registry': ['get_bt', 'add_node', 'update_node', 'remove_node', 'move_node', 'set_param', 'list_node_types', 'describe_node_type'],
+                                'Node Packs': ['list_node_packs', 'get_node_pack', 'validate_node_pack', 'save_node_pack'],
                             },
                             blackboardScopes: {
                                 'run': 'Current execution scope (session-only)',
@@ -813,6 +943,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
             case 'get_behavior_tree_capabilities':
                 result = await btApiCall('/bt/capabilities', 'GET');
+                break;
+
+            // ── Phase 1: Registry & Incremental Tree ──
+            case 'get_bt':
+                result = await btApiCall('/mcp/get_bt', 'POST', args);
+                break;
+            case 'add_node':
+                result = await btApiCall('/mcp/add_node', 'POST', args);
+                break;
+            case 'update_node':
+                result = await btApiCall('/mcp/update_node', 'POST', args);
+                break;
+            case 'remove_node':
+                result = await btApiCall('/mcp/remove_node', 'POST', args);
+                break;
+            case 'move_node':
+                result = await btApiCall('/mcp/move_node', 'POST', args);
+                break;
+            case 'set_param':
+                result = await btApiCall('/mcp/set_param', 'POST', args);
+                break;
+            case 'list_node_types':
+                result = await btApiCall('/mcp/list_node_types', 'POST', args);
+                break;
+            case 'describe_node_type':
+                result = await btApiCall('/mcp/describe_node_type', 'POST', args);
+                break;
+            case 'list_node_packs':
+                result = await btApiCall('/mcp/list_node_packs', 'GET');
+                break;
+            case 'get_node_pack':
+                result = await btApiCall('/mcp/get_node_pack', 'POST', args);
+                break;
+            case 'validate_node_pack':
+                result = await btApiCall('/mcp/validate_node_pack', 'POST', args);
+                break;
+            case 'save_node_pack':
+                result = await btApiCall('/mcp/save_node_pack', 'POST', args);
                 break;
 
             // ── Screenshot ──────────────────────────────────────

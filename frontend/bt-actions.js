@@ -559,8 +559,15 @@
             const scope = outputScope || 'run';
 
             return new Promise(resolve => {
+                const timer = setTimeout(() => {
+                    app._removeMessageListener(handler);
+                    app.outputMessage(`❌ Command execution timed out (frontend): ${command}`);
+                    resolve(false);
+                }, 65000);
+
                 const handler = (msg) => {
                     if (msg.type === 'bt_invoke_result') {
+                        clearTimeout(timer);
                         app._removeMessageListener(handler);
                         if (msg.error) {
                             app.outputMessage(`❌ Command failed: ${msg.error}`);

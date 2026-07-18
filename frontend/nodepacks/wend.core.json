@@ -1,0 +1,560 @@
+{
+  "packFormat": 1,
+  "id": "wend.core",
+  "version": "1.0.0",
+  "label": {
+    "en": "Wend Core Nodes",
+    "ja": "Wend コアノード"
+  },
+  "author": "wend",
+  "license": "GPL-3.0",
+  "requires": {
+    "app": ">=0.2.0"
+  },
+  "nodes": [
+    {
+      "type": "wend.core.loadLocalFile",
+      "label": { "en": "Load Local File", "ja": "ローカルファイル読込" },
+      "category": "io",
+      "icon": "📂",
+      "description": { "en": "Reads a file from disk and puts its content on the blackboard.", "ja": "ディスクからファイルを読み込み、コンテンツをブラックボードに保存します。" },
+      "ports": {
+        "in": [],
+        "out": [
+          { "name": "content", "type": "media", "bbDefault": true }
+        ]
+      },
+      "params": [
+        {
+          "name": "filePath",
+          "type": "filepath",
+          "required": true,
+          "default": "",
+          "ui": { "widget": "file", "label": { "en": "File Path", "ja": "ファイルパス" }, "browse": true }
+        },
+        {
+          "name": "outputType",
+          "type": "enum",
+          "required": false,
+          "default": "media",
+          "ui": { "widget": "select", "label": { "en": "Output Type", "ja": "出力タイプ" } }
+        },
+        {
+          "name": "outputKey",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "ui": { "widget": "bbkey", "label": { "en": "Output Key", "ja": "出力キー" } }
+        },
+        {
+          "name": "outputScope",
+          "type": "enum",
+          "required": false,
+          "default": "run",
+          "ui": { "widget": "select", "label": { "en": "Output Scope", "ja": "出力スコープ" } }
+        }
+      ],
+      "impl": { "kind": "builtin", "handler": "loadLocalFile" },
+      "compat": {
+        "btAction": "loadLocalFile",
+        "paramMap": {
+          "filePath": "btLocalFilePath",
+          "outputKey": "btOutputKey",
+          "outputType": "btOutputType",
+          "outputScope": "btOutputScope"
+        }
+      }
+    },
+    {
+      "type": "wend.core.playAudio",
+      "label": { "en": "Play Audio", "ja": "オーディオ再生" },
+      "category": "media",
+      "icon": "🔊",
+      "description": { "en": "Plays an audio file stored on the blackboard.", "ja": "ブラックボードに保存されたオーディオを再生します。" },
+      "ports": {
+        "in": [
+          { "name": "audio", "type": "media" }
+        ],
+        "out": []
+      },
+      "params": [
+        {
+          "name": "inputKey",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "ui": { "widget": "bbkey", "label": { "en": "Input Key", "ja": "入力キー" } }
+        }
+      ],
+      "impl": { "kind": "builtin", "handler": "playAudio" },
+      "compat": {
+        "btAction": "playAudio",
+        "paramMap": {
+          "inputKey": "btInputKey"
+        }
+      }
+    },
+    {
+      "type": "wend.core.playVideo",
+      "label": { "en": "Play Video", "ja": "ビデオ再生" },
+      "category": "media",
+      "icon": "🎬",
+      "description": { "en": "Plays a video file stored on the blackboard.", "ja": "ブラックボードに保存されたビデオを再生します。" },
+      "ports": {
+        "in": [
+          { "name": "video", "type": "media" }
+        ],
+        "out": []
+      },
+      "params": [
+        {
+          "name": "inputKey",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "ui": { "widget": "bbkey", "label": { "en": "Input Key", "ja": "入力キー" } }
+        }
+      ],
+      "impl": { "kind": "builtin", "handler": "playVideo" },
+      "compat": {
+        "btAction": "playVideo",
+        "paramMap": {
+          "inputKey": "btInputKey"
+        }
+      }
+    },
+    {
+      "type": "wend.core.pipelineOutput",
+      "label": { "en": "Pipeline Output", "ja": "パイプライン出力" },
+      "category": "io",
+      "icon": "📋",
+      "description": { "en": "Sets the final output of the pipeline from the blackboard.", "ja": "ブラックボードからパイプラインの最終出力を設定します。" },
+      "ports": {
+        "in": [
+          { "name": "output", "type": "any" }
+        ],
+        "out": []
+      },
+      "params": [
+        {
+          "name": "inputKey",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "ui": { "widget": "bbkey", "label": { "en": "Input Key", "ja": "入力キー" } }
+        }
+      ],
+      "impl": { "kind": "builtin", "handler": "pipelineOutput" },
+      "compat": {
+        "btAction": "pipelineOutput",
+        "paramMap": {
+          "inputKey": "btInputKey"
+        }
+      }
+    },
+    {
+      "type": "wend.core.math",
+      "label": { "en": "Math", "ja": "計算" },
+      "category": "transform",
+      "icon": "🔢",
+      "description": { "en": "Evaluates a mathematical expression.", "ja": "数式を評価します。" },
+      "ports": {
+        "in": [],
+        "out": [
+          { "name": "result", "type": "number", "bbDefault": true }
+        ]
+      },
+      "params": [
+        {
+          "name": "expression",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "ui": { "widget": "text", "label": { "en": "Expression", "ja": "数式" } }
+        },
+        {
+          "name": "outputKey",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "ui": { "widget": "bbkey", "label": { "en": "Output Key", "ja": "出力キー" } }
+        },
+        {
+          "name": "outputType",
+          "type": "enum",
+          "required": false,
+          "default": "text",
+          "ui": { "widget": "select", "label": { "en": "Output Type", "ja": "出力タイプ" } }
+        },
+        {
+          "name": "outputScope",
+          "type": "enum",
+          "required": false,
+          "default": "run",
+          "ui": { "widget": "select", "label": { "en": "Output Scope", "ja": "出力スコープ" } }
+        }
+      ],
+      "impl": { "kind": "builtin", "handler": "math" },
+      "compat": {
+        "btAction": "math",
+        "paramMap": {
+          "expression": "btPrompt",
+          "outputKey": "btOutputKey",
+          "outputType": "btOutputType",
+          "outputScope": "btOutputScope"
+        }
+      }
+    },
+    {
+      "type": "wend.core.web",
+      "label": { "en": "Web Request", "ja": "ウェブ要求" },
+      "category": "io",
+      "icon": "🌐",
+      "description": { "en": "Sends an HTTP request.", "ja": "HTTP要求を送信します。" },
+      "ports": {
+        "in": [],
+        "out": [
+          { "name": "response", "type": "text", "bbDefault": true }
+        ]
+      },
+      "params": [
+        {
+          "name": "request",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "ui": { "widget": "textarea", "label": { "en": "URL or Config JSON", "ja": "URLまたは構成JSON" } }
+        },
+        {
+          "name": "outputKey",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "ui": { "widget": "bbkey", "label": { "en": "Output Key", "ja": "出力キー" } }
+        },
+        {
+          "name": "outputType",
+          "type": "enum",
+          "required": false,
+          "default": "text",
+          "ui": { "widget": "select", "label": { "en": "Output Type", "ja": "出力タイプ" } }
+        },
+        {
+          "name": "outputScope",
+          "type": "enum",
+          "required": false,
+          "default": "run",
+          "ui": { "widget": "select", "label": { "en": "Output Scope", "ja": "出力スコープ" } }
+        }
+      ],
+      "impl": { "kind": "builtin", "handler": "web" },
+      "compat": {
+        "btAction": "web",
+        "paramMap": {
+          "request": "btPrompt",
+          "outputKey": "btOutputKey",
+          "outputType": "btOutputType",
+          "outputScope": "btOutputScope"
+        }
+      }
+    },
+    {
+      "type": "wend.core.misc",
+      "label": { "en": "Misc Operation", "ja": "その他の操作" },
+      "category": "transform",
+      "icon": "✍️",
+      "description": { "en": "Clipboard copy/paste or writing a static text to blackboard.", "ja": "クリップボードのコピー/貼り付け、または固定テキストのブラックボードへの書き込みを行います。" },
+      "ports": {
+        "in": [],
+        "out": []
+      },
+      "params": [
+        {
+          "name": "operation",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "ui": { "widget": "text", "label": { "en": "Operation/Text", "ja": "操作/テキスト" } }
+        },
+        {
+          "name": "outputKey",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "ui": { "widget": "bbkey", "label": { "en": "Output Key", "ja": "出力キー" } }
+        },
+        {
+          "name": "outputType",
+          "type": "enum",
+          "required": false,
+          "default": "text",
+          "ui": { "widget": "select", "label": { "en": "Output Type", "ja": "出力タイプ" } }
+        },
+        {
+          "name": "outputScope",
+          "type": "enum",
+          "required": false,
+          "default": "run",
+          "ui": { "widget": "select", "label": { "en": "Output Scope", "ja": "出力スコープ" } }
+        }
+      ],
+      "impl": { "kind": "builtin", "handler": "misc" },
+      "compat": {
+        "btAction": "misc",
+        "paramMap": {
+          "operation": "btPrompt",
+          "outputKey": "btOutputKey",
+          "outputType": "btOutputType",
+          "outputScope": "btOutputScope"
+        }
+      }
+    },
+    {
+      "type": "wend.core.mediaToFile",
+      "label": { "en": "Media → File", "ja": "メディア → ファイル" },
+      "category": "transform",
+      "icon": "💾",
+      "description": { "en": "Saves blackboard media to a temporary file.", "ja": "ブラックボードのメディアを一時ファイルとして保存します。" },
+      "ports": {
+        "in": [
+          { "name": "media", "type": "media" }
+        ],
+        "out": [
+          { "name": "filepath", "type": "filepath", "bbDefault": true }
+        ]
+      },
+      "params": [
+        {
+          "name": "inputKey",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "ui": { "widget": "bbkey", "label": { "en": "Input Key", "ja": "入力キー" } }
+        },
+        {
+          "name": "outputKey",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "ui": { "widget": "bbkey", "label": { "en": "Output Key", "ja": "出力キー" } }
+        }
+      ],
+      "impl": { "kind": "builtin", "handler": "mediaToFile" },
+      "compat": {
+        "btAction": "mediaToFile",
+        "paramMap": {
+          "inputKey": "btInputKey",
+          "outputKey": "btOutputKey"
+        }
+      }
+    },
+    {
+      "type": "wend.core.fileToMedia",
+      "label": { "en": "File → Media", "ja": "ファイル → メディア" },
+      "category": "transform",
+      "icon": "📂",
+      "description": { "en": "Loads a local file and saves it on the blackboard as media.", "ja": "ローカルファイルを読み込み、ブラックボードにメディアとして保存します。" },
+      "ports": {
+        "in": [
+          { "name": "filepath", "type": "filepath" }
+        ],
+        "out": [
+          { "name": "media", "type": "media", "bbDefault": true }
+        ]
+      },
+      "params": [
+        {
+          "name": "inputKey",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "ui": { "widget": "bbkey", "label": { "en": "Input Key", "ja": "入力キー" } }
+        },
+        {
+          "name": "outputKey",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "ui": { "widget": "bbkey", "label": { "en": "Output Key", "ja": "出力キー" } }
+        }
+      ],
+      "impl": { "kind": "builtin", "handler": "fileToMedia" },
+      "compat": {
+        "btAction": "fileToMedia",
+        "paramMap": {
+          "inputKey": "btInputKey",
+          "outputKey": "btOutputKey"
+        }
+      }
+    },
+    {
+      "type": "wend.core.manual",
+      "label": { "en": "Manual Operation", "ja": "手動操作" },
+      "category": "ui",
+      "icon": "✓",
+      "description": { "en": "Pauses execution for manual user confirmation or input.", "ja": "ユーザーによる手動確認または入力のために実行を一時停止します。" },
+      "ports": {
+        "in": [],
+        "out": []
+      },
+      "params": [
+        {
+          "name": "mode",
+          "type": "enum",
+          "required": false,
+          "default": "view",
+          "ui": { "widget": "select", "label": { "en": "Mode", "ja": "モード" } }
+        },
+        {
+          "name": "prompt",
+          "type": "text",
+          "required": false,
+          "default": "",
+          "ui": { "widget": "textarea", "label": { "en": "Prompt Instructions", "ja": "指示プロンプト" } }
+        },
+        {
+          "name": "choices",
+          "type": "json",
+          "required": false,
+          "default": "[]",
+          "ui": { "widget": "choices", "label": { "en": "Choices", "ja": "選択肢" } }
+        },
+        {
+          "name": "outputKey",
+          "type": "text",
+          "required": false,
+          "default": "",
+          "ui": { "widget": "bbkey", "label": { "en": "Output Key", "ja": "出力キー" } }
+        },
+        {
+          "name": "outputScope",
+          "type": "enum",
+          "required": false,
+          "default": "run",
+          "ui": { "widget": "select", "label": { "en": "Output Scope", "ja": "出力スコープ" } }
+        }
+      ],
+      "impl": { "kind": "builtin", "handler": "manual" },
+      "compat": {
+        "btAction": "manual",
+        "paramMap": {
+          "mode": "btManualMode",
+          "prompt": "btManualPrompt",
+          "choices": "btManualChoices",
+          "outputKey": "btOutputKey",
+          "outputScope": "btOutputScope"
+        }
+      }
+    },
+    {
+      "type": "wend.core.invoke",
+      "label": { "en": "Invoke Command", "ja": "コマンド実行" },
+      "category": "io",
+      "icon": "💻",
+      "description": { "en": "Executes a system shell command.", "ja": "システムシェルコマンドを実行します。" },
+      "ports": {
+        "in": [],
+        "out": []
+      },
+      "params": [
+        {
+          "name": "command",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "ui": { "widget": "text", "label": { "en": "Command Line", "ja": "コマンドライン" } }
+        },
+        {
+          "name": "workingDir",
+          "type": "text",
+          "required": false,
+          "default": "",
+          "ui": { "widget": "text", "label": { "en": "Working Directory", "ja": "作業ディレクトリ" } }
+        },
+        {
+          "name": "inputKey",
+          "type": "text",
+          "required": false,
+          "default": "",
+          "ui": { "widget": "bbkey", "label": { "en": "Input Key", "ja": "入力キー" } }
+        },
+        {
+          "name": "outputKey",
+          "type": "text",
+          "required": false,
+          "default": "",
+          "ui": { "widget": "bbkey", "label": { "en": "Output Key", "ja": "出力キー" } }
+        },
+        {
+          "name": "outputScope",
+          "type": "enum",
+          "required": false,
+          "default": "run",
+          "ui": { "widget": "select", "label": { "en": "Output Scope", "ja": "出力スコープ" } }
+        }
+      ],
+      "impl": { "kind": "builtin", "handler": "invoke" },
+      "compat": {
+        "btAction": "invoke",
+        "paramMap": {
+          "command": "btPrompt",
+          "workingDir": "btWorkingDir",
+          "inputKey": "btInputKey",
+          "outputKey": "btOutputKey",
+          "outputScope": "btOutputScope"
+        }
+      }
+    },
+    {
+      "type": "wend.core.processPrompt",
+      "label": { "en": "Process Prompt", "ja": "プロンプト処理" },
+      "category": "ai",
+      "icon": "🤖",
+      "description": { "en": "Runs the default AI LLM process prompt execution.", "ja": "デフォルトのAI LLMプロセスプロンプト実行を実行します。" },
+      "ports": {
+        "in": [],
+        "out": []
+      },
+      "params": [
+        {
+          "name": "prompt",
+          "type": "text",
+          "required": false,
+          "default": "",
+          "ui": { "widget": "textarea", "label": { "en": "Prompt", "ja": "プロンプト" } }
+        },
+        {
+          "name": "recipe",
+          "type": "text",
+          "required": false,
+          "default": "",
+          "ui": { "widget": "text", "label": { "en": "Recipe Name", "ja": "レシピ名" } }
+        },
+        {
+          "name": "inputKey",
+          "type": "text",
+          "required": false,
+          "default": "",
+          "ui": { "widget": "bbkey", "label": { "en": "Input Key", "ja": "入力キー" } }
+        },
+        {
+          "name": "outputKey",
+          "type": "text",
+          "required": false,
+          "default": "",
+          "ui": { "widget": "bbkey", "label": { "en": "Output Key", "ja": "出力キー" } }
+        }
+      ],
+      "impl": { "kind": "builtin", "handler": "processPrompt" },
+      "compat": {
+        "btAction": "processPrompt",
+        "paramMap": {
+          "prompt": "btPrompt",
+          "recipe": "selectedRecipe",
+          "inputKey": "btInputKey",
+          "outputKey": "btOutputKey"
+        }
+      }
+    }
+  ]
+}

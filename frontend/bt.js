@@ -10,6 +10,15 @@
  *   app.processPrompt()
  *   app.state.selectedOpPath, app.state.currentNodePath
  */
+const LEGACY_TYPE_TO_ACTION = {
+    'leaf_file': 'loadLocalFile', 'file': 'loadLocalFile',
+    'leaf_audio': 'playAudio',    'audio': 'playAudio',
+    'leaf_video': 'playVideo',    'video': 'playVideo',
+    'leaf_math':  'math',         'math':  'math',
+    'leaf_web':   'web',          'web':   'web',
+    'leaf_misc':  'misc',         'misc':  'misc',
+};
+
 class BehaviorTreeEngine {
     constructor(app) {
         this._app = app;
@@ -953,16 +962,7 @@ class BehaviorTreeEngine {
 
         const btType = node?.btType || 'leaf';
 
-        // Legacy btType → btAction name mapping for backward compat
-        const typeToAction = {
-            'leaf_file': 'loadLocalFile', 'file': 'loadLocalFile',
-            'leaf_audio': 'playAudio',    'audio': 'playAudio',
-            'leaf_video': 'playVideo',    'video': 'playVideo',
-            'leaf_math':  'math',         'math':  'math',
-            'leaf_web':   'web',          'web':   'web',
-            'leaf_misc':  'misc',         'misc':  'misc',
-        };
-        const actionName = node?.btAction || typeToAction[btType] || '';
+        const actionName = node?.btAction || LEGACY_TYPE_TO_ACTION[btType] || '';
 
         if (actionName && window.btActions.has(actionName)) {
             return this._runAction(path, node);
@@ -981,15 +981,7 @@ class BehaviorTreeEngine {
         app.renderTree();
 
         const btType = node?.btType || 'leaf';
-        const typeToAction = {
-            'leaf_file': 'loadLocalFile', 'file': 'loadLocalFile',
-            'leaf_audio': 'playAudio',    'audio': 'playAudio',
-            'leaf_video': 'playVideo',    'video': 'playVideo',
-            'leaf_math':  'math',         'math':  'math',
-            'leaf_web':   'web',          'web':   'web',
-            'leaf_misc':  'misc',         'misc':  'misc',
-        };
-        const actionName = node?.btAction || typeToAction[btType] || '';
+        const actionName = node?.btAction || LEGACY_TYPE_TO_ACTION[btType] || '';
         const config = window.btActions.get(actionName);
         if (!config) {
             app.outputMessage(`❌ Unknown action "${actionName}"`);
@@ -1024,11 +1016,162 @@ class BehaviorTreeEngine {
 
         const setCleanup = (fn) => { cleanups.push(fn); };
 
+        // Construct enriched context fields
+        const inputs = new Map();
+        if (inputKey) {
+            const defaultInPort = config?.ports?.in?.find(p => p.bbDefault)?.name || 'input';
+            inputs.set(defaultInPort, textInput || mediaArr);
+        }
+
+        const io = {
+            read: (port) => inputs.get(port),
+            write: (port, value, type) => {
+                if (outputKey) {
+                    this.bbWrite(outputKey, value, node.btOutputScope || 'run', type || outputType);
+                }
+            }
+        };
+
+        const bb = {
+            readText: (key) => this._bbReadText(key),
+            readMedia: (key) => this._bbReadMedia(key),
+            readData: (key) => this._bbReadData(key),
+            write: (key, value, scope = 'run', field = 'text') => this.bbWrite(key, value, scope, field),
+            keys: (scope) => {
+                const b = this._bbGet(scope || 'run');
+                return b ? Object.keys(b) : [];
+            }
+        };
+
+        const log = {
+            info: (msg) => app.outputMessage(`[Info] ${msg}`),
+            warn: (msg) => app.outputMessage(`⚠️ [Warn] ${msg}`),
+            error: (msg) => app.outputMessage(`❌ [Error] ${msg}`),
+            progress: (pct, msg) => app.outputMessage(`[Progress ${pct}%] ${msg}`)
+        };
+
+        let signal = null;
+        if (typeof AbortController !== 'undefined') {
+            const controller = new AbortController();
+            signal = controller.signal;
+            cleanups.push(() => controller.abort());
+        }
+
+        const services = {
+            http: async (opts) => {
+                return new Promise((resolve, reject) => {
+                    const reqId = 'http_' + Math.random().toString(36).slice(2, 9);
+                    const handler = (msg) => {
+                        if (msg.type === 'bt_http_request_result' && msg.payload?.requestId === reqId) {
+                            app._removeMessageListener(handler);
+                            if (msg.payload.error) reject(new Error(msg.payload.error));
+                            else resolve(msg.payload.response);
+                        }
+                    };
+                    app._addMessageListener(handler);
+                    app.postMessage({
+                        type: 'bt_http_request',
+                        payload: {
+                            requestId: reqId,
+                            url: opts.url,
+                            method: opts.method || 'GET',
+                            headers: opts.headers || {},
+                            body: opts.body || ''
+                        }
+                    });
+                });
+            },
+            file: {
+                read: async (filePath, basePath) => {
+                    return new Promise((resolve, reject) => {
+                        const handler = (msg) => {
+                            if (msg.type === 'bt_load_local_file_result') {
+                                app._removeMessageListener(handler);
+                                if (msg.error) reject(new Error(msg.error));
+                                else resolve(msg);
+                            }
+                        };
+                        app._addMessageListener(handler);
+                        app.postMessage({ type: 'bt_load_local_file', payload: { filePath, basePath } });
+                    });
+                },
+                writeTemp: async (content, filename) => {
+                    return new Promise((resolve, reject) => {
+                        const handler = (msg) => {
+                            if (msg.type === 'bt_media_to_file_result') {
+                                app._removeMessageListener(handler);
+                                if (msg.error) reject(new Error(msg.error));
+                                else resolve(msg.filePath);
+                            }
+                        };
+                        app._addMessageListener(handler);
+                        app.postMessage({ type: 'bt_media_to_file', payload: { content, filename } });
+                    });
+                }
+            },
+            provider: async (recipeName, req) => {
+                return new Promise((resolve, reject) => {
+                    const reqId = 'prov_' + Math.random().toString(36).slice(2, 9);
+                    const handler = (msg) => {
+                        if (msg.type === 'prompt_result' && msg.payload?.requestId === reqId) {
+                            app._removeMessageListener(handler);
+                            if (msg.payload.error) reject(new Error(msg.payload.error));
+                            else resolve(msg.payload.result);
+                        }
+                    };
+                    app._addMessageListener(handler);
+                    app.postMessage({
+                        type: 'prompt_request',
+                        payload: {
+                            requestId: reqId,
+                            recipe: recipeName,
+                            content: req.prompt || '',
+                            attachments: req.attachments || []
+                        }
+                    });
+                });
+            },
+            ui: {
+                manual: async (mode, prompt, choices) => {
+                    return new Promise((resolve, reject) => {
+                        const handler = (msg) => {
+                            if (msg.type === 'bt_manual_resume') {
+                                app._removeMessageListener(handler);
+                                resolve(msg.payload);
+                            }
+                        };
+                        app._addMessageListener(handler);
+                        app.postMessage({
+                            type: 'bt_manual_pause',
+                            payload: { mode, prompt, choices }
+                        });
+                    });
+                }
+            }
+        };
+
+        const resolvedParams = {};
+        if (config && Array.isArray(config.params)) {
+            const compatResolved = window.WendNodes.resolveCompat(node);
+            Object.assign(resolvedParams, compatResolved.params, node.btParams || {});
+        } else {
+            const compatResolved = window.WendNodes.resolveCompat(node);
+            Object.assign(resolvedParams, compatResolved.params);
+        }
+
+        const isBuiltin = !config || !config.impl || config.impl.kind === 'builtin';
+
         const ctx = {
-            bt: this, app, path, node,
-            inputKey, outputKey, outputType,
-            prompt, textInput, mediaArr,
-            setCleanup,
+            apiVersion: 1,
+            node, path, params: resolvedParams,
+            inputs, io, bb, log, signal, services,
+            ...(isBuiltin ? {
+                bt: this, app, prompt, textInput, mediaArr, inputKey, outputKey, outputType,
+                outputScope: node.btOutputScope || 'run',
+                setCleanup
+            } : {
+                setCleanup
+            })
         };
 
         // A data node IS the execution-history record, so an action/sink node
@@ -1097,30 +1240,63 @@ class BehaviorTreeEngine {
         // when both are present) so multimodal services receive everything;
         // the provider drops what it can't consume (provider-capability filter).
         const forcedType = node?.btInputType;
-        const bbMediaInput = (inputKey && forcedType !== 'text')  ? this._bbReadMedia(inputKey) : null;
-        const bbTextInput  = (inputKey && forcedType !== 'media') ? this._bbReadText(inputKey)  : null;
+        let bbMediaInput = null;
+        let bbTextInput = null;
+
+        let inputResolutionPromise = Promise.resolve();
+        if (forcedType === 'filepath' && inputKey) {
+            const filePath = this._bbReadText(inputKey) || '';
+            if (filePath) {
+                const tabIndex = this.runId && app._runIdToTabIndex
+                    ? app._runIdToTabIndex.get(this.runId) : undefined;
+                const tab = tabIndex !== undefined
+                    ? app.state.tabs[tabIndex] : app.state.tabs[app.state.activeTab];
+                const basePath = tab?.file || '';
+
+                inputResolutionPromise = new Promise(resolveFile => {
+                    const handler = (msg) => {
+                        if (msg.type === 'bt_load_local_file_result') {
+                            app._removeMessageListener(handler);
+                            if (msg.error) {
+                                app.outputMessage(`❌ File → Media conversion failed for filepath input: ${msg.error}`);
+                                resolveFile();
+                            } else {
+                                bbMediaInput = [msg];
+                                resolveFile();
+                            }
+                        }
+                    };
+                    app._addMessageListener(handler);
+                    app.postMessage({ type: 'bt_load_local_file', payload: { filePath, basePath } });
+                });
+            }
+        } else {
+            bbMediaInput = (inputKey && forcedType !== 'text')  ? this._bbReadMedia(inputKey) : null;
+            bbTextInput  = (inputKey && forcedType !== 'media') ? this._bbReadText(inputKey)  : null;
+        }
 
         // Phase A: Generate unique requestId for concurrent LLM calls
         const requestId = String(this._nextRequestId++);
         const targetNodePath = path;  // pass the node path through the request
 
-        // Set BT-specific context that processPrompt() will read
-        app.state.btRunContext = {
-            requestId,        // Phase A: added for concurrent-safe callback routing
-            targetNodePath,   // Phase A: where output goes (not selectedOpPath)
-            prompt:       resolvedPrompt,
-            bbTextInput:  bbTextInput,
-            bbMediaInput: bbMediaInput,
-            outputKey:    outputKey || null,
-        };
-
         return new Promise(resolve => {
-            app.state.selectedOpPath  = path;
-            app.state.currentNodePath = path;
-            app.renderTree();
+            inputResolutionPromise.then(() => {
+                // Set BT-specific context that processPrompt() will read
+                app.state.btRunContext = {
+                    requestId,        // Phase A: added for concurrent-safe callback routing
+                    targetNodePath,   // Phase A: where output goes (not selectedOpPath)
+                    prompt:       resolvedPrompt,
+                    bbTextInput:  bbTextInput,
+                    bbMediaInput: bbMediaInput,
+                    outputKey:    outputKey || null,
+                };
 
-            // Phase A: Store callback in Map, keyed by requestId (concurrent-safe)
-            const callback = (meta) => {
+                app.state.selectedOpPath  = path;
+                app.state.currentNodePath = path;
+                app.renderTree();
+
+                // Phase A: Store callback in Map, keyed by requestId (concurrent-safe)
+                const callback = (meta) => {
                 app.state.btRunContext = null;
                 this._pendingCallbacks.delete(requestId);  // cleanup
                 if (meta.steps && Array.isArray(meta.steps)) {
@@ -1174,7 +1350,8 @@ class BehaviorTreeEngine {
             this._leafCallback = callback;  // back-compat: keep single-slot reference
             app.processPrompt();
         });
-    }
+    });
+}
 
     async _runNext(path, node) {
         const app = this._app;
@@ -1210,4 +1387,10 @@ class BehaviorTreeEngine {
         app.btCtrlRun();
         return true;
     }
+}
+
+if (window.WendNodes) {
+    window.WendNodes.registerHandler('processPrompt', async (ctx) => {
+        return await ctx.bt._runAI(ctx.path, ctx.node);
+    });
 }

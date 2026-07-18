@@ -367,6 +367,52 @@ module.exports = CustomSampleProvider;
     } catch (e) { console.error('[CustomProviderLoader] Failed to scan custom providers:', e.message); }
 }
 
+function loadNodePacks() {
+    const packs = [];
+    
+    // 1. Built-in packs in frontend/nodepacks
+    const builtinDir = path.join(FRONTEND_ROOT, 'nodepacks');
+    if (fs.existsSync(builtinDir)) {
+        try {
+            const files = fs.readdirSync(builtinDir);
+            for (const file of files) {
+                if (file.endsWith('.json')) {
+                    const filePath = path.join(builtinDir, file);
+                    const json = readJson(filePath);
+                    if (json && json.id) {
+                        packs.push({ packJson: json, source: 'builtin' });
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('[loadNodePacks] Failed to read builtin packs:', e.message);
+        }
+    }
+
+    // 2. User packs in %APPDATA%/Wend/nodepacks/*/pack.json
+    const userDir = path.join(app.getPath('appData'), 'Wend', 'nodepacks');
+    if (fs.existsSync(userDir)) {
+        try {
+            const dirs = fs.readdirSync(userDir, { withFileTypes: true });
+            for (const entry of dirs) {
+                if (entry.isDirectory()) {
+                    const packPath = path.join(userDir, entry.name, 'pack.json');
+                    if (fs.existsSync(packPath)) {
+                        const json = readJson(packPath);
+                        if (json && json.id) {
+                            packs.push({ packJson: json, source: 'user' });
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('[loadNodePacks] Failed to read user packs:', e.message);
+        }
+    }
+
+    return packs;
+}
+
 // ============================================================
 // AI Providers (loaded from providers/ directory)
 // ============================================================
@@ -1839,6 +1885,7 @@ function sendFullInit() {
         appIconDataUrl,
         demos: listDemos(),
         defaultProviders: _appProviderDefs,
+        nodePacks: loadNodePacks(),
     });
 
   //  postToJS('log', JSON.stringify({ message: '[TRACE] SendFullInit: init posted' }));
@@ -2345,7 +2392,189 @@ function handleBtApi(rawUrl, method, payload, res) {
             query[decodeURIComponent(k)] = decodeURIComponent(v || '');
         }
     }
+function validateNodePack(packJson) {
+    if (!packJson || typeof packJson !== 'object') {
+        return { ok: false, error: 'Pack must be a valid JSON object' };
+    }
+    if (typeof packJson.packFormat !== 'number') {
+        return { ok: false, error: 'packFormat must be an integer' };
+    }
+    if (typeof packJson.id !== 'string' || !packJson.id) {
+        return { ok: false, error: 'id must be a non-empty string' };
+    }
+    if (typeof packJson.version !== 'string' || !packJson.version) {
+        return { ok: false, error: 'version must be a string' };
+    }
+    if (packJson.nodes && !Array.isArray(packJson.nodes)) {
+        return { ok: false, error: 'nodes must be an array' };
+    }
+    if (packJson.nodes) {
+        for (let i = 0; i < packJson.nodes.length; i++) {
+            const node = packJson.nodes[i];
+            if (!node || typeof node !== 'object') {
+                return { ok: false, error: `node at index ${i} is not an object` };
+            }
+            if (typeof node.type !== 'string' || !node.type) {
+                return { ok: false, error: `node at index ${i} must have a non-empty type string` };
+            }
+            if (!node.type.startsWith(packJson.id + '.')) {
+                return { ok: false, error: `node type "${node.type}" must start with pack prefix "${packJson.id}."` };
+            }
+        }
+    }
+    return { ok: true };
+}
+
+function handleListPacks(method, payload, res) {
+    const packs = loadNodePacks();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, packs }));
+}
+
+function handleGetPack(method, payload, res) {
+    const { id } = payload || {};
+    if (!id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'id parameter required' }));
+        return;
+    }
+    const packs = loadNodePacks();
+    const pack = packs.find(p => p.packJson.id === id);
+    if (!pack) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: `Pack "${id}" not found` }));
+        return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, pack }));
+}
+
+function handleValidatePack(method, payload, res) {
+    const { json } = payload || {};
+    let packJson = json;
+    if (typeof json === 'string') {
+        try { packJson = JSON.parse(json); } catch (e) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: 'Invalid JSON string: ' + e.message }));
+            return;
+        }
+    }
+    const val = validateNodePack(packJson);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(val));
+}
+
+function handleSavePack(method, payload, res) {
+    const { json } = payload || {};
+    let packJson = json;
+    if (typeof json === 'string') {
+        try { packJson = JSON.parse(json); } catch (e) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: 'Invalid JSON string: ' + e.message }));
+            return;
+        }
+    }
+    const val = validateNodePack(packJson);
+    if (!val.ok) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(val));
+        return;
+    }
+
+    const hasModule = packJson.nodes && packJson.nodes.some(n => n.impl && n.impl.kind === 'module');
+    const bootstrap = loadBootstrapConfig();
+    const allowModule = bootstrap.allowModulePacksFromMcp === true;
+
+    if (hasModule && !allowModule) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'MODULE_PACK_FORBIDDEN: Saving module packs from MCP is disabled. Set allowModulePacksFromMcp: true in bootstrap config to enable.' }));
+        return;
+    }
+
+    try {
+        const userDir = path.join(app.getPath('appData'), 'Wend', 'nodepacks', packJson.id);
+        if (!fs.existsSync(userDir)) {
+            fs.mkdirSync(userDir, { recursive: true });
+        }
+        const packPath = path.join(userDir, 'pack.json');
+        fs.writeFileSync(packPath, JSON.stringify(packJson, null, 2), 'utf8');
+
+        const nodePacks = loadNodePacks();
+        postToJS('node_packs_reloaded', { nodePacks });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, message: `Pack "${packJson.id}" saved successfully` }));
+    } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'Failed to write pack to disk: ' + e.message }));
+    }
+}
+
+const pendingHttpRequests = new Map();
+let nextHttpRequestId = 1;
+
+function sendMcpRequestToRenderer(action, args, res) {
+    const requestId = 'http_req_' + (nextHttpRequestId++);
+    const timeout = setTimeout(() => {
+        if (pendingHttpRequests.has(requestId)) {
+            pendingHttpRequests.delete(requestId);
+            res.writeHead(504, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: 'Gateway Timeout: Renderer did not respond.' }));
+        }
+    }, 5000);
+
+    pendingHttpRequests.set(requestId, { res, timeout });
+    postToJS('mcp_api_request', { requestId, action, args });
+}
+
     const routes = {
+        '/mcp/get_bt': (method, payload, res) => {
+            if (method !== 'POST') { res.writeHead(405); res.end(); return; }
+            sendMcpRequestToRenderer('get_bt', payload, res);
+        },
+        '/mcp/add_node': (method, payload, res) => {
+            if (method !== 'POST') { res.writeHead(405); res.end(); return; }
+            sendMcpRequestToRenderer('add_node', payload, res);
+        },
+        '/mcp/update_node': (method, payload, res) => {
+            if (method !== 'POST') { res.writeHead(405); res.end(); return; }
+            sendMcpRequestToRenderer('update_node', payload, res);
+        },
+        '/mcp/remove_node': (method, payload, res) => {
+            if (method !== 'POST') { res.writeHead(405); res.end(); return; }
+            sendMcpRequestToRenderer('remove_node', payload, res);
+        },
+        '/mcp/move_node': (method, payload, res) => {
+            if (method !== 'POST') { res.writeHead(405); res.end(); return; }
+            sendMcpRequestToRenderer('move_node', payload, res);
+        },
+        '/mcp/set_param': (method, payload, res) => {
+            if (method !== 'POST') { res.writeHead(405); res.end(); return; }
+            sendMcpRequestToRenderer('set_param', payload, res);
+        },
+        '/mcp/list_node_types': (method, payload, res) => {
+            if (method !== 'POST') { res.writeHead(405); res.end(); return; }
+            sendMcpRequestToRenderer('list_node_types', payload, res);
+        },
+        '/mcp/describe_node_type': (method, payload, res) => {
+            if (method !== 'POST') { res.writeHead(405); res.end(); return; }
+            sendMcpRequestToRenderer('describe_node_type', payload, res);
+        },
+        '/mcp/list_node_packs': (method, payload, res) => {
+            handleListPacks(method, payload, res);
+        },
+        '/mcp/get_node_pack': (method, payload, res) => {
+            if (method !== 'POST') { res.writeHead(405); res.end(); return; }
+            handleGetPack(method, payload, res);
+        },
+        '/mcp/validate_node_pack': (method, payload, res) => {
+            if (method !== 'POST') { res.writeHead(405); res.end(); return; }
+            handleValidatePack(method, payload, res);
+        },
+        '/mcp/save_node_pack': (method, payload, res) => {
+            if (method !== 'POST') { res.writeHead(405); res.end(); return; }
+            handleSavePack(method, payload, res);
+        },
         '/bt/load':      handleBtLoad,
         '/bt/run':       handleBtRun,
         '/bt/step':      handleBtStep,
@@ -4638,6 +4867,49 @@ Return the updated JSON configuration.`;
                 });
             break;
         }
+        case 'bt_invoke_command': {
+            const { command, workingDir } = payload || {};
+            if (!command) {
+                postToJS('bt_invoke_result', { error: 'No command specified' });
+                break;
+            }
+            let cwd = workingDir || '';
+            if (cwd && !path.isAbsolute(cwd)) {
+                cwd = path.join(storage.getBasePath(), cwd);
+            }
+            if (!cwd) {
+                cwd = storage.getBasePath();
+            }
+
+            const cfg = storage.loadGeneralConfig();
+            if (cfg.allowCommandExecution === undefined) {
+                const choice = dialog.showMessageBoxSync(mainWindow, {
+                    type: 'question',
+                    buttons: ['No', 'Yes'],
+                    title: 'Allow Command Execution',
+                    message: 'Do you want to allow the "Invoke Command" action to execute system commands? This can run arbitrary shell commands on your machine.',
+                    defaultId: 0,
+                    cancelId: 0
+                });
+                cfg.allowCommandExecution = (choice === 1);
+                storage.saveGeneralConfig(cfg);
+            }
+
+            if (!cfg.allowCommandExecution) {
+                postToJS('bt_invoke_result', { error: 'Command execution is blocked because "allowCommandExecution" is disabled.' });
+                break;
+            }
+
+            const timeout = 60000;
+            execFile(command, [], { shell: true, cwd, timeout }, (err, stdout, stderr) => {
+                if (err) {
+                    postToJS('bt_invoke_result', { error: err.message || String(err), output: stdout + stderr });
+                } else {
+                    postToJS('bt_invoke_result', { output: stdout });
+                }
+            });
+            break;
+        }
         case 'save_run_state': {
             const runId = runner.getRunId();
             if (runId) storage.saveRunState(runId, JSON.stringify(payload));
@@ -5274,6 +5546,28 @@ ipcMain.on('bridge', (_event, msg) => {
     }
     const type = obj.type;
     const payload = obj.payload;
+
+    if (type === 'mcp_api_response') {
+        const { requestId, result, error } = payload || {};
+        const pending = pendingHttpRequests.get(requestId);
+        if (pending) {
+            clearTimeout(pending.timeout);
+            pendingHttpRequests.delete(requestId);
+            pending.res.writeHead(200, { 'Content-Type': 'application/json' });
+            if (error) {
+                pending.res.end(JSON.stringify({ ok: false, error }));
+            } else {
+                pending.res.end(JSON.stringify({ ok: true, ...result }));
+            }
+        }
+        return;
+    }
+
+    if (type === 'reload_node_packs') {
+        const nodePacks = loadNodePacks();
+        postToJS('node_packs_reloaded', { nodePacks });
+        return;
+    }
 
     if (type === 'init_complete') {
 //        postToJS('log', JSON.stringify({ message: '[TRACE] init_complete received from JS, calling SendFullInit' }));

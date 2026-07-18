@@ -6,7 +6,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-packager . Wend --platform=win32 --arch=x64 --out=../bin/Release --overwrite --asar --icon=../images/app.ico --extra-resource=../frontend --extra-resource=../images/app.png --extra-resource=../images/app.ico --ignore='\\.gitignore' --ignore='build\\.sh' --ignore='bin' --ignore='dist' --ignore='test\\.js' && (if exist ..\\bin\\Release\\Wend rmdir /s /q ..\\bin\\Release\\Wend) && move ..\\bin\\Release\\Wend-win32-x64 ..\\bin\\Release\\Wend",
+    "build": "electron-packager . Wend --platform=win32 --arch=x64 --out=../bin/Release --overwrite --asar --icon=../images/app.ico --extra-resource=../frontend --extra-resource=../images/app.png --extra-resource=../images/app.ico --ignore='\\.gitignore' --ignore='build\\.sh' --ignore='bin' --ignore='dist' --ignore='test\\.js' && (if exist ..\\bin\\Release\\Wend rmdir /s /q ..\\bin\\Release\\Wend) && move ..\\bin\\Release\\Wend-win32-x64 ..\\bin\\Release\\Wend && (if exist ..\\bin\\Release\\Wend\\resources\\frontend del /f /q ..\\bin\\Release\\Wend\\resources\\frontend\\style.css.bak ..\\bin\\Release\\Wend\\resources\\frontend\\test-b3-*.html ..\\bin\\Release\\Wend\\resources\\frontend\\diagnose-b3.html)",
     "test": "node --test test.js",
     "verify": "node --test test_build.js"
   },

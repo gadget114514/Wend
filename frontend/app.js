@@ -189,6 +189,11 @@ const app = {
                 if (msg.payload.providerCapabilities) {
                     this.state.providerCapabilities = msg.payload.providerCapabilities;
                 }
+                if (msg.payload.nodePacks && window.WendNodes) {
+                    for (const pack of msg.payload.nodePacks) {
+                        window.WendNodes.registerPack(pack.packJson, { source: pack.source });
+                    }
+                }
                 if (msg.payload.config) {
                     if (msg.payload.config.historyRetention)
                         this.state.historyRetention = msg.payload.config.historyRetention;
@@ -336,6 +341,195 @@ const app = {
                     }
                 }
                 break;
+            case 'node_packs_reloaded':
+                if (msg.payload.nodePacks && window.WendNodes) {
+                    for (const pack of msg.payload.nodePacks) {
+                        window.WendNodes.registerPack(pack.packJson, { source: pack.source });
+                    }
+                    this.renderPrompt();
+                }
+                break;
+            case 'mcp_api_request': {
+                const { requestId, action, args } = msg.payload || {};
+                let result = null;
+                let error = null;
+
+                try {
+                    if (action === 'get_bt') {
+                        const tabIndex = args.tabIndex !== undefined ? args.tabIndex : this.state.activeTab;
+                        const tab = this.state.tabs[tabIndex];
+                        if (!tab) throw new Error('Tab not found');
+                        
+                        const addPaths = (node, pathStr) => {
+                            node.path = pathStr;
+                            if (Array.isArray(node.children)) {
+                                node.children.forEach((c, idx) => addPaths(c, `${pathStr}/${idx}`));
+                            }
+                        };
+                        const rootCopy = JSON.parse(JSON.stringify(tab.root));
+                        addPaths(rootCopy, '');
+                        result = { tree: rootCopy };
+                    } 
+                    else if (action === 'add_node') {
+                        const { parentPath, index, spec } = args;
+                        const parent = this.getNodeByPath(parentPath);
+                        if (!parent) throw new Error('Parent node not found');
+                        if (!parent.children) parent.children = [];
+                        
+                        const newNode = {
+                            title: btoa(spec.title || 'New Node'),
+                            content: btoa(spec.content || ''),
+                            btType: spec.btType || 'leaf',
+                            btAction: spec.btAction || 'processPrompt',
+                            children: []
+                        };
+                        if (spec.btParams) newNode.btParams = spec.btParams;
+                        
+                        const idx = index !== undefined ? index : parent.children.length;
+                        parent.children.splice(idx, 0, newNode);
+                        
+                        this.markDirty();
+                        this.saveCurrentTab();
+                        this.renderTree();
+                        this.renderList();
+                        
+                        const newPath = parentPath === '' ? `/${idx}` : `${parentPath}/${idx}`;
+                        result = { ok: true, path: newPath };
+                    }
+                    else if (action === 'update_node') {
+                        const { path, patch } = args;
+                        const node = this.getNodeByPath(path);
+                        if (!node) throw new Error('Node not found');
+                        
+                        for (const [k, v] of Object.entries(patch)) {
+                            if (k === 'title' || k === 'content' || k === 'btPrompt' || k === 'btManualPrompt') {
+                                node[k] = btoa(v);
+                            } else if (k === 'btManualChoices') {
+                                node[k] = typeof v === 'string' ? v : JSON.stringify(v);
+                            } else {
+                                node[k] = v;
+                            }
+                        }
+                        
+                        this.markDirty();
+                        this.saveCurrentTab();
+                        this.renderTree();
+                        this.renderList();
+                        this.renderPrompt();
+                        result = { ok: true };
+                    }
+                    else if (action === 'remove_node') {
+                        const { path } = args;
+                        if (path === '') throw new Error('Cannot remove root node');
+                        
+                        const parts = path.split('/');
+                        const index = parseInt(parts.pop());
+                        const parentPath = parts.join('/');
+                        const parent = this.getNodeByPath(parentPath);
+                        if (!parent || !parent.children) throw new Error('Parent not found');
+                        
+                        parent.children.splice(index, 1);
+                        
+                        this.markDirty();
+                        this.saveCurrentTab();
+                        this.renderTree();
+                        this.renderList();
+                        this.renderPrompt();
+                        result = { ok: true };
+                    }
+                    else if (action === 'move_node') {
+                        const { path, newParentPath, index } = args;
+                        if (path === '') throw new Error('Cannot move root node');
+                        
+                        const parts = path.split('/');
+                        const oldIdx = parseInt(parts.pop());
+                        const oldParentPath = parts.join('/');
+                        const oldParent = this.getNodeByPath(oldParentPath);
+                        const newParent = this.getNodeByPath(newParentPath);
+                        if (!oldParent || !newParent) throw new Error('Parent nodes not found');
+                        
+                        const node = oldParent.children.splice(oldIdx, 1)[0];
+                        if (!node) throw new Error('Node not found');
+                        
+                        if (!newParent.children) newParent.children = [];
+                        const targetIdx = index !== undefined ? index : newParent.children.length;
+                        newParent.children.splice(targetIdx, 0, node);
+                        
+                        this.markDirty();
+                        this.saveCurrentTab();
+                        this.renderTree();
+                        this.renderList();
+                        this.renderPrompt();
+                        result = { ok: true };
+                    }
+                    else if (action === 'set_param') {
+                        const { path, name, value } = args;
+                        const node = this.getNodeByPath(path);
+                        if (!node) throw new Error('Node not found');
+                        
+                        if (!node.btParams) node.btParams = {};
+                        node.btParams[name] = value;
+                        
+                        const btAction = node.btAction || 'processPrompt';
+                        const type = btAction.includes('.') ? btAction : `wend.core.${btAction}`;
+                        const def = window.WendNodes.get(type);
+                        if (def && def.compat && def.compat.paramMap && def.compat.paramMap[name]) {
+                            const legacyField = def.compat.paramMap[name];
+                            let compatVal = value;
+                            if (legacyField === 'btPrompt' || legacyField === 'btManualPrompt') {
+                                compatVal = btoa(value);
+                            } else if (legacyField === 'btManualChoices') {
+                                compatVal = typeof value === 'string' ? value : JSON.stringify(value);
+                            }
+                            node[legacyField] = compatVal;
+                        }
+                        
+                        this.markDirty();
+                        this.saveCurrentTab();
+                        this.renderTree();
+                        this.renderList();
+                        this.renderPrompt();
+                        result = { ok: true };
+                    }
+                    else if (action === 'list_node_types') {
+                        const types = window.WendNodes.getAllTypes().map(type => {
+                            const def = window.WendNodes.get(type);
+                            return {
+                                type,
+                                label: def.label,
+                                category: def.category,
+                                impl: def.impl?.kind
+                            };
+                        });
+                        result = { types };
+                    }
+                    else if (action === 'describe_node_type') {
+                        const { type } = args;
+                        const def = window.WendNodes.get(type);
+                        if (!def) throw new Error('Node type not found');
+                        result = {
+                            type,
+                            label: def.label,
+                            category: def.category,
+                            icon: def.icon,
+                            description: def.description,
+                            ports: def.ports,
+                            params: def.params
+                        };
+                    }
+                    else {
+                        throw new Error(`Unknown action: ${action}`);
+                    }
+                } catch (e) {
+                    error = e.message || String(e);
+                }
+
+                this.postMessage({
+                    type: 'mcp_api_response',
+                    payload: { requestId, result, error }
+                });
+                break;
+            }
             case 'file_dialog_result':
                 if (msg.payload && msg.payload.purpose === 'import_pipeline') {
                     this.onImportPipelineResult(msg.payload);
@@ -345,8 +539,14 @@ const app = {
                 break;
             case 'browse_file_result':
                 if (msg.payload?.filePath) {
-                    const el = document.getElementById('bt-local-file-path');
-                    if (el) el.value = msg.payload.filePath;
+                    if (this.state._pendingParamBrowse) {
+                        const el = document.getElementById(this.state._pendingParamBrowse);
+                        if (el) el.value = msg.payload.filePath;
+                        this.state._pendingParamBrowse = null;
+                    } else {
+                        const el = document.getElementById('bt-local-file-path');
+                        if (el) el.value = msg.payload.filePath;
+                    }
                 }
                 break;
             case 'create_parallel_tab':
@@ -6189,6 +6389,10 @@ const app = {
             node.btOutputType = document.getElementById('bt-output-type')?.value || 'text';
         }
 
+        if (window.WendOpPane && window.WendOpPane.saveParams) {
+            window.WendOpPane.saveParams(node);
+        }
+
         this.saveCurrentTab();
         this.renderPrompt();
         this.outputDebug('💾 ' + this.t('BTSettingsSaved'));
@@ -9674,6 +9878,7 @@ const app = {
                             </select>
                         </div>
                         <div id="bt-action-description" style="display:${description ? 'block' : 'none'};font-size:10px;color:#888;margin:4px 0">${this.escapeHtml(description)}</div>
+                        <div id="bt-dynamic-params" style="margin-bottom:6px"></div>
                         <div id="bt-local-file-field" style="display:${fields.includes('localFilePath') ? 'block' : 'none'}">
                             <div class="bt-field">
                                 <div class="bt-field-label">${this.t('LocalFilePath')} <span class="bt-hint">${this.t('LocalFilePathHint')}</span></div>
@@ -9788,6 +9993,7 @@ const app = {
             </div>
 
             <!-- Action-specific Parameters -->
+            <div id="bt-dynamic-params" style="margin-bottom:6px"></div>
 
             <!-- Prompt (for processPrompt and other prompt-based actions) -->
             <div id="bt-prompt-fields" style="display:${isProcess || (fields.includes('prompt') && btAction !== 'manual') ? 'block' : 'none'};margin-bottom:6px">
@@ -9869,11 +10075,21 @@ const app = {
             </div>
         `;
 
+        const dynContainer = document.getElementById('bt-dynamic-params');
+        if (dynContainer && window.WendOpPane) {
+            window.WendOpPane.renderParams(node, dynContainer, this.state.selectedDataPath !== '');
+        }
+
         // Render pipeline meta if available
         this.renderPipelineMeta(node);
     },
 
     browseLocalFilePath() {
+        this.postMessage({ type: 'browse_file' });
+    },
+
+    browseParamFilePath(paramName) {
+        this.state._pendingParamBrowse = `param-${paramName}`;
         this.postMessage({ type: 'browse_file' });
     },
 

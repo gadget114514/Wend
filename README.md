@@ -94,7 +94,7 @@ Most "prompt tools" are either a single chat box or a cloud SaaS that wants your
 
 - **🌳 Visual node-tree editor** — Organize prompts as a hierarchical tree with tabs. Each node holds a template, input, and output.
 - **🔗 AI pipeline runner** — Chain LLM, filter, manual-review, and wizard steps into one pipeline. Output streams in real time.
-- **🧠 Behavior Tree engine** — Execute your tree as a real BT with decorators (Repeater, Inverter, Retry, Guard, MaxTime, Delay, Limiter), powered by [behavior3js](https://github.com/behavior3/behavior3js).
+- **🧠 Behavior Tree engine** — Execute your tree as a real BT with decorators (Repeater, Inverter, Retry, Guard, MaxTime, Delay, Limiter), powered by the native `bt.js` engine (with the behavior3js format used as a converter / interoperability standard).
 - **🗂️ Blackboard state** — A shared, scoped key-value store (`run` → `tab` → `project` → `chest`) flows data between nodes.
 - **🤖 MCP server** — 30 tools that expose the whole engine to Claude and other MCP clients. [See below.](#-let-claude-drive-mcp-server)
 - **🔌 Multi-provider** — OpenAI · Gemini · Anthropic Claude · any OpenAI-compatible endpoint · a no-key Mock provider for testing.
