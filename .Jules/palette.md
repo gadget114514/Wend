@@ -1,0 +1,3 @@
+## 2024-10-24 - Add ARIA Labels to Modal Close Buttons
+**Learning:** The application uses many custom modal dialogues that have close buttons implemented as `<span>` tags styled to look like buttons or `<button>` elements with just the times `&times;` character. These lack semantic attributes like `role="button"`, `tabindex="0"`, and `aria-label="Close"`, rendering them inaccessible to screen readers and keyboard users.
+**Action:** Use `role="button"`, `tabindex="0"`, and `aria-label="Close"` on custom interactive elements that act as buttons (especially `<span>` tags acting as buttons). Always include an `aria-label` for icon-only `<button>` tags.
