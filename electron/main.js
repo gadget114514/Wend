@@ -5498,6 +5498,25 @@ function createWindow() {
         Menu.setApplicationMenu(null);
     }
 
+    // Securely handle new window creation (target="_blank" or window.open)
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        if (url.startsWith('http:') || url.startsWith('https:')) {
+            shell.openExternal(url);
+        }
+        return { action: 'deny' };
+    });
+
+    // Prevent navigation away from the app (e.g. dropping links on window or window.location changes)
+    mainWindow.webContents.on('will-navigate', (event, url) => {
+        const parsedUrl = new URL(url);
+        if (parsedUrl.protocol !== 'file:' && !devMode) {
+            event.preventDefault();
+            if (url.startsWith('http:') || url.startsWith('https:')) {
+                shell.openExternal(url);
+            }
+        }
+    });
+
     mainWindow.webContents.on('did-finish-load', () => {
         if (devMode) {
             mainWindow.webContents.openDevTools({ mode: 'detach' });
