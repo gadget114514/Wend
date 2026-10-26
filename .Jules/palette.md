@@ -1,0 +1,3 @@
+## 2024-05-18 - Icon-Only Buttons Missing aria-label
+**Learning:** Found several icon-only buttons in `frontend/index.html` (e.g. for copying, clearing logs, refresh) that do not have `aria-label`s, only `title` attributes. This is poor accessibility since screen readers rely heavily on `aria-label` for buttons that have no text content.
+**Action:** Add `aria-label` attributes to these icon-only buttons. The repo uses a custom `data-i18n` translation system which populates text and titles. Since `aria-label` isn't managed by this system automatically (unless updated), I'll add plain English `aria-label` attributes to improve a11y for now, matching their `title` values.
