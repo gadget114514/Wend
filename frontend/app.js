@@ -14,6 +14,8 @@ const app = {
         testMode: false,
         translations: {},
         searchTimeout: null,
+        projectSearchTimeout: null,
+        recipeSearchTimeout: null,
         navHistory: [],   // [{tabIndex, path}]
         navFuture: [],    // [{tabIndex, path}]
         viewMode: 'node', // "node" | "pipeline"
@@ -2556,8 +2558,11 @@ const app = {
     },
 
     filterRecipeSelectDialog() {
-        const q = document.getElementById('recipe-select-search')?.value || '';
-        this._renderRecipeSelectList(q);
+        if (this.state.recipeSearchTimeout) clearTimeout(this.state.recipeSearchTimeout);
+        this.state.recipeSearchTimeout = setTimeout(() => {
+            const q = document.getElementById('recipe-select-search')?.value || '';
+            this._renderRecipeSelectList(q);
+        }, 150);
     },
 
     _classifyRecipeProvider(recipe) {
@@ -11594,18 +11599,21 @@ const app = {
     },
 
     filterProjectList() {
-        const searchInput = document.getElementById('project-list-search');
-        const query = (searchInput?.value || '').toLowerCase().trim();
-        
-        if (!query) {
-            this._filteredProjects = this._allProjects.slice();
-        } else {
-            this._filteredProjects = this._allProjects.filter(p => 
-                p.name.toLowerCase().includes(query) || 
-                p.path.toLowerCase().includes(query)
-            );
-        }
-        this.renderProjectList();
+        if (this.state.projectSearchTimeout) clearTimeout(this.state.projectSearchTimeout);
+        this.state.projectSearchTimeout = setTimeout(() => {
+            const searchInput = document.getElementById('project-list-search');
+            const query = (searchInput?.value || '').toLowerCase().trim();
+
+            if (!query) {
+                this._filteredProjects = this._allProjects.slice();
+            } else {
+                this._filteredProjects = this._allProjects.filter(p =>
+                    p.name.toLowerCase().includes(query) ||
+                    p.path.toLowerCase().includes(query)
+                );
+            }
+            this.renderProjectList();
+        }, 150);
     },
 
     _selectProjectItem(el, name) {

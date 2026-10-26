@@ -1,0 +1,3 @@
+## 2024-05-14 - Search input debouncing for large lists
+**Learning:** Rapid typing on search/filter inputs bound via `oninput` events triggers frequent full-list re-renders in the DOM (e.g. `renderProjectList` and `_renderRecipeSelectList`). In Vanilla JS architectures rendering full DOM lists on every keystroke, this causes noticeable main-thread blocking and UI jank.
+**Action:** Debounce list filtering and rendering callbacks (like `filterProjectList` and `filterRecipeSelectDialog`) by ~150-200ms using `setTimeout`. This skips unnecessary intermediate re-renders while the user is typing, ensuring a smooth UX and significantly improved frontend performance.
