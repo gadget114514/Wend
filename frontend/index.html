@@ -137,7 +137,7 @@
     <!-- BT Config Dialog -->
     <div id="bt-config-modal" class="modal" style="display:none" onclick="if(event.target===this)app.btConfigClose()">
         <div class="modal-content bt-config-content">
-            <span class="modal-close" onclick="app.btConfigClose()">&times;</span>
+            <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.btConfigClose()">&times;</span>
             <h3 style="margin:0 0 14px" data-i18n="BTExecSettings">BT Execution Settings</h3>
             <div class="bt-cfg-row">
                 <label class="bt-cfg-label" data-i18n="ExecMode">Execution Mode</label>
@@ -167,7 +167,7 @@
             <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
                 <button class="copy-btn" onclick="app._btBbAddNew()">＋ 追加</button>
                 <button class="copy-btn" onclick="app._renderBbDialog()">↻ 更新</button>
-                <span class="modal-close" style="position:static;font-size:18px" onclick="app.btBbClose()">&times;</span>
+                <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" style="position:static;font-size:18px" onclick="app.btBbClose()">&times;</span>
             </div>
         </div>
         <div id="bt-bb-body" class="bt-bb-body"></div>
@@ -187,7 +187,7 @@
 <!-- Settings Modal -->
 <div id="settings-modal" class="modal">
     <div class="modal-content settings-modal-content">
-        <span class="modal-close" onclick="app.closeSettings()">&times;</span>
+        <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeSettings()">&times;</span>
         <h2 data-i18n="SettingsTitle">Settings</h2>
         <div class="settings-row">
             <label class="settings-label" data-i18n="SettingsLanguageLabel">Display Language</label>
@@ -210,7 +210,7 @@
 <!-- About Modal -->
 <div id="about-modal" class="modal">
     <div class="modal-content about-modal-content">
-        <span class="modal-close" onclick="app.closeAbout()">&times;</span>
+        <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeAbout()">&times;</span>
         <div class="about-icon" id="about-icon">🤖</div>
         <h2 id="about-title" data-i18n="AboutTitle">About Wend</h2>
         <p id="about-desc" class="about-desc" data-i18n="AboutDesc">AI prompt and pipeline management tool.</p>
@@ -224,7 +224,7 @@
 <!-- Copyright Modal -->
 <div id="copyright-modal" class="modal">
     <div class="modal-content copyright-modal-content">
-        <span class="modal-close" onclick="app.closeCopyright()">&times;</span>
+        <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeCopyright()">&times;</span>
         <h2 data-i18n="CopyrightTitle">Copyright &amp; Licenses</h2>
         <pre id="copyright-body" class="copyright-body"></pre>
     </div>
@@ -233,7 +233,7 @@
 <!-- Folder Help Modal -->
 <div id="folder-help-modal" class="modal">
     <div class="modal-content copyright-modal-content">
-        <span class="modal-close" onclick="app.closeFolderHelp()">&times;</span>
+        <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeFolderHelp()">&times;</span>
         <h2 data-i18n="FolderHelpTitle">Folder Structure</h2>
         <pre id="folder-help-body" class="copyright-body"></pre>
     </div>
@@ -244,7 +244,7 @@
     <div class="modal-content" style="width:600px;padding:0;display:flex;flex-direction:column;max-height:85vh">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444;flex-shrink:0">
             <span style="font-size:14px;font-weight:bold;color:#eee" data-i18n="ProjectListTitle">📁 Projects</span>
-            <span class="modal-close" onclick="app.closeProjectList()">&times;</span>
+            <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeProjectList()">&times;</span>
         </div>
         <div style="padding:8px 10px;font-size:11px;color:#888;flex-shrink:0;display:flex;justify-content:space-between;align-items:center">
             <span><span data-i18n="CurrentProject">Current:</span> <span id="project-list-current" style="color:#ccc"></span></span>
@@ -269,7 +269,7 @@
     <div class="modal-content" style="width:400px;padding:0">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444">
             <span id="project-input-title" style="font-size:14px;font-weight:bold;color:#eee">Input</span>
-            <span class="modal-close" onclick="app.closeProjectInputModal()">&times;</span>
+            <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeProjectInputModal()">&times;</span>
         </div>
         <div style="padding:16px">
             <p id="project-input-message" style="font-size:13px;color:#ccc;margin-bottom:12px"></p>
@@ -287,7 +287,7 @@
     <div class="modal-content" style="width:400px;padding:0">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444">
             <span id="project-confirm-title" style="font-size:14px;font-weight:bold;color:#eee">Confirm</span>
-            <span class="modal-close" onclick="app.closeProjectConfirmModal()">&times;</span>
+            <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeProjectConfirmModal()">&times;</span>
         </div>
         <div style="padding:16px">
             <p id="project-confirm-message" style="font-size:13px;color:#ccc;margin:0"></p>
@@ -336,7 +336,7 @@
     <div class="modal-content" style="width:600px;padding:0;display:flex;flex-direction:column;max-height:85vh">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444;flex-shrink:0">
             <span style="font-size:14px;font-weight:bold;color:#eee" data-i18n="ProjectLifecycleTitle">ℹ️ Project Lifecycle Information</span>
-            <span class="modal-close" onclick="app.closeProjectLifecycleInfo()">&times;</span>
+            <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeProjectLifecycleInfo()">&times;</span>
         </div>
         <div style="flex:1;overflow-y:auto;padding:16px;font-size:13px;color:#ccc;line-height:1.6">
             <div style="margin-bottom:16px">
@@ -407,7 +407,7 @@
 <!-- Filter Modal -->
 <div id="filter-modal" class="modal">
     <div class="modal-content filter-modal-content">
-        <span class="modal-close" onclick="app.closeFilter(); app.closeModal('filter-modal')">&times;</span>
+        <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeFilter(); app.closeModal('filter-modal')">&times;</span>
         <div id="filter-body" class="filter-body"></div>
         <div class="filter-footer">
             <button class="btn-primary" onclick="app.closeFilter(); app.closeModal('filter-modal')">Confirm</button>
@@ -419,7 +419,7 @@
 <!-- Recovery Modal -->
 <div id="recovery-modal" class="modal">
     <div class="modal-content recovery-modal-content">
-        <span class="modal-close" onclick="app.closeModal('recovery-modal')">&times;</span>
+        <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeModal('recovery-modal')">&times;</span>
         <h2>📋 Incomplete Pipeline Runs</h2>
         <div id="recovery-body" class="recovery-body"></div>
     </div>
@@ -428,7 +428,7 @@
 <!-- Input Source Modal -->
 <div id="input-source-modal" class="modal">
     <div class="modal-content input-source-content">
-        <span class="modal-close" onclick="app.closeModal('input-source-modal')">&times;</span>
+        <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeModal('input-source-modal')">&times;</span>
         <div id="input-source-body" class="input-source-body"></div>
     </div>
 </div>
@@ -451,12 +451,12 @@
     <div class="modal-content recipe-modal-content" style="position:relative;min-width:850px;max-width:1000px;height:580px;display:flex;flex-direction:column;padding:0">
         <div class="recipe-modal-header" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444;flex-shrink:0">
             <span>📋 Recipe Manager</span>
-            <span class="modal-close" onclick="app.closeRecipeManager()">&times;</span>
+            <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeRecipeManager()">&times;</span>
         </div>
         <div id="recipe-manager-path" style="padding:4px 16px;font-size:10px;color:#666;background:#1a1a1a;border-bottom:1px solid #333;line-height:1.6"></div>
         <div id="recipe-manager-error" style="display:none;padding:8px 16px;background:rgba(231,76,60,0.15);color:#ff6b6b;border-bottom:1px solid rgba(231,76,60,0.3);font-size:11px;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0;">
             <span class="error-msg"></span>
-            <button onclick="document.getElementById('recipe-manager-error').style.display='none'" style="background:none;border:none;color:#ff6b6b;cursor:pointer;font-size:14px;padding:0;line-height:1;">&times;</button>
+            <button onclick="document.getElementById('recipe-manager-error').style.display='none'" style="background:none;border:none;color:#ff6b6b;cursor:pointer;font-size:14px;padding:0;line-height:1;" aria-label="Close" data-i18n-aria-label="Close">&times;</button>
         </div>
         <div style="display:flex;flex:1;min-height:0">
             <!-- Left Sidebar: Providers -->
@@ -480,7 +480,7 @@
 <div id="config-panel">
     <div class="config-drag-handle" id="config-drag-handle">
         <span>⚙ <span data-i18n="ProviderSetting">Provider Setting</span></span>
-        <button onclick="app.closeConfig()">&times;</button>
+        <button onclick="app.closeConfig()" aria-label="Close" data-i18n-aria-label="Close">&times;</button>
     </div>
     <div class="config-body">
         <div id="config-tab-providers" class="config-tab-panel">
@@ -497,7 +497,7 @@
 <div id="app-config-panel">
     <div class="config-drag-handle" id="app-config-drag-handle">
         <span>⚙ <span data-i18n="ApplicationConfig">Application Config</span></span>
-        <button onclick="app.closeAppConfig()">&times;</button>
+        <button onclick="app.closeAppConfig()" aria-label="Close" data-i18n-aria-label="Close">&times;</button>
     </div>
     <div class="config-body">
         <div class="config-tabs">
@@ -739,7 +739,7 @@
     <div class="modal-content optimize-modal-content">
         <div class="optimize-header">
             <span>✨ <span data-i18n="OptimizeTitle">Optimize Pipeline</span></span>
-            <span class="modal-close" onclick="app.closeOptimize()">&times;</span>
+            <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeOptimize()">&times;</span>
         </div>
         <!-- Tab bar -->
         <div class="optimize-tabs">
@@ -799,7 +799,7 @@
     <div class="modal-content" style="min-width:950px;max-width:1150px;height:550px;display:flex;flex-direction:column;padding:0">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444;flex-shrink:0">
             <span style="font-size:14px;font-weight:bold;color:#eee" data-i18n="RecipeSelectTitle">📋 Select Recipe</span>
-            <span class="modal-close" onclick="app.closeRecipeSelectDialog()">&times;</span>
+            <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeRecipeSelectDialog()">&times;</span>
         </div>
         <div id="recipe-select-path" style="padding:4px 16px;font-size:10px;color:#666;background:#1a1a1a;border-bottom:1px solid #333;line-height:1.6"></div>
         <div style="display:flex;flex:1;min-height:0">
@@ -836,7 +836,7 @@
     <div class="modal-content history-modal-content">
         <div class="history-modal-header">
             <span data-i18n="RunHistoryTitle">📜 Run History</span>
-            <span class="modal-close" onclick="app.closeHistory()">&times;</span>
+            <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeHistory()">&times;</span>
         </div>
         <div id="history-list-view"></div>
         <div id="history-detail-view" style="display:none"></div>
@@ -845,7 +845,7 @@
 <!-- Pipeline Manager Modal -->
 <div id="pipeline-manager-modal" class="modal">
     <div class="modal-content pm-content">
-        <span class="modal-close" onclick="app.closePipelineManager()">&times;</span>
+        <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closePipelineManager()">&times;</span>
         <h2 data-i18n="PipelineManager">Pipeline Manager</h2>
         <div class="pm-layout">
             <div class="pm-sidebar">
@@ -929,7 +929,7 @@
 <!-- Step Edit Modal -->
 <div id="pm-step-edit-modal" class="modal">
     <div class="modal-content pm-step-edit-content">
-        <span class="modal-close" onclick="app.pmCloseStepEdit()">&times;</span>
+        <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.pmCloseStepEdit()">&times;</span>
         <h3 id="pm-step-edit-title" data-i18n="EditStep">Edit Step</h3>
         <div id="pm-step-edit-form" class="pm-step-edit-form"></div>
         <div class="pm-step-edit-actions">
@@ -959,7 +959,7 @@
 
 <div id="node-props-modal" class="modal" onclick="if(event.target===this)app.closeNodeProperties()">
     <div class="modal-content" style="width:420px;max-height:80vh;overflow-y:auto;padding:16px;">
-        <span class="modal-close" onclick="app.closeNodeProperties()">&times;</span>
+        <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeNodeProperties()">&times;</span>
         <h3 style="margin:0 0 12px;font-size:14px;">📋 <span data-i18n="NodeProperties">Node Properties</span></h3>
         <div id="node-props-body" style="font-size:12px;line-height:1.6;"></div>
     </div>
@@ -985,7 +985,7 @@
     <div class="modal-content chest-modal-content">
         <div class="chest-modal-header">
             <span>📦 Chest Manager</span>
-            <span class="modal-close" onclick="app.closeChestManager()">&times;</span>
+            <span class="modal-close" aria-label="Close" data-i18n-aria-label="Close" onclick="app.closeChestManager()">&times;</span>
         </div>
         <div id="chest-modal-body" class="chest-modal-body"></div>
         <div class="chest-modal-footer">
