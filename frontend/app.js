@@ -1215,6 +1215,10 @@ const app = {
             const key = el.dataset.i18nTitle;
             if (this.state.translations[key]) el.title = this.state.translations[key];
         });
+        document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+            const key = el.dataset.i18nAriaLabel;
+            if (this.state.translations[key]) el.setAttribute('aria-label', this.state.translations[key]);
+        });
         document.querySelectorAll('[data-i18n-hint]').forEach(el => {
             const key = el.dataset.i18nHint;
             if (this.state.translations[key]) el.dataset.hint = this.state.translations[key];
