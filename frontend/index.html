@@ -18,18 +18,18 @@
             <div class="tree-tabs">
                 <button id="btn-tree-tab-pipeline" class="tree-tab-btn active" onclick="app.switchTreeTab('pipeline')">BT/pipeline</button>
                 <button id="btn-tree-tab-file" class="tree-tab-btn" onclick="app.switchTreeTab('file')">File</button>
-                <button class="tree-add-btn" onclick="app.addRootNode()" title="Add Root Node" data-i18n-title="AddRootNode">➕</button>
+                <button class="tree-add-btn" onclick="app.addRootNode()" title="Add Root Node" data-i18n-title="AddRootNode" data-i18n-aria-label="AddRootNode">➕</button>
             </div>
             <div id="bt-toolbar">
                 <span id="bt-target-label" class="bt-target-label">—</span>
                 <span id="bt-cycle-badge" class="bt-cycle-badge" style="display:none"></span>
-                <button id="btn-bt-run"   class="btn-bt" title="Run BT"              data-i18n-title="BTRun"            onclick="app.btCtrlRun()"   disabled>▶</button>
-                <button id="btn-bt-step"  class="btn-bt" title="Step Execution"     data-i18n-title="BTStepExec"       onclick="app.btCtrlStep()"  disabled>⏭</button>
-                <button id="btn-bt-pause" class="btn-bt" title="Pause"              data-i18n-title="Pause"            onclick="app.btCtrlPause()" disabled>⏸</button>
-                <button id="btn-bt-stop"  class="btn-bt btn-bt-stop" title="Stop"   data-i18n-title="Stop"            onclick="app.btCtrlStop()" disabled>⏹</button>
-                <button id="btn-bt-bb" class="btn-bt btn-bt-config" title="Manage Blackboard" data-i18n-title="ManageBlackboard" onclick="app.btBlackboardDialog()">📋</button>
+                <button id="btn-bt-run"   class="btn-bt" title="Run BT"              data-i18n-title="BTRun"            data-i18n-aria-label="BTRun"            onclick="app.btCtrlRun()"   disabled>▶</button>
+                <button id="btn-bt-step"  class="btn-bt" title="Step Execution"     data-i18n-title="BTStepExec"       data-i18n-aria-label="BTStepExec"       onclick="app.btCtrlStep()"  disabled>⏭</button>
+                <button id="btn-bt-pause" class="btn-bt" title="Pause"              data-i18n-title="Pause"            data-i18n-aria-label="Pause"            onclick="app.btCtrlPause()" disabled>⏸</button>
+                <button id="btn-bt-stop"  class="btn-bt btn-bt-stop" title="Stop"   data-i18n-title="Stop"            data-i18n-aria-label="Stop"            onclick="app.btCtrlStop()" disabled>⏹</button>
+                <button id="btn-bt-bb" class="btn-bt btn-bt-config" title="Manage Blackboard" data-i18n-title="ManageBlackboard" data-i18n-aria-label="ManageBlackboard" onclick="app.btBlackboardDialog()">📋</button>
                 <button id="btn-bt-retry-node" class="btn-bt btn-bt-retry" title="Retry failed node" onclick="app.btCtrlRetryNode()" style="display:none">↺</button>
-                <button id="btn-bt-lock" class="btn-bt btn-bt-lock" title="Execution Lock (when ON, nothing runs)" data-i18n-title="ExecLockTitle" onclick="app.btCtrlToggleLock()">🔓</button>
+                <button id="btn-bt-lock" class="btn-bt btn-bt-lock" title="Execution Lock (when ON, nothing runs)" data-i18n-title="ExecLockTitle" data-i18n-aria-label="ExecLockTitle" onclick="app.btCtrlToggleLock()">🔓</button>
             </div>
             <div id="tree-content" class="pane-content"></div>
             <div id="file-tree-content" class="pane-content" style="display:none"></div>
@@ -80,11 +80,11 @@
                   onclick="event.stopPropagation();app.refreshMcpStatus()"
                   title="MCP status"></span>
             <span class="messages-actions" id="msg-log-actions">
-                <button class="msg-action-btn" onclick="event.stopPropagation();app.copyAllLogs()" title="Copy all logs" data-hint="Copy all logs">📋</button>
-                <button class="msg-action-btn" onclick="event.stopPropagation();app.clearLogs()" title="Clear logs" data-hint="Clear logs">✕</button>
+                <button class="msg-action-btn" onclick="event.stopPropagation();app.copyAllLogs()" title="Copy all logs" data-i18n-title="Copy" data-i18n-aria-label="Copy" data-hint="Copy all logs">📋</button>
+                <button class="msg-action-btn" onclick="event.stopPropagation();app.clearLogs()" title="Clear logs" data-i18n-title="Clear" data-i18n-aria-label="Clear" data-hint="Clear logs">✕</button>
             </span>
             <span class="messages-actions" id="msg-manager-actions" style="display:none">
-                <button class="msg-action-btn" onclick="event.stopPropagation();app.refreshTaskMetrics()" title="Refresh">⟳</button>
+                <button class="msg-action-btn" onclick="event.stopPropagation();app.refreshTaskMetrics()" title="Refresh" data-i18n-title="Refresh" data-i18n-aria-label="Refresh">⟳</button>
             </span>
         </div>
         <div id="messages-content" oncontextmenu="event.preventDefault();app.showLogContextMenu(event)"></div>
