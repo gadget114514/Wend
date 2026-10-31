@@ -18,18 +18,18 @@
             <div class="tree-tabs">
                 <button id="btn-tree-tab-pipeline" class="tree-tab-btn active" onclick="app.switchTreeTab('pipeline')">BT/pipeline</button>
                 <button id="btn-tree-tab-file" class="tree-tab-btn" onclick="app.switchTreeTab('file')">File</button>
-                <button class="tree-add-btn" onclick="app.addRootNode()" title="Add Root Node" data-i18n-title="AddRootNode">➕</button>
+                <button class="tree-add-btn" onclick="app.addRootNode()" title="Add Root Node" data-i18n-title="AddRootNode" aria-label="Add Root Node" data-i18n-aria-label="AddRootNode">➕</button>
             </div>
             <div id="bt-toolbar">
                 <span id="bt-target-label" class="bt-target-label">—</span>
                 <span id="bt-cycle-badge" class="bt-cycle-badge" style="display:none"></span>
-                <button id="btn-bt-run"   class="btn-bt" title="Run BT"              data-i18n-title="BTRun"            onclick="app.btCtrlRun()"   disabled>▶</button>
-                <button id="btn-bt-step"  class="btn-bt" title="Step Execution"     data-i18n-title="BTStepExec"       onclick="app.btCtrlStep()"  disabled>⏭</button>
-                <button id="btn-bt-pause" class="btn-bt" title="Pause"              data-i18n-title="Pause"            onclick="app.btCtrlPause()" disabled>⏸</button>
-                <button id="btn-bt-stop"  class="btn-bt btn-bt-stop" title="Stop"   data-i18n-title="Stop"            onclick="app.btCtrlStop()" disabled>⏹</button>
-                <button id="btn-bt-bb" class="btn-bt btn-bt-config" title="Manage Blackboard" data-i18n-title="ManageBlackboard" onclick="app.btBlackboardDialog()">📋</button>
-                <button id="btn-bt-retry-node" class="btn-bt btn-bt-retry" title="Retry failed node" onclick="app.btCtrlRetryNode()" style="display:none">↺</button>
-                <button id="btn-bt-lock" class="btn-bt btn-bt-lock" title="Execution Lock (when ON, nothing runs)" data-i18n-title="ExecLockTitle" onclick="app.btCtrlToggleLock()">🔓</button>
+                <button id="btn-bt-run"   class="btn-bt" title="Run BT"              data-i18n-title="BTRun"            aria-label="Run BT"             data-i18n-aria-label="BTRun"            onclick="app.btCtrlRun()"   disabled>▶</button>
+                <button id="btn-bt-step"  class="btn-bt" title="Step Execution"     data-i18n-title="BTStepExec"       aria-label="Step Execution"     data-i18n-aria-label="BTStepExec"       onclick="app.btCtrlStep()"  disabled>⏭</button>
+                <button id="btn-bt-pause" class="btn-bt" title="Pause"              data-i18n-title="Pause"            aria-label="Pause"              data-i18n-aria-label="Pause"            onclick="app.btCtrlPause()" disabled>⏸</button>
+                <button id="btn-bt-stop"  class="btn-bt btn-bt-stop" title="Stop"   data-i18n-title="Stop"            aria-label="Stop"               data-i18n-aria-label="Stop"            onclick="app.btCtrlStop()" disabled>⏹</button>
+                <button id="btn-bt-bb" class="btn-bt btn-bt-config" title="Manage Blackboard" data-i18n-title="ManageBlackboard" aria-label="Manage Blackboard" data-i18n-aria-label="ManageBlackboard" onclick="app.btBlackboardDialog()">📋</button>
+                <button id="btn-bt-retry-node" class="btn-bt btn-bt-retry" title="Retry failed node" aria-label="Retry failed node" data-i18n-aria-label="Retry" onclick="app.btCtrlRetryNode()" style="display:none">↺</button>
+                <button id="btn-bt-lock" class="btn-bt btn-bt-lock" title="Execution Lock (when ON, nothing runs)" data-i18n-title="ExecLockTitle" aria-label="Execution Lock" data-i18n-aria-label="ExecLockTitle" onclick="app.btCtrlToggleLock()">🔓</button>
             </div>
             <div id="tree-content" class="pane-content"></div>
             <div id="file-tree-content" class="pane-content" style="display:none"></div>
@@ -80,11 +80,11 @@
                   onclick="event.stopPropagation();app.refreshMcpStatus()"
                   title="MCP status"></span>
             <span class="messages-actions" id="msg-log-actions">
-                <button class="msg-action-btn" onclick="event.stopPropagation();app.copyAllLogs()" title="Copy all logs" data-hint="Copy all logs">📋</button>
-                <button class="msg-action-btn" onclick="event.stopPropagation();app.clearLogs()" title="Clear logs" data-hint="Clear logs">✕</button>
+                <button class="msg-action-btn" onclick="event.stopPropagation();app.copyAllLogs()" title="Copy all logs" data-hint="Copy all logs" aria-label="Copy all logs" data-i18n-aria-label="Copy">📋</button>
+                <button class="msg-action-btn" onclick="event.stopPropagation();app.clearLogs()" title="Clear logs" data-hint="Clear logs" aria-label="Clear logs" data-i18n-aria-label="Clear">✕</button>
             </span>
             <span class="messages-actions" id="msg-manager-actions" style="display:none">
-                <button class="msg-action-btn" onclick="event.stopPropagation();app.refreshTaskMetrics()" title="Refresh">⟳</button>
+                <button class="msg-action-btn" onclick="event.stopPropagation();app.refreshTaskMetrics()" title="Refresh" aria-label="Refresh">⟳</button>
             </span>
         </div>
         <div id="messages-content" oncontextmenu="event.preventDefault();app.showLogContextMenu(event)"></div>
@@ -456,7 +456,7 @@
         <div id="recipe-manager-path" style="padding:4px 16px;font-size:10px;color:#666;background:#1a1a1a;border-bottom:1px solid #333;line-height:1.6"></div>
         <div id="recipe-manager-error" style="display:none;padding:8px 16px;background:rgba(231,76,60,0.15);color:#ff6b6b;border-bottom:1px solid rgba(231,76,60,0.3);font-size:11px;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0;">
             <span class="error-msg"></span>
-            <button onclick="document.getElementById('recipe-manager-error').style.display='none'" style="background:none;border:none;color:#ff6b6b;cursor:pointer;font-size:14px;padding:0;line-height:1;">&times;</button>
+            <button onclick="document.getElementById('recipe-manager-error').style.display='none'" style="background:none;border:none;color:#ff6b6b;cursor:pointer;font-size:14px;padding:0;line-height:1;" aria-label="Close" data-i18n-aria-label="Close">&times;</button>
         </div>
         <div style="display:flex;flex:1;min-height:0">
             <!-- Left Sidebar: Providers -->
@@ -480,7 +480,7 @@
 <div id="config-panel">
     <div class="config-drag-handle" id="config-drag-handle">
         <span>⚙ <span data-i18n="ProviderSetting">Provider Setting</span></span>
-        <button onclick="app.closeConfig()">&times;</button>
+        <button onclick="app.closeConfig()" aria-label="Close" data-i18n-aria-label="Close">&times;</button>
     </div>
     <div class="config-body">
         <div id="config-tab-providers" class="config-tab-panel">
@@ -497,7 +497,7 @@
 <div id="app-config-panel">
     <div class="config-drag-handle" id="app-config-drag-handle">
         <span>⚙ <span data-i18n="ApplicationConfig">Application Config</span></span>
-        <button onclick="app.closeAppConfig()">&times;</button>
+        <button onclick="app.closeAppConfig()" aria-label="Close" data-i18n-aria-label="Close">&times;</button>
     </div>
     <div class="config-body">
         <div class="config-tabs">
