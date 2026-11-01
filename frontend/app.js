@@ -1970,6 +1970,10 @@ const app = {
         return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     },
 
+    escapeHtmlAttr(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    },
+
     safeB64(str) {
         if (!str) return '';
         try {
@@ -13331,11 +13335,11 @@ Object.assign(app, {
                 const cancelBtn = (st === 'running' || st === 'queued')
                     ? `<button class="bt-hist-btn cancel-btn" onclick="app.cancelRun('${run.runId}')" title="Cancel">⏹</button>` : '';
                 const retryBtn = (st === 'failed' || st === 'cancelled') && fullPath
-                    ? `<button class="bt-hist-btn retry-btn" onclick="app.retryFromNode('${run.runId}',${JSON.stringify(fullPath)},${JSON.stringify(run.error||'')},${JSON.stringify(run.group||null)})" title="Retry from error node">↺</button>` : '';
+                    ? `<button class="bt-hist-btn retry-btn" onclick="app.retryFromNode('${run.runId}',${this.escapeHtmlAttr(JSON.stringify(fullPath))},${this.escapeHtmlAttr(JSON.stringify(run.error||''))},${this.escapeHtmlAttr(JSON.stringify(run.group||null))})" title="Retry from error node">↺</button>` : '';
                 const aiBtn = st === 'failed'
-                    ? `<button class="bt-hist-btn ai-btn" onclick="app.showAIFix('${run.runId}',${JSON.stringify(fullPath||'')},${JSON.stringify(run.error||'')})" title="AI Fix suggestion">🤖</button>` : '';
+                    ? `<button class="bt-hist-btn ai-btn" onclick="app.showAIFix('${run.runId}',${this.escapeHtmlAttr(JSON.stringify(fullPath||''))},${this.escapeHtmlAttr(JSON.stringify(run.error||''))})" title="AI Fix suggestion">🤖</button>` : '';
                 const editBtn = (st === 'failed' || st === 'cancelled') && fullPath
-                    ? `<button class="bt-hist-btn edit-btn" onclick="app.editBT(${JSON.stringify(fullPath)})" title="Edit BT">✏</button>` : '';
+                    ? `<button class="bt-hist-btn edit-btn" onclick="app.editBT(${this.escapeHtmlAttr(JSON.stringify(fullPath))})" title="Edit BT">✏</button>` : '';
 
                 return `<div class="bt-history-row ${st === 'running' ? 'is-running' : ''}">
                     <span class="bt-hist-icon" style="color:${iconColor}">${icon}</span>
