@@ -1,6 +1,33 @@
 // Wend App - Vanilla JS frontend
 
 const app = {
+    // ⚡ Bolt: Define static icon map outside the recursive render function to avoid memory allocation overhead and GC churn
+    BT_ICON_MAP: {
+        'sequence': '<span class="bt-icon bt-icon-seq">➡️</span>',
+        'selector': '<span class="bt-icon bt-icon-sel">🔀</span>',
+        'parallel': '<span class="bt-icon bt-icon-par">⚡</span>',
+        'memSequence': '<span class="bt-icon bt-icon-mem-seq">📋➡️</span>',
+        'memSelector': '<span class="bt-icon bt-icon-mem-sel">📋🔀</span>',
+        'invert': '<span class="bt-icon bt-icon-invert">🔄</span>',
+        'repeater': '<span class="bt-icon bt-icon-repeater">🔁</span>',
+        'retry': '<span class="bt-icon bt-icon-retry">🔂</span>',
+        'alwaysSucceed': '<span class="bt-icon bt-icon-always-succeed">✅</span>',
+        'alwaysFail': '<span class="bt-icon bt-icon-always-fail">❌</span>',
+        'guard': '<span class="bt-icon bt-icon-guard">🛡️</span>',
+        'delay': '<span class="bt-icon bt-icon-delay">⏳</span>',
+        'maxTime': '<span class="bt-icon bt-icon-maxtime">⏰</span>',
+        'leaf': '<span class="bt-icon bt-icon-leaf-ai">🤖</span>',
+        'leaf_ai': '<span class="bt-icon bt-icon-leaf-ai">🤖</span>',
+        'math': '<span class="bt-icon bt-icon-leaf-math">🔢</span>',
+        'leaf_math': '<span class="bt-icon bt-icon-leaf-math">🔢</span>',
+        'file': '<span class="bt-icon bt-icon-leaf-file">📁</span>',
+        'leaf_file': '<span class="bt-icon bt-icon-leaf-file">📁</span>',
+        'web': '<span class="bt-icon bt-icon-leaf-web">🌐</span>',
+        'leaf_web': '<span class="bt-icon bt-icon-leaf-web">🌐</span>',
+        'misc': '<span class="bt-icon bt-icon-leaf-misc">⚙️</span>',
+        'leaf_misc': '<span class="bt-icon bt-icon-leaf-misc">⚙️</span>',
+    },
+
     state: {
         tabs: [],
         activeTab: 0,
@@ -5457,34 +5484,9 @@ const app = {
             ? `<span class="tree-collapse-btn" onclick="event.stopPropagation();app.treeToggleCollapse('${safePath}')">${collapsed ? '▶' : '▼'}</span>`
             : '<span class="tree-collapse-btn-spacer"></span>';
         const effectiveType = node.btType || (isRoot ? 'sequence' : '');
-        const _iconMap = {
-            'sequence': '<span class="bt-icon bt-icon-seq">➡️</span>',
-            'selector': '<span class="bt-icon bt-icon-sel">🔀</span>',
-            'parallel': '<span class="bt-icon bt-icon-par">⚡</span>',
-            'memSequence': '<span class="bt-icon bt-icon-mem-seq">📋➡️</span>',
-            'memSelector': '<span class="bt-icon bt-icon-mem-sel">📋🔀</span>',
-            'invert': '<span class="bt-icon bt-icon-invert">🔄</span>',
-            'repeater': '<span class="bt-icon bt-icon-repeater">🔁</span>',
-            'retry': '<span class="bt-icon bt-icon-retry">🔂</span>',
-            'alwaysSucceed': '<span class="bt-icon bt-icon-always-succeed">✅</span>',
-            'alwaysFail': '<span class="bt-icon bt-icon-always-fail">❌</span>',
-            'guard': '<span class="bt-icon bt-icon-guard">🛡️</span>',
-            'delay': '<span class="bt-icon bt-icon-delay">⏳</span>',
-            'maxTime': '<span class="bt-icon bt-icon-maxtime">⏰</span>',
-            'leaf': '<span class="bt-icon bt-icon-leaf-ai">🤖</span>',
-            'leaf_ai': '<span class="bt-icon bt-icon-leaf-ai">🤖</span>',
-            'math': '<span class="bt-icon bt-icon-leaf-math">🔢</span>',
-            'leaf_math': '<span class="bt-icon bt-icon-leaf-math">🔢</span>',
-            'file': '<span class="bt-icon bt-icon-leaf-file">📁</span>',
-            'leaf_file': '<span class="bt-icon bt-icon-leaf-file">📁</span>',
-            'web': '<span class="bt-icon bt-icon-leaf-web">🌐</span>',
-            'leaf_web': '<span class="bt-icon bt-icon-leaf-web">🌐</span>',
-            'misc': '<span class="bt-icon bt-icon-leaf-misc">⚙️</span>',
-            'leaf_misc': '<span class="bt-icon bt-icon-leaf-misc">⚙️</span>',
-        };
-        let typeIcon = _iconMap[effectiveType] || '';
+        let typeIcon = this.BT_ICON_MAP[effectiveType] || '';
         if (!typeIcon && effectiveType.includes('+')) {
-            typeIcon = effectiveType.split('+').map(p => _iconMap[p] || '').join('');
+            typeIcon = effectiveType.split('+').map(p => this.BT_ICON_MAP[p] || '').join('');
         }
         const isData = !isRoot && !isProcessed && this.isDataNodePath(path);
         const isAssemble = !isRoot && !isProcessed && !isData && node.nodeType === 'assemble';
