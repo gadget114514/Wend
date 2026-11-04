@@ -502,5 +502,9 @@
   "MenuProjectList": "Project List...",
   "MenuFolderHelp": "Folder Structure...",
   "ManageRecipes": "Manage Recipes",
-  "ViewingSavedOutput": "Viewing saved output — fields are read-only"
+  "ViewingSavedOutput": "Viewing saved output — fields are read-only",
+  "CopyAllLogs": "Copy all logs",
+  "ClearLogs": "Clear logs",
+  "Refresh": "Refresh",
+  "RetryFailedNode": "Retry failed node"
 }
