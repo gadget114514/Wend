@@ -1,0 +1,3 @@
+## $(date +%Y-%m-%d) - Adding Accessible Labels to Icon-only Buttons
+**Learning:** This app includes UI components with icon-only buttons (like ➕, ▶, 📋) that rely entirely on visual representation, causing them to lack context for screen readers. Using `aria-label` along with `data-i18n-aria-label` provides a localized, screen reader-friendly description without altering the visual design.
+**Action:** When creating or updating icon-only buttons, ensure they always include `aria-label` and `data-i18n-aria-label` attributes to ensure keyboard navigability, localization, and overall screen reader accessibility. I have modified `app.js` to process the newly added `data-i18n-aria-label` attribute during the translation application step.

@@ -1223,6 +1223,10 @@ const app = {
             const key = el.dataset.i18nPlaceholder;
             if (this.state.translations[key]) el.placeholder = this.state.translations[key];
         });
+        document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+            const key = el.dataset.i18nAriaLabel;
+            if (this.state.translations[key]) el.setAttribute('aria-label', this.state.translations[key]);
+        });
         document.title = this.state.translations.AppName || 'Wend';
     },
 
@@ -1236,6 +1240,7 @@ const app = {
         hb.id = 'btn-hamburger';
         hb.textContent = '☰';
         hb.title = this.t('Menu') || 'Menu';
+        hb.setAttribute('aria-label', this.t('Menu') || 'Menu');
         hb.onclick = (e) => this.showHamburger(e);
         bar.appendChild(hb);
 
