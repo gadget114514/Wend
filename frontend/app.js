@@ -1731,7 +1731,7 @@ const app = {
                         <div class="compare-card-name">${this.escapeHtml(b.name)}</div>
                         <div class="compare-card-content">${this.escapeHtml(b.content)}</div>
                         <button class="btn-primary compare-select-btn"
-                            onclick="app.resumeManual(${JSON.stringify(b.content)})">✓ ${this.t('SelectThis')}</button>
+                            onclick="app.resumeManual(${this.escapeHtmlAttr(JSON.stringify(b.content))})">✓ ${this.t('SelectThis')}</button>
                     </div>`).join('')
             }</div>`;
             actions.innerHTML = `<button onclick="app.cancelManual()">Cancel</button>`;
@@ -1749,7 +1749,7 @@ const app = {
             ];
             actions.innerHTML = list.map(c =>
                 `<button class="${c.action === 'cancel' ? '' : 'btn-primary'}"
-                    onclick="app.resumeManualChoice(${JSON.stringify(c)})"
+                    onclick="app.resumeManualChoice(${this.escapeHtmlAttr(JSON.stringify(c))})"
                 >${this.escapeHtml(c.label)}</button>`
             ).join('');
         }
@@ -1964,6 +1964,17 @@ const app = {
         }
         this.outputMessage(`✅ ${this.t('WizardCompleted').replace('{name}', s.wizardData.name || 'pipeline')}`);
         this.postMessage({ type: 'wizard_step_resume', payload: { values: s.values } });
+    },
+
+
+    escapeHtmlAttr(s) {
+        if (!s) return '';
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     },
 
     escapeHtml(s) {
@@ -5634,7 +5645,7 @@ const app = {
         if (isDataNode && this.state.selectedOpPath !== '') {
             items += '<div class="ctx-sep"></div>';
             if (multiCount > 0) {
-                items += `<div class="ctx-item" onclick="app.treeCtxAddOutputsToInput(${JSON.stringify(multiPaths)});app.hideTreeContextMenu()">📥 ${this.t('AddOutputsToInput')} (${multiCount})</div>`;
+                items += `<div class="ctx-item" onclick="app.treeCtxAddOutputsToInput(${app.escapeHtmlAttr(JSON.stringify(multiPaths))});app.hideTreeContextMenu()">📥 ${this.t('AddOutputsToInput')} (${multiCount})</div>`;
             } else {
                 items += `<div class="ctx-item" onclick="app.treeCtxAddOutputToInput('${path}');app.hideTreeContextMenu()">📥 ${this.t('AddOutputToInput')}</div>`;
             }
@@ -5643,7 +5654,7 @@ const app = {
         if (!isRoot) {
             if (multiCount > 0 && isDataNode) {
                 items += '<div class="ctx-sep"></div>';
-                items += `<div class="ctx-item ctx-danger" onclick="app.treeCtxDeleteMultiple(${JSON.stringify(multiPaths)});app.hideTreeContextMenu()">🗑 ${this.t('Delete')} (${multiCount} ${this.t('Nodes')})</div>`;
+                items += `<div class="ctx-item ctx-danger" onclick="app.treeCtxDeleteMultiple(${app.escapeHtmlAttr(JSON.stringify(multiPaths))});app.hideTreeContextMenu()">🗑 ${this.t('Delete')} (${multiCount} ${this.t('Nodes')})</div>`;
             } else {
                 items += '<div class="ctx-sep"></div>';
                 items += `<div class="ctx-item" onclick="app.treeCtxAddSibling('${path}');app.hideTreeContextMenu()">➕ ${this.t('AddSiblingNode')}</div>`;
@@ -5710,7 +5721,7 @@ const app = {
             const contentText = artifact.content ? (() => { try { return atob(artifact.content); } catch { return artifact.content; } })() : '';
             items += `<div class="ctx-item" style="color:#888;font-size:10px;cursor:default;max-width:300px;overflow:hidden;text-overflow:ellipsis;user-select:text;pointer-events:none;padding-bottom:4px;border-bottom:1px solid var(--theme-border)" title="${this.escapeHtml(label)}">${this.escapeHtml(label)}</div>`;
             if (contentText) {
-                items += `<div class="ctx-item" onclick="app.copyToClipboard(${JSON.stringify(contentText)});app.hideOutputContextMenu()">📋 ${this.t('CopyText') || 'Copy Text'}</div>`;
+                items += `<div class="ctx-item" onclick="app.copyToClipboard(${app.escapeHtmlAttr(JSON.stringify(contentText))});app.hideOutputContextMenu()">📋 ${this.t('CopyText') || 'Copy Text'}</div>`;
             }
         }
         items += `<div class="ctx-sep"></div>`;
@@ -8801,7 +8812,7 @@ const app = {
         }
         listView.innerHTML = filterLabel + items.map(item => {
             const evalBadge = this.evalBadgeHtml(item.evaluation || '');
-            return `<div class="history-item ${item.evaluation ? 'has-eval eval-' + item.evaluation : ''}" onclick="app.showHistoryDetail(${JSON.stringify(item.id)})">
+            return `<div class="history-item ${item.evaluation ? 'has-eval eval-' + item.evaluation : ''}" onclick="app.showHistoryDetail(${this.escapeHtmlAttr(JSON.stringify(item.id))})">
                 <div class="history-item-name">${evalBadge}${this.escapeHtml(item.pipelineName || '')}</div>
                 <div class="history-item-meta">
                     <span class="history-item-date">${this.escapeHtml((item.executedAt || item.startedAt || '').replace('T',' ').replace('Z',''))}</span>
@@ -9109,8 +9120,8 @@ const app = {
                 <span class="opt-ver-label">${this.escapeHtml(e.label || '')}</span>
                 <span class="opt-ver-date">${this.escapeHtml(ts)}</span>
                 <span class="opt-ver-actions">
-                    ${!isCurrent ? `<button class="opt-ver-btn" onclick="app.checkoutVersion(${JSON.stringify(payload.pipelineName)},${e.version})">Checkout</button>` : ''}
-                    ${e.version > 1 ? `<button class="opt-ver-btn" onclick="app.reapplyVersion(${JSON.stringify(payload.pipelineName)},${e.version})">Re-apply</button>` : ''}
+                    ${!isCurrent ? `<button class="opt-ver-btn" onclick="app.checkoutVersion(${this.escapeHtmlAttr(JSON.stringify(payload.pipelineName))},${e.version})">Checkout</button>` : ''}
+                    ${e.version > 1 ? `<button class="opt-ver-btn" onclick="app.reapplyVersion(${this.escapeHtmlAttr(JSON.stringify(payload.pipelineName))},${e.version})">Re-apply</button>` : ''}
                 </span>
             </div>`;
         }).join('');
@@ -11120,7 +11131,7 @@ const app = {
         const artifacts = step.artifacts || [];
         const artifactsHtml = artifacts.length > 0
             ? `<div style="font-size:10px;color:#888;margin:8px 8px 3px;border-bottom:1px solid #333;padding-bottom:2px">${this.t('Artifacts')}</div>` +
-              artifacts.map(a => `<div style="font-size:11px;padding:2px 8px">🔗 <a style="color:#4fc3f7" href="#" onclick="app.previewArtifact(${JSON.stringify(a)});return false">${this.escapeHtml(a.label || a.path || '')}</a></div>`).join('')
+              artifacts.map(a => `<div style="font-size:11px;padding:2px 8px">🔗 <a style="color:#4fc3f7" href="#" onclick="app.previewArtifact(${this.escapeHtmlAttr(JSON.stringify(a))});return false">${this.escapeHtml(a.label || a.path || '')}</a></div>`).join('')
             : '';
         const outputAttachments = step.outputAttachments || [];
 
@@ -13331,11 +13342,11 @@ Object.assign(app, {
                 const cancelBtn = (st === 'running' || st === 'queued')
                     ? `<button class="bt-hist-btn cancel-btn" onclick="app.cancelRun('${run.runId}')" title="Cancel">⏹</button>` : '';
                 const retryBtn = (st === 'failed' || st === 'cancelled') && fullPath
-                    ? `<button class="bt-hist-btn retry-btn" onclick="app.retryFromNode('${run.runId}',${JSON.stringify(fullPath)},${JSON.stringify(run.error||'')},${JSON.stringify(run.group||null)})" title="Retry from error node">↺</button>` : '';
+                    ? `<button class="bt-hist-btn retry-btn" onclick="app.retryFromNode('${run.runId}',${this.escapeHtmlAttr(JSON.stringify(fullPath))},${this.escapeHtmlAttr(JSON.stringify(run.error||''))},${this.escapeHtmlAttr(JSON.stringify(run.group||null))})" title="Retry from error node">↺</button>` : '';
                 const aiBtn = st === 'failed'
-                    ? `<button class="bt-hist-btn ai-btn" onclick="app.showAIFix('${run.runId}',${JSON.stringify(fullPath||'')},${JSON.stringify(run.error||'')})" title="AI Fix suggestion">🤖</button>` : '';
+                    ? `<button class="bt-hist-btn ai-btn" onclick="app.showAIFix('${run.runId}',${this.escapeHtmlAttr(JSON.stringify(fullPath||''))},${this.escapeHtmlAttr(JSON.stringify(run.error||''))})" title="AI Fix suggestion">🤖</button>` : '';
                 const editBtn = (st === 'failed' || st === 'cancelled') && fullPath
-                    ? `<button class="bt-hist-btn edit-btn" onclick="app.editBT(${JSON.stringify(fullPath)})" title="Edit BT">✏</button>` : '';
+                    ? `<button class="bt-hist-btn edit-btn" onclick="app.editBT(${this.escapeHtmlAttr(JSON.stringify(fullPath))})" title="Edit BT">✏</button>` : '';
 
                 return `<div class="bt-history-row ${st === 'running' ? 'is-running' : ''}">
                     <span class="bt-hist-icon" style="color:${iconColor}">${icon}</span>
@@ -13358,9 +13369,9 @@ Object.assign(app, {
                         <span class="bt-panel-status-text" style="color:${dotColor};font-size:10px;font-weight:bold;margin-left:8px;opacity:0.85;text-transform:uppercase">${panelStatus}</span>
                     </div>
                     <div class="bt-panel-controls">
-                        <button class="bt-ctrl-btn play-btn" onclick="event.stopPropagation();app.startBTRun(${JSON.stringify(fullPath||'')})" title="Start new run">▶</button>
+                        <button class="bt-ctrl-btn play-btn" onclick="event.stopPropagation();app.startBTRun(${this.escapeHtmlAttr(JSON.stringify(fullPath||''))})" title="Start new run">▶</button>
                         <button class="bt-ctrl-btn stop-btn" onclick="event.stopPropagation();${stopOnclick}"${stopDisabled} title="Stop active run">⏹</button>
-                        <button class="bt-ctrl-btn retry-btn" onclick="event.stopPropagation();app.retryFromNode('',${JSON.stringify(fullPath||'')},'','')"${retryDisabled} title="Retry last failed">↺</button>
+                        <button class="bt-ctrl-btn retry-btn" onclick="event.stopPropagation();app.retryFromNode('',${this.escapeHtmlAttr(JSON.stringify(fullPath||''))},'','')"${retryDisabled} title="Retry last failed">↺</button>
                     </div>
                 </div>
                 <div class="bt-panel-body">
