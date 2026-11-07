@@ -1,0 +1,3 @@
+## 2024-11-13 - Implement data-i18n-aria-label for translated aria attributes
+**Learning:** Icon-only buttons used 'title' attributes for tooltips via 'data-i18n-title' but completely lacked screen-reader accessible 'aria-label's. The frontend uses a dynamic data-attribute based i18n system for translations.
+**Action:** Implemented a new 'data-i18n-aria-label' attribute parsing block in the 'applyTranslations' loop in app.js, and appended both 'aria-label' and 'data-i18n-aria-label' to icon-only buttons in index.html to ensure full screen reader support across multiple languages. Next time, always check if i18n systems natively support ARIA attributes before applying static aria-labels.
