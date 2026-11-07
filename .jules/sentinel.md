@@ -1,0 +1,4 @@
+## 2025-02-18 - JSON.stringify XSS in DOM Event Handlers
+**Vulnerability:** XSS via directly injecting `JSON.stringify` payloads into HTML string templates for `onclick` attributes without proper attribute encoding. The `JSON.stringify` result often contains double quotes (`"`) which can break the attribute value boundary if the attribute itself is wrapped in double quotes.
+**Learning:** `JSON.stringify` produces valid JSON but not valid HTML attribute text. Standard `escapeHtml` functions do not always escape single (`'`) or double (`"`) quotes. Unescaped quotes inside stringified objects can truncate the `onclick` handler and allow arbitrary script execution when parsing the malformed tag.
+**Prevention:** Use a dedicated `escapeHtmlAttr` function (which escapes `&`, `<`, `>`, `"`, and `'`) to wrap any variable, especially JSON strings, being interpolated into an HTML attribute.
