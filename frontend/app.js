@@ -2556,8 +2556,11 @@ const app = {
     },
 
     filterRecipeSelectDialog() {
-        const q = document.getElementById('recipe-select-search')?.value || '';
-        this._renderRecipeSelectList(q);
+        if (this._filterRecipeSelectDialogTimeout) clearTimeout(this._filterRecipeSelectDialogTimeout);
+        this._filterRecipeSelectDialogTimeout = setTimeout(() => {
+            const q = document.getElementById('recipe-select-search')?.value || '';
+            this._renderRecipeSelectList(q);
+        }, 150);
     },
 
     _classifyRecipeProvider(recipe) {
@@ -11594,18 +11597,21 @@ const app = {
     },
 
     filterProjectList() {
-        const searchInput = document.getElementById('project-list-search');
-        const query = (searchInput?.value || '').toLowerCase().trim();
-        
-        if (!query) {
-            this._filteredProjects = this._allProjects.slice();
-        } else {
-            this._filteredProjects = this._allProjects.filter(p => 
-                p.name.toLowerCase().includes(query) || 
-                p.path.toLowerCase().includes(query)
-            );
-        }
-        this.renderProjectList();
+        if (this._filterProjectListTimeout) clearTimeout(this._filterProjectListTimeout);
+        this._filterProjectListTimeout = setTimeout(() => {
+            const searchInput = document.getElementById('project-list-search');
+            const query = (searchInput?.value || '').toLowerCase().trim();
+
+            if (!query) {
+                this._filteredProjects = this._allProjects.slice();
+            } else {
+                this._filteredProjects = this._allProjects.filter(p =>
+                    p.name.toLowerCase().includes(query) ||
+                    p.path.toLowerCase().includes(query)
+                );
+            }
+            this.renderProjectList();
+        }, 150);
     },
 
     _selectProjectItem(el, name) {
